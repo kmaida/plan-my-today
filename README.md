@@ -96,7 +96,11 @@ You should see:
 🛠️  Available Tools: keycard-logo, whoami
 ```
 
-### 4. Configure Cursor IDE
+### 4. Use tunnel for local dev
+
+In order for Keycard to complete the token exchange with Google, the MCP server must be publicly accessible. Use Ngrok, Cloudflared, or another tunneling service. Try to use the same tunnel URL, otherwise settings will need to be updated in Keycard and in project files every time the tunnel changes.
+
+### 5. Configure Cursor IDE
 
 Add to your Cursor MCP settings:
 
@@ -104,18 +108,18 @@ Add to your Cursor MCP settings:
 {
   "mcpServers": {
     "keycard-hello-mcp": {
-      "url": "http://localhost:8888/mcp"
+      "url": "<https://unpreferable-cropless-dede.ngrok-free.dev>/mcp"
     }
   }
 }
 ```
 
-### 5. Test Authentication
+### 6. Test Authentication
 
 1. **Restart Cursor** to pick up the new MCP server
 2. **Cursor will show "needs login"** for the server
 3. **Click to authenticate** → complete OAuth flow
-4. **Use the tools**: `keycard-logo`, `whoami`
+4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`
 
 ## 🛠️ Available Tools
 
@@ -163,6 +167,8 @@ Google Calendar access token. Make sure the Keycard client you configured:
 
 If you see `invalid_grant` or "Client is not allowed to exchange token for this resource",
 recheck the client permissions in the Keycard Console and confirm your issuer/zone.
+
+If you receive token exchange errors and are running the MCP server on localhost, use a tunnel to expose a public URL for the MCP server.
 
 ### Multi-Tenant Configuration
 
