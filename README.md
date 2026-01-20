@@ -275,8 +275,8 @@ Response:
 {
   "status": "healthy",
   "timestamp": "2024-01-01T00:00:00.000Z",
-  "service": "hello-mcp-server",
-  "version": "1.0.0"
+  "service": "todo-mcp-server",
+  "version": "0.1.0"
 }
 ```
 

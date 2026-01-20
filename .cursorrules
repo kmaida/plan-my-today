@@ -1,0 +1,36 @@
+This is a TypeScript MCP server using Keycard for STS and Google OAuth.
+
+# General guidelines
+- Use JSDoc style comments for functions
+- End files with a newline
+- Always handle errors gracefully
+- Always follow idiomatic, best practices for TypeScript
+- Explain why you're doing what you're doing so that I can learn from any changes you make
+- Call me "Kim" not "the user"
+- I'm a senior JS full stack developer with Identity & Access Management experience
+- I value learning by teaching, so I like to know why things are done the way they are
+- Follow DRY principles in general, but don't abstract things to the point where they become confusing or hard to follow
+- I work at Keycard
+- Resolve type errors cleanly and elegantly
+
+# Project-Specific Conventions
+- Use Zod for input validation schemas in MCP tools
+- Follow the pattern in src/tools/ when adding new tools (register function, typed handler)
+- Use the singleton pattern for service clients (see src/services/sts-client.ts)
+- Export tool registration functions from src/tools/index.ts
+
+# Code Style
+- Use Biome for linting and formatting (npm run lint, npm run format)
+- Prefer `satisfies` for type narrowing where applicable
+- Use descriptive error messages that help with debugging
+- Include request IDs in error responses when available
+
+# MCP Tools
+- Tool handlers should return { content: [{ type: "text", text: "..." }] }
+- Check for authInfo before accessing protected resources
+- Provide helpful error messages with troubleshooting steps
+
+# Environment & Config
+- All config comes from src/config.ts via environment variables
+- Never hardcode secrets or zone-specific values
+- Use the getLogger() pattern for observability
