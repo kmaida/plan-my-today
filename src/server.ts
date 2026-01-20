@@ -29,7 +29,7 @@ const sessionServers: {
  */
 function createMcpServerForSession(): McpServer {
   const mcpServer: McpServer = new McpServerImpl({
-    name: "hello-mcp-server",
+    name: "todo-mcp-server",
     version: "1.0.0",
   });
 
@@ -137,8 +137,25 @@ export function createApp(): express.Application {
         return res.status(500).json({ error: "Failed to initialize MCP session" });
       }
     } else {
-      logger.warn("No sessionId found and not an initialize request");
-      return res.status(400).json({ error: "Invalid request" });
+      logger.warn("No valid session found; falling back to stateless transport");
+
+      const mcpServer = createMcpServerForSession();
+      const transport = new StreamableHTTPServerTransportImpl({
+        sessionIdGenerator: undefined,
+      });
+
+      sessionData = { transport };
+
+      try {
+        await mcpServer.connect(transport);
+        logger.debug("MCP server connected to stateless transport successfully");
+      } catch (error) {
+        logger.error("Failed to connect MCP server to stateless transport", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        return res.status(500).json({ error: "Failed to initialize MCP session" });
+      }
     }
 
     const { transport } = sessionData;

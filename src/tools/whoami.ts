@@ -37,7 +37,7 @@ export function registerWhoamiTool(mcpServer: McpServer): void {
             const payloadBase64 = tokenParts[1];
             // Add padding if necessary
             const paddedPayload = payloadBase64 + '='.repeat((4 - payloadBase64.length % 4) % 4);
-            const decodedPayload = JSON.parse(atob(paddedPayload));
+            const decodedPayload = JSON.parse(Buffer.from(paddedPayload, 'base64').toString('utf8'));
             jwtPayload = parseJWTPayload(decodedPayload);
           }
         } catch (error) {

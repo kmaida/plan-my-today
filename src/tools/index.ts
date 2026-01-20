@@ -1,6 +1,7 @@
 import type { McpServer } from "../types/index";
 import { registerLogoTool } from "./logo";
 import { registerWhoamiTool } from "./whoami";
+import { registerCalendarTool } from "./calendar";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -8,6 +9,7 @@ import { registerWhoamiTool } from "./whoami";
 const TOOL_REGISTRY = [
   { name: "keycard-logo", register: registerLogoTool },
   { name: "whoami", register: registerWhoamiTool },
+  { name: "list-calendar-events", register: registerCalendarTool },
 ] as const;
 
 /**

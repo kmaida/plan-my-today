@@ -61,6 +61,10 @@ Create a `.env` file:
 # Required: Your Keycard STS issuer URL
 KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud
 
+# Required for token exchange (e.g., calendar tool)
+KEYCARD_CLIENT_ID=your-client-id
+KEYCARD_CLIENT_SECRET=your-client-secret
+
 # Optional: Server configuration
 PORT=8888
 HOST=localhost
@@ -125,6 +129,9 @@ Provides detailed information about the authenticated user including:
 - Token expiration and timing details
 - Custom claims and metadata
 
+### `list-calendar-events`
+Lists upcoming events from the user's Google Calendar within a time range.
+
 ## 🔧 Configuration
 
 ### Environment Variables
@@ -134,6 +141,8 @@ Provides detailed information about the authenticated user including:
 | `KEYCARD_STS_ISSUER_URL` | Keycard STS issuer URL (single-tenant mode) | - | ✅* |
 | `ISSUER_BASE_DOMAIN` | Base domain for STS (multi-tenant mode) | - | ✅* |
 | `MCP_BASE_DOMAIN` | Base domain for MCP server (multi-tenant mode) | - | ✅* |
+| `KEYCARD_CLIENT_ID` | Keycard client ID (token exchange) | - | ✅ for token exchange |
+| `KEYCARD_CLIENT_SECRET` | Keycard client secret (token exchange) | - | ✅ for token exchange |
 | `PORT` | Server port | `8888` | |
 | `HOST` | Server host | `localhost` | |
 | `LOG_LEVEL` | Logging level | `INFO` | |
@@ -142,6 +151,18 @@ Provides detailed information about the authenticated user including:
 | `OTEL_ENVIRONMENT` | Environment for telemetry | `development` | |
 
 *Either `KEYCARD_STS_ISSUER_URL` (single-tenant) OR `ISSUER_BASE_DOMAIN` + `MCP_BASE_DOMAIN` (multi-tenant) is required.
+
+### Calendar Tool Setup
+
+The `list-calendar-events` tool uses Keycard STS token exchange to mint a
+Google Calendar access token. Make sure the Keycard client you configured:
+
+- Has token exchange enabled.
+- Is allowed to exchange for the resource `https://www.googleapis.com/calendar/v3`.
+- Has access to the scope `https://www.googleapis.com/auth/calendar.readonly`.
+
+If you see `invalid_grant` or "Client is not allowed to exchange token for this resource",
+recheck the client permissions in the Keycard Console and confirm your issuer/zone.
 
 ### Multi-Tenant Configuration
 

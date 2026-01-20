@@ -1,7 +1,7 @@
 {
-  "name": "hello-mcp",
-  "version": "1.0.0",
-  "description": "A polished, production-ready MCP server demonstrating Keycard's authentication and identity capabilities.",
+  "name": "todo-mcp-server",
+  "version": "0.0.1",
+  "description": "An MCP server for a todo app",
   "license": "Apache-2.0",
   "author": "Keycard AI",
   "type": "commonjs",

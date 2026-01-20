@@ -10,6 +10,8 @@ export interface ServerConfig {
   keycardStsIssuerUrl: string;
   issuerBaseDomain: string;
   mcpBaseDomain: string;
+  keycardClientId: string;
+  keycardClientSecret: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -40,11 +42,19 @@ export function getConfig(): ServerConfig {
   const ISSUER_BASE_DOMAIN = process.env.ISSUER_BASE_DOMAIN;
   const MCP_BASE_DOMAIN = process.env.MCP_BASE_DOMAIN;
 
+  // Keycard client ID and secret are required for the MCP server to authenticate with Keycard
+  const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
+  const KEYCARD_CLIENT_SECRET = process.env.KEYCARD_CLIENT_SECRET; 
+
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "hello-mcp-server";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "1.0.0";
   const ENVIRONMENT = process.env.OTEL_ENVIRONMENT || process.env.NODE_ENV || "development";
   const ENABLE_OTEL = process.env.ENABLE_OTEL !== "false";
   const OTLP_ENDPOINT = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318";
+  
+  if (!KEYCARD_CLIENT_ID || !KEYCARD_CLIENT_SECRET) {
+    console.warn("⚠️  KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET not set - token exchange will not work");
+  }
 
   // For backward compatibility, KEYCARD_STS_ISSUER_URL is still required in single-tenant mode
   // In multi-tenant mode, ISSUER_BASE_DOMAIN and MCP_BASE_DOMAIN are required
@@ -77,6 +87,8 @@ export function getConfig(): ServerConfig {
     keycardStsIssuerUrl: KEYCARD_STS_ISSUER_URL || '', // Fallback for multi-tenant mode
     issuerBaseDomain: ISSUER_BASE_DOMAIN || '',
     mcpBaseDomain: MCP_BASE_DOMAIN || '',
+    keycardClientId: KEYCARD_CLIENT_ID || '',
+    keycardClientSecret: KEYCARD_CLIENT_SECRET || '',
     observability: {
       serviceName: SERVICE_NAME,
       serviceVersion: SERVICE_VERSION,
