@@ -119,7 +119,7 @@ Add to your Cursor MCP settings:
 1. **Restart Cursor** to pick up the new MCP server
 2. **Cursor will show "needs login"** for the server
 3. **Click to authenticate** → complete OAuth flow
-4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`
+4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`, `list-linear-issues`
 
 ## 🛠️ Available Tools
 
@@ -135,6 +135,9 @@ Provides detailed information about the authenticated user including:
 
 ### `list-calendar-events`
 Lists upcoming events from the user's Google Calendar within a time range.
+
+### `list-linear-issues`
+Fetches issues assigned to you from Linear, grouped by status (In Progress, To Do, Backlog, etc.). Includes priority indicators, due dates with urgency warnings, and project/team info.
 
 ## 🔧 Configuration
 
@@ -167,6 +170,19 @@ Google Calendar access token. Make sure the Keycard client you configured:
 
 If you see `invalid_grant` or "Client is not allowed to exchange token for this resource",
 recheck the client permissions in the Keycard Console and confirm your issuer/zone.
+
+### Linear Tool Setup
+
+The `list-linear-issues` tool uses Keycard STS token exchange to mint a
+Linear access token. Make sure:
+
+1. **Linear OAuth App**: Create an OAuth app in Linear (Settings → API → OAuth Applications)
+2. **Keycard Credential Provider**: Add Linear as a credential provider in your Keycard zone
+3. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
+   - Resource: `https://api.linear.app`
+   - Scope: `read`
+
+If you see token exchange errors, verify the Linear credential provider is properly connected in Keycard.
 
 If you receive token exchange errors and are running the MCP server on localhost, use a tunnel to expose a public URL for the MCP server.
 
