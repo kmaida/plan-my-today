@@ -3,6 +3,8 @@ import { registerLogoTool } from "./logo";
 import { registerWhoamiTool } from "./whoami";
 import { registerCalendarTool } from "./calendar";
 import { registerLinearTool } from "./linear";
+import { registerAssignedActionsTool } from "./assigned-actions";
+import { registerDriveActivityTool } from "./drive-activity";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -12,6 +14,8 @@ const TOOL_REGISTRY = [
   { name: "whoami", register: registerWhoamiTool },
   { name: "list-calendar-events", register: registerCalendarTool },
   { name: "list-linear-issues", register: registerLinearTool },
+  { name: "list-assigned-actions", register: registerAssignedActionsTool },
+  { name: "list-drive-activity", register: registerDriveActivityTool },
 ] as const;
 
 /**

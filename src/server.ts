@@ -30,7 +30,7 @@ const sessionServers: {
 function createMcpServerForSession(): McpServer {
   const mcpServer: McpServer = new McpServerImpl({
     name: "todo-mcp-server",
-    version: "1.0.0",
+    version: "0.1.0",
   });
 
   // Register all available tools for this session
@@ -69,7 +69,7 @@ export function createApp(): express.Application {
         }
       },
       scopesSupported: ['mcp:tools'],
-      resourceName: "Hello MCP Server",
+      resourceName: "Todo MCP Server",
     };
     app.use(mcpAuthMetadataRouter(multiTenantOptions));
   } else {
@@ -79,7 +79,7 @@ export function createApp(): express.Application {
         issuer: config.keycardStsIssuerUrl
       },
       scopesSupported: ['mcp:tools'],
-      resourceName: "Hello MCP Server",
+      resourceName: "Todo MCP Server",
     };
     app.use(mcpAuthMetadataRouter(singleTenantOptions));
   }
