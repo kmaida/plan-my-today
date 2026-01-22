@@ -21,6 +21,9 @@ const driveActivityInputSchema = {
   includeComments: z.boolean()
     .describe("Include unresolved comments on files (default: true)")
     .optional(),
+  ownedOnly: z.boolean()
+    .describe("Only show files owned by you (default: true)")
+    .optional(),
 };
 
 /**
@@ -147,7 +150,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
     "list-drive-activity",
     {
       title: "List Drive Activity",
-      description: "Get recently modified Google Drive files and their unresolved comments. Use this when the user asks about recent documents, active files, or wants to see what's been worked on recently.",
+      description: "Get recently modified Google Drive files you own and their unresolved comments. Use this when the user asks about recent documents, active files, or wants to see what's been worked on recently.",
       inputSchema: driveActivityInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -173,12 +176,14 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         const maxResults = args.maxResults || 10;
         const fileType = args.fileType || "all";
         const includeComments = args.includeComments !== false; // default true
+        const ownedOnly = args.ownedOnly !== false; // default true
 
         const modifiedAfter = new Date();
         modifiedAfter.setDate(modifiedAfter.getDate() - daysBack);
 
         const mimeTypeQuery = getMimeTypeQuery(fileType);
-        const query = `${mimeTypeQuery} and modifiedTime > '${modifiedAfter.toISOString()}' and trashed = false`;
+        const ownerFilter = ownedOnly ? " and 'me' in owners" : "";
+        const query = `${mimeTypeQuery} and modifiedTime > '${modifiedAfter.toISOString()}' and trashed = false${ownerFilter}`;
 
         // Query Drive API for recently modified files
         const filesResponse = await fetch(
@@ -210,10 +215,11 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         const files = data.files || [];
 
         if (files.length === 0) {
+          const ownershipText = ownedOnly ? "that you own " : "";
           return {
             content: [{
               type: "text",
-              text: `📁 No ${fileType === "all" ? "" : fileType + " "}files modified in the last ${daysBack} days.`
+              text: `📁 No ${fileType === "all" ? "" : fileType + " "}files ${ownershipText}modified in the last ${daysBack} days.`
             }]
           };
         }
