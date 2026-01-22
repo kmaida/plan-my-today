@@ -75,7 +75,35 @@ export function registerCalendarTool(mcpServer: McpServer): void {
           };
         }
 
-        const data = await calendarResponse.json() as { items?: Array<{ summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string }; location?: string }> };
+        interface CalendarEvent {
+          summary?: string;
+          description?: string;
+          start?: { dateTime?: string; date?: string };
+          end?: { dateTime?: string; date?: string };
+          location?: string;
+          htmlLink?: string;
+          hangoutLink?: string;
+          conferenceData?: {
+            entryPoints?: Array<{
+              entryPointType?: string;
+              uri?: string;
+            }>;
+          };
+          attendees?: Array<{
+            email?: string;
+            displayName?: string;
+            self?: boolean;
+            organizer?: boolean;
+            responseStatus?: string;
+          }>;
+          organizer?: {
+            email?: string;
+            displayName?: string;
+            self?: boolean;
+          };
+        }
+
+        const data = await calendarResponse.json() as { items?: CalendarEvent[] };
         const events = data.items || [];
 
         if (events.length === 0) {
@@ -90,10 +118,68 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         // Format events for display
         let output = `📅 **Upcoming Events** (${events.length}):\n\n`;
         for (const event of events) {
-          const start = event.start?.dateTime || event.start?.date || "Unknown";
+          const startRaw = event.start?.dateTime || event.start?.date || "";
+          const isAllDay = !event.start?.dateTime;
           const title = event.summary || "Untitled";
-          const location = event.location ? ` 📍 ${event.location}` : "";
-          output += `• **${title}**\n  ${start}${location}\n\n`;
+          
+          // Format time nicely
+          let timeStr = "";
+          if (isAllDay) {
+            timeStr = "All day";
+          } else if (startRaw) {
+            const startDate = new Date(startRaw);
+            timeStr = startDate.toLocaleTimeString("en-US", { 
+              hour: "numeric", 
+              minute: "2-digit",
+              hour12: true 
+            });
+          }
+
+          // Get meeting link (prefer conferenceData, fall back to hangoutLink)
+          let meetingLink = "";
+          if (event.conferenceData?.entryPoints) {
+            const videoEntry = event.conferenceData.entryPoints.find(
+              ep => ep.entryPointType === "video"
+            );
+            if (videoEntry?.uri) {
+              meetingLink = videoEntry.uri;
+            }
+          } else if (event.hangoutLink) {
+            meetingLink = event.hangoutLink;
+          }
+
+          // Get attendees (exclude self, limit to 3)
+          const otherAttendees = (event.attendees || [])
+            .filter(a => !a.self)
+            .slice(0, 3);
+          const attendeeNames = otherAttendees
+            .map(a => a.displayName || a.email?.split("@")[0] || "")
+            .filter(Boolean);
+          const hasMoreAttendees = (event.attendees || []).filter(a => !a.self).length > 3;
+
+          // Build output
+          output += `• 📅 **${title}**\n`;
+          output += `  ${timeStr}`;
+          
+          if (attendeeNames.length > 0) {
+            output += ` · with ${attendeeNames.join(", ")}`;
+            if (hasMoreAttendees) output += " +more";
+          }
+          output += `\n`;
+
+          if (event.location) {
+            output += `  📍 ${event.location}\n`;
+          }
+          
+          if (meetingLink) {
+            output += `  🔗 ${meetingLink}\n`;
+          }
+          
+          if (event.htmlLink) {
+            output += `  📎 ${event.htmlLink}\n`;
+          }
+          
+          output += `\n`;
         }
 
         return {

@@ -33,6 +33,7 @@ async function fetchMyIssues(
             description
             priority
             priorityLabel
+            url
             state {
               name
               type
@@ -202,13 +203,13 @@ export function registerLinearTool(mcpServer: McpServer): void {
             const dueDate = formatDueDate(issue.dueDate);
             const estimate = issue.estimate ? `[${issue.estimate}pts]` : "";
             const project = issue.project?.name ? `(${issue.project.name})` : "";
-            const team = issue.team?.name || "";
 
             output += `• **${issue.identifier}**: ${issue.title}\n`;
             output += `  ${priority} ${estimate} ${project}\n`;
             if (dueDate) {
               output += `  ${dueDate}\n`;
             }
+            output += `  🔗 ${issue.url}\n`;
             output += `\n`;
           }
         }
@@ -263,6 +264,7 @@ interface LinearIssue {
   description: string | null;
   priority: number;
   priorityLabel: string;
+  url: string;
   state: {
     name: string;
     type: string;
