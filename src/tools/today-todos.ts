@@ -658,6 +658,7 @@ interface TimelineItem {
     linear?: string;
     gmail?: string;
     docs?: string;
+    github?: string;
   };
 }
 
@@ -773,14 +774,14 @@ function suggestWorkForBlock(
       if (topAction.type === "doc") {
         const action = topAction.data as AssignedActionDetail;
         return {
-          title: "📄 Quick: Doc review",
+          title: "Quick: Doc review",
           description: `${action.fileTitle} (${action.actionType})`,
           links: action.fileLink ? { docs: action.fileLink } : {},
         };
       } else {
         const email = topAction.data as GmailMessageDetail;
         return {
-          title: "📧 Quick: Email triage",
+          title: "Quick: Email triage",
           description: email.subject,
           links: { gmail: email.link },
         };
@@ -1122,8 +1123,27 @@ function buildListOutput(timeline: TimelineItem[]): string {
       const mins = durationMinutes % 60;
       const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
       
-      // Use ⚫ for Linear tasks, ⏰ for other work
-      const blockEmoji = item.links.linear ? "⚫" : "⏰";
+      // Use context-appropriate emoji based on what the work block is for
+      let blockEmoji = "⏰"; // Default for general work
+      if (item.links.linear) {
+        blockEmoji = "⚫"; // Linear tasks
+      } else if (item.links.github) {
+        // GitHub items - determine emoji from URL pattern
+        const githubUrl = item.links.github;
+        if (githubUrl.includes("/pull/")) {
+          // Check if it's a review-requested PR (could check title or add metadata)
+          // For now, default to assigned PR emoji, but could be enhanced
+          blockEmoji = "🔀"; // Assigned PR (default)
+        } else if (githubUrl.includes("/issues/")) {
+          blockEmoji = "🐛"; // GitHub issue
+        } else {
+          blockEmoji = "🔀"; // Default GitHub
+        }
+      } else if (item.links.gmail) {
+        blockEmoji = "📧"; // Email tasks
+      } else if (item.links.docs) {
+        blockEmoji = "📝"; // Google Docs
+      }
       
       output += ` — WORK BLOCK (${durationStr})\n${blockEmoji} `;
       
@@ -1157,7 +1177,17 @@ function buildListOutput(timeline: TimelineItem[]): string {
       if (item.links.gmail && item.description) {
         output += `📧 [${item.description}](${item.links.gmail})`;
       } else if (item.links.docs && item.description) {
-        output += `📄 [${item.description}](${item.links.docs})`;
+        output += `📝 [${item.description}](${item.links.docs})`;
+      } else if (item.links.github && item.description) {
+        // GitHub items - determine emoji from URL
+        const githubUrl = item.links.github;
+        let githubEmoji = "🔀"; // Default
+        if (githubUrl.includes("/pull/")) {
+          githubEmoji = "🔀"; // PR (could be 👀 for review, but need more context)
+        } else if (githubUrl.includes("/issues/")) {
+          githubEmoji = "🐛"; // Issue
+        }
+        output += `${githubEmoji} [${item.description}](${item.links.github})`;
       } else {
         output += `${item.title}: ${item.description || ""}`;
       }
@@ -1329,16 +1359,31 @@ async function fetchGitHubTodos(accessToken: string): Promise<{
         html_url: string;
         draft: boolean;
         updated_at: string;
-        repository: { full_name: string };
+        repository?: { full_name: string };
+        base?: { repo?: { full_name: string } };
+        head?: { repo?: { full_name: string } };
       }>;
 
       for (const pr of assignedPRs) {
+        // Extract repo name with fallbacks
+        let repo = pr.repository?.full_name;
+        if (!repo && pr.base?.repo?.full_name) {
+          repo = pr.base.repo.full_name;
+        }
+        if (!repo && pr.head?.repo?.full_name) {
+          repo = pr.head.repo.full_name;
+        }
+        if (!repo && pr.html_url) {
+          const match = pr.html_url.match(/github\.com\/([^\/]+\/[^\/]+)(?:\/pull|\/pulls)/);
+          repo = match ? match[1] : "unknown";
+        }
+        
         prs.push({
           id: pr.number,
           number: pr.number,
           title: pr.title,
           url: pr.html_url,
-          repo: pr.repository.full_name,
+          repo: repo || "unknown",
           type: "assigned",
           updatedAt: pr.updated_at,
           isDraft: pr.draft,
@@ -1362,16 +1407,31 @@ async function fetchGitHubTodos(accessToken: string): Promise<{
         html_url: string;
         draft: boolean;
         updated_at: string;
-        repository: { full_name: string };
+        repository?: { full_name: string };
+        base?: { repo?: { full_name: string } };
+        head?: { repo?: { full_name: string } };
       }>;
 
       for (const pr of reviewPRs) {
+        // Extract repo name with fallbacks
+        let repo = pr.repository?.full_name;
+        if (!repo && pr.base?.repo?.full_name) {
+          repo = pr.base.repo.full_name;
+        }
+        if (!repo && pr.head?.repo?.full_name) {
+          repo = pr.head.repo.full_name;
+        }
+        if (!repo && pr.html_url) {
+          const match = pr.html_url.match(/github\.com\/([^\/]+\/[^\/]+)(?:\/pull|\/pulls)/);
+          repo = match ? match[1] : "unknown";
+        }
+        
         prs.push({
           id: pr.number,
           number: pr.number,
           title: pr.title,
           url: pr.html_url,
-          repo: pr.repository.full_name,
+          repo: repo || "unknown",
           type: "review",
           updatedAt: pr.updated_at,
           isDraft: pr.draft,
@@ -1568,16 +1628,11 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         );
 
         // Filter timeline to show only remaining items if requested
-        // Only filter out past meetings; keep work blocks and other items even if time has passed
         const now = new Date();
         if (showOnlyRemaining) {
           timeline = timeline.filter(item => {
-            // Only filter out meetings that have ended
-            if (item.type === "meeting" && item.end < now) {
-              return false;
-            }
-            // Keep all other items (work blocks, focus blocks, etc.) even if time has passed
-            return true;
+            // Filter out all items that have ended (meetings, work blocks, focus blocks, etc.)
+            return item.end >= now;
           });
         }
 
@@ -1680,75 +1735,66 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
         }
         const unscheduledIssues = linearIssues.filter(i => !scheduledIssueIds.has(i.identifier));
-        if (unscheduledIssues.length > 0) {
+        const hasOtherTasks = unscheduledIssues.length > 0 || githubPRs.length > 0 || githubIssues.length > 0;
+        
+        if (hasOtherTasks) {
           output += `---\n\n## 📌 Other Tasks (not scheduled today)\n\n`;
-          for (const issue of unscheduledIssues.slice(0, 5)) {
-            const dueStr = issue.dueDate 
-              ? `due ${new Date(issue.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
-              : "no due date";
-            output += `- [${issue.identifier}](${issue.url}): ${issue.title} (${dueStr})\n`;
-          }
-          if (unscheduledIssues.length > 5) {
-            output += `- ... and ${unscheduledIssues.length - 5} more\n`;
-          }
-          output += `\n`;
-        }
-
-        // GitHub PRs and Issues
-        if (githubPRs.length > 0 || githubIssues.length > 0) {
-          output += `---\n\n## 🔷 GitHub\n\n`;
           
+          // Linear issues - always use black circle emoji
+          if (unscheduledIssues.length > 0) {
+            for (const issue of unscheduledIssues.slice(0, 5)) {
+              const dueStr = issue.dueDate 
+                ? `due ${new Date(issue.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
+                : "no due date";
+              output += `- ⚫ [${issue.identifier}](${issue.url}): ${issue.title} (${dueStr})\n`;
+            }
+            if (unscheduledIssues.length > 5) {
+              output += `- ... and ${unscheduledIssues.length - 5} more Linear issues\n`;
+            }
+            if (githubPRs.length > 0 || githubIssues.length > 0) {
+              output += `\n`;
+            }
+          }
+          
+          // GitHub PRs and Issues
           // Show review-requested PRs first (usually more urgent)
           const reviewPRs = githubPRs.filter(pr => pr.type === "review");
           if (reviewPRs.length > 0) {
-            output += `### 👀 PRs Requesting Review (${reviewPRs.length})\n\n`;
-            for (const pr of reviewPRs.slice(0, 5)) {
+            for (const pr of reviewPRs) {
               const draft = pr.isDraft ? "📝 [DRAFT] " : "";
               const updated = new Date(pr.updatedAt);
               const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
               const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
-              output += `- ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
+              output += `- 👀 ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
             }
-            if (reviewPRs.length > 5) {
-              output += `- ... and ${reviewPRs.length - 5} more\n`;
-            }
-            output += `\n`;
           }
 
           // Then assigned PRs
           const assignedPRs = githubPRs.filter(pr => pr.type === "assigned");
           if (assignedPRs.length > 0) {
-            output += `### 🔀 Assigned PRs (${assignedPRs.length})\n\n`;
-            for (const pr of assignedPRs.slice(0, 5)) {
+            for (const pr of assignedPRs) {
               const draft = pr.isDraft ? "📝 [DRAFT] " : "";
               const updated = new Date(pr.updatedAt);
               const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
               const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
-              output += `- ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
+              output += `- 🔀 ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
             }
-            if (assignedPRs.length > 5) {
-              output += `- ... and ${assignedPRs.length - 5} more\n`;
-            }
-            output += `\n`;
           }
 
           // Then issues
           if (githubIssues.length > 0) {
-            output += `### 🐛 Assigned Issues (${githubIssues.length})\n\n`;
-            for (const issue of githubIssues.slice(0, 5)) {
+            for (const issue of githubIssues) {
               const updated = new Date(issue.updatedAt);
               const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
               const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
               const labels = issue.labels && issue.labels.length > 0 
                 ? ` • ${issue.labels.slice(0, 3).map(l => `\`${l}\``).join(", ")}`
                 : "";
-              output += `- [${issue.repo}#${issue.number}](${issue.url}): ${issue.title} (updated ${timeAgo}${labels})\n`;
+              output += `- 🐛 [${issue.repo}#${issue.number}](${issue.url}): ${issue.title} (updated ${timeAgo}${labels})\n`;
             }
-            if (githubIssues.length > 5) {
-              output += `- ... and ${githubIssues.length - 5} more\n`;
-            }
-            output += `\n`;
           }
+          
+          output += `\n`;
         }
 
         if (errors.length > 0) {
