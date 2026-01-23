@@ -231,6 +231,26 @@ You can customize the search with:
 
 If you see token exchange errors, verify the Gmail credential provider is properly connected in Keycard.
 
+### GitHub Tool Setup
+
+The `list-github-todos` tool uses Keycard STS token exchange to mint a GitHub access token. Make sure:
+
+1. **GitHub OAuth App**: Create an OAuth app in GitHub (Settings → Developer settings → OAuth Apps)
+2. **Keycard Credential Provider**: Add GitHub as a credential provider in your Keycard zone
+3. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
+   - Resource: `https://api.github.com`
+   - Scopes: `repo`, `read:org`
+
+The tool fetches:
+- **Pull Requests**: PRs assigned to you or requesting your review
+- **Issues**: Open issues assigned to you
+
+You can customize the results with:
+- `includePRs`: Include pull requests (default: true)
+- `includeIssues`: Include issues (default: true)
+- `limit`: Maximum items per category (default: 10)
+
+If you see `invalid_target` or "unknown resource" errors, the GitHub resource is not registered in your Keycard zone. Follow the setup steps above to register GitHub as a credential provider and configure token exchange permissions.
 
 ### Multi-Tenant Configuration
 

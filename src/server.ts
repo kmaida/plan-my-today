@@ -30,11 +30,20 @@ const sessionServers: {
 function createMcpServerForSession(): McpServer {
   const mcpServer: McpServer = new McpServerImpl({
     name: "todo-mcp-server",
-    version: "0.1.0",
+    version: "0.1.1", // Bumped version to force Cursor cache refresh
   });
 
   // Register all available tools for this session
   registerAllTools(mcpServer);
+  
+  // Debug: Log registered tools to verify GitHub tool is included
+  const logger = getLogger().withOperation("tool_registration");
+  const registeredTools = getAvailableToolNames();
+  logger.debug("Tools registered for session", { 
+    toolCount: registeredTools.length,
+    tools: registeredTools.join(", "),
+    includesGithub: registeredTools.includes("list-github-todos")
+  });
 
   return mcpServer;
 }

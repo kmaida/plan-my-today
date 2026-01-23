@@ -1,4 +1,5 @@
 import type { McpServer } from "../types/index";
+import { getLogger } from "../observability/logger";
 import { registerLogoTool } from "./logo";
 import { registerWhoamiTool } from "./whoami";
 import { registerCalendarTool } from "./calendar";
@@ -6,6 +7,7 @@ import { registerLinearTool } from "./linear";
 import { registerAssignedActionsTool } from "./assigned-actions";
 import { registerDriveActivityTool } from "./drive-activity";
 import { registerGmailTool } from "./gmail";
+import { registerGithubTool } from "./github";
 import { registerTodayTodosTool } from "./today-todos";
 
 /**
@@ -19,6 +21,7 @@ export const TOOL_REGISTRY = [
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
   { name: "list-drive-activity", register: registerDriveActivityTool },
   { name: "list-gmail-todos", register: registerGmailTool },
+  { name: "list-github-todos", register: registerGithubTool },
   { name: "list-today-todos", register: registerTodayTodosTool },
 ] as const;
 
@@ -40,7 +43,12 @@ export function getAvailableToolNames(): string[] {
  */
 export function registerAllTools(mcpServer: McpServer): void {
   // Register all tools from the registry
-  TOOL_REGISTRY.forEach(({ register }) => {
+  TOOL_REGISTRY.forEach(({ name, register }) => {
     register(mcpServer);
+    // Debug logging to verify each tool is registered
+    if (name === "list-github-todos") {
+      const logger = getLogger();
+      logger.debug("GitHub tool registered successfully", { toolName: name });
+    }
   });
 }

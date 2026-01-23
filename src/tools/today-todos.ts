@@ -10,6 +10,8 @@ const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
 const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
+const GITHUB_RESOURCE = "https://api.github.com";
+const GITHUB_SCOPES = ["repo", "read:org"];
 
 /**
  * Input schema for the list-today-todos tool
@@ -26,6 +28,12 @@ const todayTodosInputSchema = {
     .optional(),
   includeAssignedActions: z.boolean()
     .describe("Include assigned actions from Google Docs (default: true)")
+    .optional(),
+  includeGithub: z.boolean()
+    .describe("Include GitHub PRs and issues (default: true)")
+    .optional(),
+  showOnlyRemaining: z.boolean()
+    .describe("Show only items that haven't passed yet based on current time (default: false). Use this when asking 'what do I have left to do?' or 'what's remaining?'")
     .optional(),
 };
 
@@ -265,6 +273,33 @@ interface AssignedActionDetail {
   fileLink: string | null;
   timestamp?: string; // When the comment/assignment was created
   isAssignment?: boolean; // True if assigned, false if just mentioned
+}
+
+/**
+ * GitHub PR detail
+ */
+interface GitHubPRDetail {
+  id: number;
+  number: number;
+  title: string;
+  url: string;
+  repo: string;
+  type: "assigned" | "review";
+  updatedAt: string;
+  isDraft: boolean;
+}
+
+/**
+ * GitHub Issue detail
+ */
+interface GitHubIssueDetail {
+  id: number;
+  number: number;
+  title: string;
+  url: string;
+  repo: string;
+  updatedAt: string;
+  labels?: string[];
 }
 
 /**
@@ -1224,6 +1259,166 @@ async function fetchAssignedActions(accessToken: string): Promise<AssignedAction
 }
 
 /**
+ * Gets the authenticated user's GitHub username
+ */
+async function getGitHubUsername(accessToken: string): Promise<string | null> {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "todo-mcp-server",
+  };
+
+  const response = await fetch("https://api.github.com/user", { headers });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const user = await response.json() as { login: string };
+  return user.login;
+}
+
+/**
+ * Fetches GitHub PRs and issues assigned to the user
+ */
+async function fetchGitHubTodos(accessToken: string): Promise<{
+  prs: GitHubPRDetail[];
+  issues: GitHubIssueDetail[];
+}> {
+  const username = await getGitHubUsername(accessToken);
+  if (!username) {
+    return { prs: [], issues: [] };
+  }
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": "todo-mcp-server",
+  };
+
+  const prs: GitHubPRDetail[] = [];
+  const issues: GitHubIssueDetail[] = [];
+
+  try {
+    // Fetch PRs assigned to the user
+    const assignedPRResponse = await fetch(
+      `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}&per_page=10&sort=updated`,
+      { headers }
+    );
+
+    // Fetch PRs requesting review
+    const reviewPRResponse = await fetch(
+      `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}&per_page=10&sort=updated`,
+      { headers }
+    );
+
+    // Fetch full PR details
+    if (assignedPRResponse.ok) {
+      const assignedData = await assignedPRResponse.json() as { items: Array<{ pull_request?: { url: string } }> };
+      const prPromises = assignedData.items
+        .filter(item => item.pull_request)
+        .map(item => {
+          const prUrl = item.pull_request!.url.replace("https://api.github.com/repos/", "");
+          return fetch(`https://api.github.com/repos/${prUrl}`, { headers })
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+        });
+      const assignedPRs = (await Promise.all(prPromises)).filter(Boolean) as Array<{
+        number: number;
+        title: string;
+        html_url: string;
+        draft: boolean;
+        updated_at: string;
+        repository: { full_name: string };
+      }>;
+
+      for (const pr of assignedPRs) {
+        prs.push({
+          id: pr.number,
+          number: pr.number,
+          title: pr.title,
+          url: pr.html_url,
+          repo: pr.repository.full_name,
+          type: "assigned",
+          updatedAt: pr.updated_at,
+          isDraft: pr.draft,
+        });
+      }
+    }
+
+    if (reviewPRResponse.ok) {
+      const reviewData = await reviewPRResponse.json() as { items: Array<{ pull_request?: { url: string } }> };
+      const prPromises = reviewData.items
+        .filter(item => item.pull_request)
+        .map(item => {
+          const prUrl = item.pull_request!.url.replace("https://api.github.com/repos/", "");
+          return fetch(`https://api.github.com/repos/${prUrl}`, { headers })
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+        });
+      const reviewPRs = (await Promise.all(prPromises)).filter(Boolean) as Array<{
+        number: number;
+        title: string;
+        html_url: string;
+        draft: boolean;
+        updated_at: string;
+        repository: { full_name: string };
+      }>;
+
+      for (const pr of reviewPRs) {
+        prs.push({
+          id: pr.number,
+          number: pr.number,
+          title: pr.title,
+          url: pr.html_url,
+          repo: pr.repository.full_name,
+          type: "review",
+          updatedAt: pr.updated_at,
+          isDraft: pr.draft,
+        });
+      }
+    }
+
+    // Fetch issues assigned to the user
+    const issuesResponse = await fetch(
+      `https://api.github.com/search/issues?q=is:issue+is:open+assignee:${username}&per_page=10&sort=updated`,
+      { headers }
+    );
+
+    if (issuesResponse.ok) {
+      const issuesData = await issuesResponse.json() as {
+        items: Array<{
+          number: number;
+          title: string;
+          html_url: string;
+          updated_at: string;
+          repository_url: string;
+          labels?: Array<{ name: string }>;
+        }>;
+      };
+
+      for (const issue of issuesData.items) {
+        const repoMatch = issue.repository_url.match(/repos\/([^/]+\/[^/]+)/);
+        const repo = repoMatch ? repoMatch[1] : "unknown";
+        issues.push({
+          id: issue.number,
+          number: issue.number,
+          title: issue.title,
+          url: issue.html_url,
+          repo,
+          updatedAt: issue.updated_at,
+          labels: issue.labels?.map(l => l.name),
+        });
+      }
+    }
+  } catch {
+    // Silently fail - GitHub is optional
+  }
+
+  return { prs, issues };
+}
+
+/**
  * Registers the list-today-todos tool with the MCP server
  *
  * This tool aggregates tasks from multiple sources:
@@ -1231,6 +1426,7 @@ async function fetchAssignedActions(accessToken: string): Promise<AssignedAction
  * - Linear issues due today or overdue
  * - Gmail emails needing attention
  * - Assigned actions from Google Docs
+ * - GitHub PRs and issues assigned to you
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -1239,7 +1435,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
     "list-today-todos",
     {
       title: "List Today's Todos",
-      description: "Get a comprehensive view of everything you need to do today, aggregated from Calendar, Linear, Gmail, and Google Docs. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', or 'show me my tasks'.",
+      description: "Get a comprehensive view of everything you need to do today, aggregated from Calendar, Linear, Gmail, Google Docs, and GitHub. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', 'show me my tasks', 'what do I have left to do?', or 'what's remaining?'.",
       inputSchema: todayTodosInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -1256,12 +1452,16 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
       const includeLinear = args.includeLinear ?? true;
       const includeGmail = args.includeGmail ?? true;
       const includeAssignedActions = args.includeAssignedActions ?? true;
+      const includeGithub = args.includeGithub ?? true;
+      const showOnlyRemaining = args.showOnlyRemaining ?? false;
 
       const errors: string[] = [];
       let calendarEvents: CalendarEventDetail[] = [];
       let linearIssues: LinearIssueDetail[] = [];
       let gmailTodos: GmailMessageDetail[] = [];
       let assignedActions: AssignedActionDetail[] = [];
+      let githubPRs: GitHubPRDetail[] = [];
+      let githubIssues: GitHubIssueDetail[] = [];
 
       try {
         // Fetch calendar events
@@ -1326,6 +1526,22 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
         }
 
+        // Fetch GitHub PRs and issues
+        if (includeGithub) {
+          try {
+            const githubToken = await stsClient.exchange(
+              authInfo,
+              GITHUB_RESOURCE,
+              GITHUB_SCOPES
+            );
+            const githubData = await fetchGitHubTodos(githubToken.access_token);
+            githubPRs = githubData.prs;
+            githubIssues = githubData.issues;
+          } catch (error) {
+            errors.push(`GitHub: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
+        }
+
         // Build table output with integrated recommendations
         // (today is already defined above, but normalize it for date comparisons)
         const todayNormalized = new Date(today);
@@ -1342,7 +1558,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         const categorizedIssues = categorizeIssues(linearIssues, todayNormalized);
 
         // Create unified timeline
-        const timeline = createUnifiedTimeline(
+        let timeline = createUnifiedTimeline(
           calendarEvents,
           timeBlocks,
           categorizedIssues,
@@ -1351,20 +1567,47 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           assignedActions
         );
 
+        // Filter timeline to show only remaining items if requested
+        // Only filter out past meetings; keep work blocks and other items even if time has passed
+        const now = new Date();
+        if (showOnlyRemaining) {
+          timeline = timeline.filter(item => {
+            // Only filter out meetings that have ended
+            if (item.type === "meeting" && item.end < now) {
+              return false;
+            }
+            // Keep all other items (work blocks, focus blocks, etc.) even if time has passed
+            return true;
+          });
+        }
+
         // Generate insights
         const themes = detectThemes(calendarEvents, linearIssues);
         const insights = generateProductivityInsights(calendarEvents, timeBlocks, linearIssues, categorizedIssues);
         const lookahead = generateLookahead(calendarEvents, gmailTodos, linearIssues);
         
-        // Calculate summary stats
-        const totalAvailableMinutes = timeBlocks.reduce((sum, block) => sum + block.durationMinutes, 0);
+        // Calculate summary stats for remaining items
+        const remainingTimeBlocks = showOnlyRemaining 
+          ? timeBlocks.filter(block => block.end >= now)
+          : timeBlocks;
+        const totalAvailableMinutes = remainingTimeBlocks.reduce((sum, block) => sum + block.durationMinutes, 0);
         const hours = Math.floor(totalAvailableMinutes / 60);
         const minutes = totalAvailableMinutes % 60;
-        // Count only actual meetings (not solo focus blocks)
+        // Count only actual meetings (not solo focus blocks) that are remaining
         const timedMeetings = timeline.filter(item => item.type === "meeting" && !item.title.includes("(All day)")).length;
         
         // Build output
         let output = `# 📅 ${todayStr}\n\n`;
+        
+        // Show current time if filtering
+        if (showOnlyRemaining) {
+          const currentTime = now.toLocaleTimeString("en-US", { 
+            hour: "numeric", 
+            minute: "2-digit", 
+            hour12: true 
+          });
+          output += `## ⏰ What's Left (as of ${currentTime})\n\n`;
+        }
         
         // Day Overview with focus areas
         const mainThemes = themes.filter(t => t.isMainFocus);
@@ -1377,7 +1620,11 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         }
         
         // Quick stats line
-        output += `📊 **${timedMeetings} meetings** · **${hours}h ${minutes}m focus time** · **${linearIssues.length} tasks** due within 7 days\n\n`;
+        if (showOnlyRemaining && timeline.length === 0) {
+          output += `🎉 **All done for today!** No remaining items scheduled.\n\n`;
+        } else {
+          output += `📊 **${timedMeetings} meeting${timedMeetings !== 1 ? "s" : ""} remaining** · **${hours}h ${minutes}m focus time left** · **${linearIssues.length} tasks** due within 7 days\n\n`;
+        }
         
         // Productivity Insights
         if (insights.length > 0) {
@@ -1392,8 +1639,17 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         }
         
         // Schedule
-        output += `## 📋 Your Day\n\n`;
-        output += buildListOutput(timeline);
+        if (showOnlyRemaining) {
+          output += `## 📋 What's Remaining\n\n`;
+        } else {
+          output += `## 📋 Your Day\n\n`;
+        }
+        
+        if (timeline.length === 0 && showOnlyRemaining) {
+          output += `✨ Nothing scheduled for the rest of today!\n\n`;
+        } else {
+          output += buildListOutput(timeline);
+        }
         
         // Lookahead / Prep
         if (lookahead.length > 0) {
@@ -1436,6 +1692,63 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             output += `- ... and ${unscheduledIssues.length - 5} more\n`;
           }
           output += `\n`;
+        }
+
+        // GitHub PRs and Issues
+        if (githubPRs.length > 0 || githubIssues.length > 0) {
+          output += `---\n\n## 🔷 GitHub\n\n`;
+          
+          // Show review-requested PRs first (usually more urgent)
+          const reviewPRs = githubPRs.filter(pr => pr.type === "review");
+          if (reviewPRs.length > 0) {
+            output += `### 👀 PRs Requesting Review (${reviewPRs.length})\n\n`;
+            for (const pr of reviewPRs.slice(0, 5)) {
+              const draft = pr.isDraft ? "📝 [DRAFT] " : "";
+              const updated = new Date(pr.updatedAt);
+              const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+              const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+              output += `- ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
+            }
+            if (reviewPRs.length > 5) {
+              output += `- ... and ${reviewPRs.length - 5} more\n`;
+            }
+            output += `\n`;
+          }
+
+          // Then assigned PRs
+          const assignedPRs = githubPRs.filter(pr => pr.type === "assigned");
+          if (assignedPRs.length > 0) {
+            output += `### 🔀 Assigned PRs (${assignedPRs.length})\n\n`;
+            for (const pr of assignedPRs.slice(0, 5)) {
+              const draft = pr.isDraft ? "📝 [DRAFT] " : "";
+              const updated = new Date(pr.updatedAt);
+              const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+              const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+              output += `- ${draft}[${pr.repo}#${pr.number}](${pr.url}): ${pr.title} (updated ${timeAgo})\n`;
+            }
+            if (assignedPRs.length > 5) {
+              output += `- ... and ${assignedPRs.length - 5} more\n`;
+            }
+            output += `\n`;
+          }
+
+          // Then issues
+          if (githubIssues.length > 0) {
+            output += `### 🐛 Assigned Issues (${githubIssues.length})\n\n`;
+            for (const issue of githubIssues.slice(0, 5)) {
+              const updated = new Date(issue.updatedAt);
+              const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+              const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+              const labels = issue.labels && issue.labels.length > 0 
+                ? ` • ${issue.labels.slice(0, 3).map(l => `\`${l}\``).join(", ")}`
+                : "";
+              output += `- [${issue.repo}#${issue.number}](${issue.url}): ${issue.title} (updated ${timeAgo}${labels})\n`;
+            }
+            if (githubIssues.length > 5) {
+              output += `- ... and ${githubIssues.length - 5} more\n`;
+            }
+            output += `\n`;
+          }
         }
 
         if (errors.length > 0) {
