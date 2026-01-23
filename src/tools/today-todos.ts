@@ -507,14 +507,24 @@ function generateProductivityInsights(
 }
 
 /**
+ * Lookahead item with text and optional link
+ */
+interface LookaheadItem {
+  text: string;
+  link?: string;
+  linkText?: string; // Custom text for the link (e.g., issue ID or email subject)
+}
+
+/**
  * Generates lookahead items for upcoming prep
  */
 function generateLookahead(
   calendarEvents: CalendarEventDetail[],
   gmailTodos: GmailMessageDetail[],
   linearIssues: LinearIssueDetail[]
-): string[] {
-  const lookahead: string[] = [];
+): LookaheadItem[] {
+  const lookahead: LookaheadItem[] = [];
+  const addedIssueIds = new Set<string>();
   
   // Check emails for future meeting mentions
   for (const email of gmailTodos) {
@@ -524,7 +534,13 @@ function generateLookahead(
       // Extract any date/time hints
       const futureMatch = email.subject.match(/\b(mon|tue|wed|thu|fri|sat|sun|tomorrow|next week)\b/i);
       if (futureMatch) {
-        lookahead.push(`📧 Prep for upcoming: ${email.subject.substring(0, 60)}...`);
+        // Clean up subject for display
+        const cleanSubject = email.subject.substring(0, 50).replace(/^(Accepted:|Invitation:)\s*/i, "");
+        lookahead.push({
+          text: `📧 Prep for upcoming:`,
+          link: email.link,
+          linkText: cleanSubject + (email.subject.length > 50 ? "..." : ""),
+        });
       }
     }
   }
@@ -534,12 +550,18 @@ function generateLookahead(
     const title = (event.summary || "").toLowerCase();
     // Find Linear issues that might relate to this meeting
     for (const issue of linearIssues) {
+      if (addedIssueIds.has(issue.identifier)) continue;
       const issueText = `${issue.title} ${issue.project?.name || ""}`.toLowerCase();
       // Simple keyword matching
       const eventWords = title.split(/\s+/).filter(w => w.length > 3);
       const hasOverlap = eventWords.some(word => issueText.includes(word));
-      if (hasOverlap && !lookahead.some(l => l.includes(issue.identifier))) {
-        lookahead.push(`💡 "${event.summary}" may relate to ${issue.identifier} - consider reviewing before the meeting`);
+      if (hasOverlap) {
+        lookahead.push({
+          text: `💡 "${event.summary}" relates to`,
+          link: issue.url,
+          linkText: issue.identifier,
+        });
+        addedIssueIds.add(issue.identifier);
       }
     }
   }
@@ -548,12 +570,18 @@ function generateLookahead(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   for (const issue of linearIssues) {
+    if (addedIssueIds.has(issue.identifier)) continue;
     if (issue.dueDate) {
       const due = new Date(issue.dueDate);
       const daysUntil = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       if (daysUntil > 0 && daysUntil <= 3) {
         const dayLabel = daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
-        lookahead.push(`📅 ${issue.identifier} is due ${dayLabel} - plan time accordingly`);
+        lookahead.push({
+          text: `📅 Due ${dayLabel}:`,
+          linkText: issue.identifier,
+          link: issue.url,
+        });
+        addedIssueIds.add(issue.identifier);
       }
     }
   }
@@ -881,12 +909,14 @@ function buildListOutput(timeline: TimelineItem[]): string {
     const durationMinutes = Math.round((item.end.getTime() - item.start.getTime()) / (1000 * 60));
     
     if (item.type === "meeting") {
-      // Calendar event
-      output += `📅 ${timeRange}: ${item.title}`;
+      // Calendar event - title links to calendar, Zoom appended if available
+      if (item.links.calendar) {
+        output += `📅 ${timeRange}: [${item.title}](${item.links.calendar})`;
+      } else {
+        output += `📅 ${timeRange}: ${item.title}`;
+      }
       if (item.links.zoom) {
-        output += ` [Join](${item.links.zoom})`;
-      } else if (item.links.calendar) {
-        output += ` [Calendar](${item.links.calendar})`;
+        output += ` | [Join](${item.links.zoom})`;
       }
       output += `\n`;
     } else if (item.type === "work") {
@@ -899,31 +929,41 @@ function buildListOutput(timeline: TimelineItem[]): string {
       const blockEmoji = item.links.linear ? "⚫" : "⏰";
       
       output += `\n${blockEmoji} ${timeRange} — WORK BLOCK (${durationStr})\n`;
-      output += `   ${item.title}`;
+      
+      // If there's a Linear link, make the issue ID in the title clickable
       if (item.links.linear) {
-        output += ` [Open](${item.links.linear})`;
+        // Replace issue ID in title with linked version
+        const issueMatch = item.links.linear.match(/issue\/([A-Z]+-\d+)/);
+        if (issueMatch) {
+          const issueId = issueMatch[1];
+          const linkedTitle = item.title.replace(issueId, `[${issueId}](${item.links.linear})`);
+          output += `   ${linkedTitle}\n`;
+        } else {
+          output += `   [${item.title}](${item.links.linear})\n`;
+        }
+      } else {
+        output += `   ${item.title}\n`;
       }
-      output += `\n`;
       if (item.description) {
-        output += `   ${item.description}\n`;
-      }
-      if (item.links.gmail) {
-        output += `   [Open email](${item.links.gmail})\n`;
-      }
-      if (item.links.docs) {
-        output += `   [Open doc](${item.links.docs})\n`;
+        // Make description a link if there's an email or doc link
+        if (item.links.gmail) {
+          output += `   [${item.description}](${item.links.gmail})\n`;
+        } else if (item.links.docs) {
+          output += `   [${item.description}](${item.links.docs})\n`;
+        } else {
+          output += `   ${item.description}\n`;
+        }
       }
       output += `\n`;
     } else {
-      // Email or action
-      output += `${item.title}: ${item.description || ""}`;
-      if (item.links.gmail) {
-        output += ` [Open](${item.links.gmail})`;
+      // Email or action - make description the link
+      if (item.links.gmail && item.description) {
+        output += `${item.title}: [${item.description}](${item.links.gmail})\n`;
+      } else if (item.links.docs && item.description) {
+        output += `${item.title}: [${item.description}](${item.links.docs})\n`;
+      } else {
+        output += `${item.title}: ${item.description || ""}\n`;
       }
-      if (item.links.docs) {
-        output += ` [Open](${item.links.docs})`;
-      }
-      output += `\n`;
     }
   }
   
@@ -1184,7 +1224,17 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         if (lookahead.length > 0) {
           output += `## 🔮 Looking Ahead\n\n`;
           for (const item of lookahead) {
-            output += `${item}\n`;
+            if (item.link) {
+              // Use provided linkText, or extract issue ID, or fall back to "View"
+              let linkText = item.linkText;
+              if (!linkText) {
+                const issueMatch = item.link.match(/issue\/([A-Z]+-\d+)/);
+                linkText = issueMatch ? issueMatch[1] : "View";
+              }
+              output += `${item.text} [${linkText}](${item.link})\n`;
+            } else {
+              output += `${item.text}\n`;
+            }
           }
           output += `\n`;
         }
@@ -1205,7 +1255,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             const dueStr = issue.dueDate 
               ? `due ${new Date(issue.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
               : "no due date";
-            output += `- ${issue.identifier}: ${issue.title} (${dueStr}) [Open](${issue.url})\n`;
+            output += `- [${issue.identifier}](${issue.url}): ${issue.title} (${dueStr})\n`;
           }
           if (unscheduledIssues.length > 5) {
             output += `- ... and ${unscheduledIssues.length - 5} more\n`;
