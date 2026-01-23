@@ -182,6 +182,8 @@ interface GmailMessageDetail {
   subject: string;
   from: string;
   link: string;
+  timestamp?: number; // Internal date from Gmail (Unix timestamp in milliseconds)
+  isImportant?: boolean; // Whether the email is marked as important
 }
 
 /**
@@ -234,6 +236,8 @@ async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[
     };
     snippet?: string;
     id: string;
+    internalDate?: string;
+    labelIds?: string[];
   }>;
 
   return messages.map(message => {
@@ -246,6 +250,8 @@ async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[
       subject: getHeader("subject") || "(No subject)",
       from: getHeader("from") || "Unknown",
       link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+      timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
+      isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
     };
   });
 }
@@ -257,6 +263,8 @@ interface AssignedActionDetail {
   fileTitle: string;
   actionType: string;
   fileLink: string | null;
+  timestamp?: string; // When the comment/assignment was created
+  isAssignment?: boolean; // True if assigned, false if just mentioned
 }
 
 /**
@@ -361,6 +369,7 @@ function categorizeIssues(issues: LinearIssueDetail[], today: Date) {
 
 /**
  * Detects themes/focus areas from meetings and tasks
+ * Merges similar themes to avoid duplication
  */
 function detectThemes(
   calendarEvents: CalendarEventDetail[],
@@ -380,6 +389,11 @@ function detectThemes(
     { pattern: /rsa|conference|booth/i, theme: "RSA Conference" },
   ];
   
+  // Helper to check if text matches any keyword pattern
+  const matchesKeywordPattern = (text: string): boolean => {
+    return keywordPatterns.some(({ pattern }) => pattern.test(text));
+  };
+  
   // Scan calendar events
   for (const event of calendarEvents) {
     const title = event.summary || "";
@@ -394,14 +408,19 @@ function detectThemes(
   // Scan Linear issues
   for (const issue of linearIssues) {
     const text = `${issue.title} ${issue.project?.name || ""}`;
+    let matchedKeyword = false;
+    
     for (const { pattern, theme } of keywordPatterns) {
       if (pattern.test(text)) {
         if (!themes.has(theme)) themes.set(theme, new Set());
         themes.get(theme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
+        matchedKeyword = true;
       }
     }
-    // Also group by project if available
-    if (issue.project?.name) {
+    
+    // Only add project theme if it doesn't overlap with keyword patterns
+    // This prevents "Messaging Framework v0.1" duplicating "Messaging Framework"
+    if (issue.project?.name && !matchesKeywordPattern(issue.project.name)) {
       const projectTheme = issue.project.name;
       if (!themes.has(projectTheme)) themes.set(projectTheme, new Set());
       themes.get(projectTheme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
@@ -595,7 +614,7 @@ function generateLookahead(
 interface TimelineItem {
   start: Date;
   end: Date;
-  type: "meeting" | "work" | "email" | "action";
+  type: "meeting" | "focus" | "work" | "email" | "action";
   title: string;
   description?: string;
   links: {
@@ -605,6 +624,57 @@ interface TimelineItem {
     gmail?: string;
     docs?: string;
   };
+}
+
+/**
+ * Calculates a priority score for quick action items (emails, doc comments)
+ * Higher score = higher priority
+ */
+function calculateQuickActionPriority(
+  item: { type: "email" | "doc"; timestamp?: string | number; isAssignment?: boolean; isImportant?: boolean },
+  now: Date
+): number {
+  let score = 0;
+  
+  // Base priority by type
+  if (item.type === "doc") {
+    // Assignments are more urgent than mentions
+    if (item.isAssignment) {
+      score += 100; // High priority for assignments
+    } else {
+      score += 50; // Medium priority for mentions
+    }
+  } else if (item.type === "email") {
+    score += 30; // Base priority for emails
+    if (item.isImportant) {
+      score += 20; // Boost for important emails
+    }
+  }
+  
+  // Recency boost: more recent = higher priority
+  let itemDate: Date | null = null;
+  if (item.timestamp) {
+    if (typeof item.timestamp === "string") {
+      itemDate = new Date(item.timestamp);
+    } else {
+      itemDate = new Date(item.timestamp);
+    }
+  }
+  
+  if (itemDate) {
+    const hoursAgo = (now.getTime() - itemDate.getTime()) / (1000 * 60 * 60);
+    // Items from last hour get big boost
+    if (hoursAgo < 1) {
+      score += 50;
+    } else if (hoursAgo < 4) {
+      score += 30;
+    } else if (hoursAgo < 24) {
+      score += 10;
+    }
+    // Items older than 24 hours get no recency boost
+  }
+  
+  return score;
 }
 
 /**
@@ -618,7 +688,7 @@ function suggestWorkForBlock(
   gmailTodos: GmailMessageDetail[],
   assignedActions: AssignedActionDetail[],
   usedIssueIds: Set<string> = new Set()
-): { title: string; description: string; links: TimelineItem["links"]; issueId?: string } | null {
+): { title: string; description?: string; links: TimelineItem["links"]; issueId?: string } | null {
   const { overdue, dueToday, highPriority, dueThisWeek, noDueDate } = categorizedIssues;
   const priorityEmojis: Record<number, string> = { 0: "⚪", 1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢" };
   
@@ -627,32 +697,66 @@ function suggestWorkForBlock(
     return issues.find(i => !usedIssueIds.has(i.identifier)) || null;
   };
   
-  // SHORT BLOCKS (< 30 min): Quick wins - emails, doc reviews, small tasks
+  // SHORT BLOCKS (< 30 min): Quick wins - prioritize by urgency and recency
   if (block.durationMinutes < 30) {
-    // Check for emails first
-    if (gmailTodos.length > 0) {
-      const email = gmailTodos[0];
-      return {
-        title: "📧 Quick: Email triage",
-        description: email.subject,
-        links: { gmail: email.link },
-      };
+    const now = new Date();
+    const quickActions: Array<{
+      type: "email" | "doc";
+      priority: number;
+      data: GmailMessageDetail | AssignedActionDetail;
+    }> = [];
+    
+    // Add doc actions with priority scores
+    for (const action of assignedActions) {
+      quickActions.push({
+        type: "doc",
+        priority: calculateQuickActionPriority(
+          { type: "doc", timestamp: action.timestamp, isAssignment: action.isAssignment },
+          now
+        ),
+        data: action,
+      });
     }
-    // Check for doc actions
-    if (assignedActions.length > 0) {
-      const action = assignedActions[0];
-      return {
-        title: "📄 Quick: Doc review",
-        description: `${action.fileTitle} (${action.actionType})`,
-        links: action.fileLink ? { docs: action.fileLink } : {},
-      };
+    
+    // Add emails with priority scores
+    for (const email of gmailTodos) {
+      quickActions.push({
+        type: "email",
+        priority: calculateQuickActionPriority(
+          { type: "email", timestamp: email.timestamp, isImportant: email.isImportant },
+          now
+        ),
+        data: email,
+      });
+    }
+    
+    // Sort by priority (highest first) and take the top item
+    if (quickActions.length > 0) {
+      quickActions.sort((a, b) => b.priority - a.priority);
+      const topAction = quickActions[0];
+      
+      if (topAction.type === "doc") {
+        const action = topAction.data as AssignedActionDetail;
+        return {
+          title: "📄 Quick: Doc review",
+          description: `${action.fileTitle} (${action.actionType})`,
+          links: action.fileLink ? { docs: action.fileLink } : {},
+        };
+      } else {
+        const email = topAction.data as GmailMessageDetail;
+        return {
+          title: "📧 Quick: Email triage",
+          description: email.subject,
+          links: { gmail: email.link },
+        };
+      }
     }
     // Small Linear issues (low estimate)
     const smallIssue = linearIssues.find(i => !usedIssueIds.has(i.identifier) && (i.estimate === null || i.estimate <= 1));
     if (smallIssue) {
       return {
-        title: `⚡ Quick: ${smallIssue.identifier}`,
-        description: smallIssue.title,
+        title: `${smallIssue.identifier} - ${smallIssue.title} (${priorityEmojis[smallIssue.priority] || "⚪"} ${smallIssue.priorityLabel})`,
+        description: undefined,
         links: { linear: smallIssue.url },
         issueId: smallIssue.identifier,
       };
@@ -665,8 +769,8 @@ function suggestWorkForBlock(
     const overdueIssue = findUnusedIssue(overdue);
     if (overdueIssue) {
       return {
-        title: `🚨 OVERDUE: ${overdueIssue.identifier}`,
-        description: `${overdueIssue.title} (${priorityEmojis[overdueIssue.priority] || "⚪"} ${overdueIssue.priorityLabel})`,
+        title: `🚨 OVERDUE: ${overdueIssue.identifier} - ${overdueIssue.title}`,
+        description: undefined,
         links: { linear: overdueIssue.url },
         issueId: overdueIssue.identifier,
       };
@@ -675,8 +779,8 @@ function suggestWorkForBlock(
     const dueTodayIssue = findUnusedIssue(dueToday);
     if (dueTodayIssue) {
       return {
-        title: `⏰ Due Today: ${dueTodayIssue.identifier}`,
-        description: `${dueTodayIssue.title} (${priorityEmojis[dueTodayIssue.priority] || "⚪"} ${dueTodayIssue.priorityLabel})`,
+        title: `${dueTodayIssue.identifier} - ${dueTodayIssue.title} (⏰ Due Today)`,
+        description: undefined,
         links: { linear: dueTodayIssue.url },
         issueId: dueTodayIssue.identifier,
       };
@@ -685,8 +789,8 @@ function suggestWorkForBlock(
     const mediumHighPriority = highPriority.find(i => !usedIssueIds.has(i.identifier) && (i.estimate === null || i.estimate <= 3));
     if (mediumHighPriority) {
       return {
-        title: `🔥 Focus: ${mediumHighPriority.identifier}`,
-        description: `${mediumHighPriority.title} (${priorityEmojis[mediumHighPriority.priority] || "⚪"} ${mediumHighPriority.priorityLabel})`,
+        title: `${mediumHighPriority.identifier} - ${mediumHighPriority.title} (${priorityEmojis[mediumHighPriority.priority] || "⚪"} ${mediumHighPriority.priorityLabel})`,
+        description: undefined,
         links: { linear: mediumHighPriority.url },
         issueId: mediumHighPriority.identifier,
       };
@@ -699,8 +803,8 @@ function suggestWorkForBlock(
     const overdueIssue = findUnusedIssue(overdue);
     if (overdueIssue) {
       return {
-        title: `🚨 OVERDUE: ${overdueIssue.identifier}`,
-        description: `${overdueIssue.title} (${priorityEmojis[overdueIssue.priority] || "⚪"} ${overdueIssue.priorityLabel})`,
+        title: `🚨 OVERDUE: ${overdueIssue.identifier} - ${overdueIssue.title}`,
+        description: undefined,
         links: { linear: overdueIssue.url },
         issueId: overdueIssue.identifier,
       };
@@ -709,8 +813,8 @@ function suggestWorkForBlock(
     const dueTodayIssue = findUnusedIssue(dueToday);
     if (dueTodayIssue) {
       return {
-        title: `⏰ Due Today: ${dueTodayIssue.identifier}`,
-        description: `${dueTodayIssue.title} (${priorityEmojis[dueTodayIssue.priority] || "⚪"} ${dueTodayIssue.priorityLabel})`,
+        title: `${dueTodayIssue.identifier} - ${dueTodayIssue.title} (⏰ Due Today)`,
+        description: undefined,
         links: { linear: dueTodayIssue.url },
         issueId: dueTodayIssue.identifier,
       };
@@ -719,8 +823,8 @@ function suggestWorkForBlock(
     const highPriorityIssue = findUnusedIssue(highPriority);
     if (highPriorityIssue) {
       return {
-        title: `🎯 Deep Work: ${highPriorityIssue.identifier}`,
-        description: `${highPriorityIssue.title} (${priorityEmojis[highPriorityIssue.priority] || "⚪"} ${highPriorityIssue.priorityLabel})`,
+        title: `${highPriorityIssue.identifier} - ${highPriorityIssue.title} (${priorityEmojis[highPriorityIssue.priority] || "⚪"} ${highPriorityIssue.priorityLabel})`,
+        description: undefined,
         links: { linear: highPriorityIssue.url },
         issueId: highPriorityIssue.identifier,
       };
@@ -729,8 +833,8 @@ function suggestWorkForBlock(
     const largeIssue = linearIssues.find(i => !usedIssueIds.has(i.identifier) && i.estimate !== null && i.estimate >= 3);
     if (largeIssue) {
       return {
-        title: `🎯 Deep Work: ${largeIssue.identifier}`,
-        description: `${largeIssue.title} (${largeIssue.estimate} pts)`,
+        title: `${largeIssue.identifier} - ${largeIssue.title} (${largeIssue.estimate} pts)`,
+        description: undefined,
         links: { linear: largeIssue.url },
         issueId: largeIssue.identifier,
       };
@@ -742,28 +846,62 @@ function suggestWorkForBlock(
   const fallbackIssue = fallbackOrder.find(i => !usedIssueIds.has(i.identifier));
   if (fallbackIssue) {
     return {
-      title: `📋 Work: ${fallbackIssue.identifier}`,
-      description: `${fallbackIssue.title} (${priorityEmojis[fallbackIssue.priority] || "⚪"} ${fallbackIssue.priorityLabel})`,
+      title: `${fallbackIssue.identifier} - ${fallbackIssue.title} (${priorityEmojis[fallbackIssue.priority] || "⚪"} ${fallbackIssue.priorityLabel})`,
+      description: undefined,
       links: { linear: fallbackIssue.url },
       issueId: fallbackIssue.identifier,
     };
   }
   
-  // Check remaining emails/docs
-  if (gmailTodos.length > 0) {
-    return {
-      title: "📧 Email review",
-      description: gmailTodos[0].subject,
-      links: { gmail: gmailTodos[0].link },
-    };
+  // Check remaining emails/docs - prioritize by urgency
+  const now = new Date();
+  const fallbackActions: Array<{
+    type: "email" | "doc";
+    priority: number;
+    data: GmailMessageDetail | AssignedActionDetail;
+  }> = [];
+  
+  for (const action of assignedActions) {
+    fallbackActions.push({
+      type: "doc",
+      priority: calculateQuickActionPriority(
+        { type: "doc", timestamp: action.timestamp, isAssignment: action.isAssignment },
+        now
+      ),
+      data: action,
+    });
   }
-  if (assignedActions.length > 0) {
-    const action = assignedActions[0];
-    return {
-      title: "📄 Doc action",
-      description: `${action.fileTitle} (${action.actionType})`,
-      links: action.fileLink ? { docs: action.fileLink } : {},
-    };
+  
+  for (const email of gmailTodos) {
+    fallbackActions.push({
+      type: "email",
+      priority: calculateQuickActionPriority(
+        { type: "email", timestamp: email.timestamp, isImportant: email.isImportant },
+        now
+      ),
+      data: email,
+    });
+  }
+  
+  if (fallbackActions.length > 0) {
+    fallbackActions.sort((a, b) => b.priority - a.priority);
+    const topAction = fallbackActions[0];
+    
+    if (topAction.type === "doc") {
+      const action = topAction.data as AssignedActionDetail;
+      return {
+        title: "📄 Doc action",
+        description: `${action.fileTitle} (${action.actionType})`,
+        links: action.fileLink ? { docs: action.fileLink } : {},
+      };
+    } else {
+      const email = topAction.data as GmailMessageDetail;
+      return {
+        title: "📧 Email review",
+        description: email.subject,
+        links: { gmail: email.link },
+      };
+    }
   }
   
   return null;
@@ -833,10 +971,15 @@ function createUnifiedTimeline(
       meetingLink = event.hangoutLink;
     }
     
+    // Check if this is a solo focus block (no attendees or only self)
+    const attendees = event.attendees || [];
+    const otherAttendees = attendees.filter(a => !a.self);
+    const isSoloFocusBlock = otherAttendees.length === 0 && !meetingLink;
+    
     timeline.push({
       start,
       end,
-      type: "meeting",
+      type: isSoloFocusBlock ? "focus" : "meeting",
       title: isAllDay ? `${title} (All day)` : title,
       description: event.location || undefined,
       links: {
@@ -903,22 +1046,41 @@ function buildListOutput(timeline: TimelineItem[]): string {
   
   let output = "";
   
-  for (const item of timeline) {
+  for (let i = 0; i < timeline.length; i++) {
+    const item = timeline[i];
     const isAllDay = item.title.includes("(All day)");
     const timeRange = formatTimeRange(item.start, item.end, isAllDay);
     const durationMinutes = Math.round((item.end.getTime() - item.start.getTime()) / (1000 * 60));
     
+    // Format time as bold header
+    output += `**${timeRange}**`;
+    
     if (item.type === "meeting") {
-      // Calendar event - title links to calendar, Zoom appended if available
+      // Calendar event - title on next line, links inline
+      output += `\n📅 `;
       if (item.links.calendar) {
-        output += `📅 ${timeRange}: [${item.title}](${item.links.calendar})`;
+        output += `[${item.title}](${item.links.calendar})`;
       } else {
-        output += `📅 ${timeRange}: ${item.title}`;
+        output += item.title;
       }
       if (item.links.zoom) {
         output += ` | [Join](${item.links.zoom})`;
       }
-      output += `\n`;
+      if (item.description) {
+        output += `\n   ${item.description}`;
+      }
+    } else if (item.type === "focus") {
+      // Solo calendar focus block (no other attendees)
+      const hours = Math.floor(durationMinutes / 60);
+      const mins = durationMinutes % 60;
+      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      
+      output += ` (${durationStr})\n🎧 `;
+      if (item.links.calendar) {
+        output += `[${item.title}](${item.links.calendar})`;
+      } else {
+        output += item.title;
+      }
     } else if (item.type === "work") {
       // Work block with recommendation
       const hours = Math.floor(durationMinutes / 60);
@@ -928,7 +1090,7 @@ function buildListOutput(timeline: TimelineItem[]): string {
       // Use ⚫ for Linear tasks, ⏰ for other work
       const blockEmoji = item.links.linear ? "⚫" : "⏰";
       
-      output += `\n${blockEmoji} ${timeRange} — WORK BLOCK (${durationStr})\n`;
+      output += ` — WORK BLOCK (${durationStr})\n${blockEmoji} `;
       
       // If there's a Linear link, make the issue ID in the title clickable
       if (item.links.linear) {
@@ -937,33 +1099,40 @@ function buildListOutput(timeline: TimelineItem[]): string {
         if (issueMatch) {
           const issueId = issueMatch[1];
           const linkedTitle = item.title.replace(issueId, `[${issueId}](${item.links.linear})`);
-          output += `   ${linkedTitle}\n`;
+          output += linkedTitle;
         } else {
-          output += `   [${item.title}](${item.links.linear})\n`;
+          output += `[${item.title}](${item.links.linear})`;
         }
       } else {
-        output += `   ${item.title}\n`;
+        output += item.title;
       }
       if (item.description) {
         // Make description a link if there's an email or doc link
         if (item.links.gmail) {
-          output += `   [${item.description}](${item.links.gmail})\n`;
+          output += `\n   [${item.description}](${item.links.gmail})`;
         } else if (item.links.docs) {
-          output += `   [${item.description}](${item.links.docs})\n`;
+          output += `\n   [${item.description}](${item.links.docs})`;
         } else {
-          output += `   ${item.description}\n`;
+          output += `\n   ${item.description}`;
         }
       }
-      output += `\n`;
     } else {
       // Email or action - make description the link
+      output += `\n`;
       if (item.links.gmail && item.description) {
-        output += `${item.title}: [${item.description}](${item.links.gmail})\n`;
+        output += `📧 [${item.description}](${item.links.gmail})`;
       } else if (item.links.docs && item.description) {
-        output += `${item.title}: [${item.description}](${item.links.docs})\n`;
+        output += `📄 [${item.description}](${item.links.docs})`;
       } else {
-        output += `${item.title}: ${item.description || ""}\n`;
+        output += `${item.title}: ${item.description || ""}`;
       }
+    }
+    
+    // Add consistent spacing between items (except after last item)
+    if (i < timeline.length - 1) {
+      output += `\n\n`;
+    } else {
+      output += `\n`;
     }
   }
   
@@ -1045,6 +1214,8 @@ async function fetchAssignedActions(accessToken: string): Promise<AssignedAction
         fileTitle,
         actionType,
         fileLink,
+        timestamp: activity.timestamp,
+        isAssignment: !!comment.assignment,
       });
     }
   }
@@ -1189,7 +1360,8 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         const totalAvailableMinutes = timeBlocks.reduce((sum, block) => sum + block.durationMinutes, 0);
         const hours = Math.floor(totalAvailableMinutes / 60);
         const minutes = totalAvailableMinutes % 60;
-        const timedMeetings = calendarEvents.filter(e => e.start?.dateTime).length;
+        // Count only actual meetings (not solo focus blocks)
+        const timedMeetings = timeline.filter(item => item.type === "meeting" && !item.title.includes("(All day)")).length;
         
         // Build output
         let output = `# 📅 ${todayStr}\n\n`;
@@ -1199,9 +1371,9 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         if (mainThemes.length > 0) {
           output += `## 🎯 Today's Focus\n\n`;
           for (const theme of mainThemes.slice(0, 2)) {
-            output += `**${theme.theme}** — ${theme.items.length} related items\n`;
+            output += `- **${theme.theme}** — ${theme.items.length} related items\n`;
           }
-          output += `\n`;
+          output += `\n---\n\n`;
         }
         
         // Quick stats line
@@ -1209,11 +1381,14 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         
         // Productivity Insights
         if (insights.length > 0) {
-          output += `## 💡 Productivity Tips\n\n`;
+          output += `---\n\n## 💡 Productivity Tips\n\n`;
           for (const insight of insights) {
-            output += `${insight}\n`;
+            output += `- ${insight}\n`;
           }
-          output += `\n`;
+          output += `\n---\n\n`;
+        } else {
+          // Add separator before "Your Day" even if no insights
+          output += `---\n\n`;
         }
         
         // Schedule
@@ -1222,7 +1397,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         
         // Lookahead / Prep
         if (lookahead.length > 0) {
-          output += `## 🔮 Looking Ahead\n\n`;
+          output += `\n---\n\n## 🔮 Looking Ahead\n\n`;
           for (const item of lookahead) {
             if (item.link) {
               // Use provided linkText, or extract issue ID, or fall back to "View"
@@ -1231,9 +1406,9 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
                 const issueMatch = item.link.match(/issue\/([A-Z]+-\d+)/);
                 linkText = issueMatch ? issueMatch[1] : "View";
               }
-              output += `${item.text} [${linkText}](${item.link})\n`;
+              output += `- ${item.text} [${linkText}](${item.link})\n`;
             } else {
-              output += `${item.text}\n`;
+              output += `- ${item.text}\n`;
             }
           }
           output += `\n`;
@@ -1250,7 +1425,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         }
         const unscheduledIssues = linearIssues.filter(i => !scheduledIssueIds.has(i.identifier));
         if (unscheduledIssues.length > 0) {
-          output += `## 📌 Other Tasks (not scheduled today)\n\n`;
+          output += `---\n\n## 📌 Other Tasks (not scheduled today)\n\n`;
           for (const issue of unscheduledIssues.slice(0, 5)) {
             const dueStr = issue.dueDate 
               ? `due ${new Date(issue.dueDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`
