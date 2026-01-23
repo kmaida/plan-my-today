@@ -119,7 +119,29 @@ Add to your Cursor MCP settings:
 1. **Restart Cursor** to pick up the new MCP server
 2. **Cursor will show "needs login"** for the server
 3. **Click to authenticate** → complete OAuth flow
-4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`, `list-linear-issues`
+4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`
+
+### 7. REST API Endpoints (Optional)
+
+The server also provides REST API endpoints for easier tool access:
+
+- **List tools**: `GET /api/tools` - Returns list of available tools
+- **Call tool**: `POST /api/tools/:toolName` - Execute a tool with JSON body as arguments
+
+Example:
+```bash
+# List available tools
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8888/api/tools
+
+# Call a tool
+curl -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"maxResults": 10}' \
+  http://localhost:8888/api/tools/list-calendar-events
+```
+
+These endpoints use the same authentication as the MCP protocol endpoint.
 
 ## 🛠️ Available Tools
 
@@ -185,6 +207,30 @@ Linear access token. Make sure:
 If you see token exchange errors, verify the Linear credential provider is properly connected in Keycard.
 
 If you receive token exchange errors and are running the MCP server on localhost, use a tunnel to expose a public URL for the MCP server.
+
+### Gmail Tool Setup
+
+The `list-gmail-todos` tool uses Keycard STS token exchange to mint a Gmail access token. Make sure:
+
+1. **Gmail Credential Provider**: Add Gmail as a credential provider in your Keycard zone
+2. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
+   - Resource: `https://www.googleapis.com/gmail/v1`
+   - Scope: `https://www.googleapis.com/auth/gmail.readonly`
+
+The tool finds:
+- **Potential Todos**: Emails containing keywords like "todo", "action", "follow up", "please", etc.
+- **Needs Reply**: Unread or important emails sent to you (not from you)
+- **Unread Emails**: All unread emails
+- **Important Emails**: Emails marked as important
+
+You can customize the search with:
+- `daysBack`: How many days to look back (default: 7)
+- `maxResults`: Maximum emails to return (default: 20)
+- `includeUnread`, `includeImportant`, `includeNeedsReply`: Filter options
+- `searchQuery`: Custom Gmail search query (e.g., `is:unread from:example@email.com`)
+
+If you see token exchange errors, verify the Gmail credential provider is properly connected in Keycard.
+
 
 ### Multi-Tenant Configuration
 

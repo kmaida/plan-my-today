@@ -5,17 +5,21 @@ import { registerCalendarTool } from "./calendar";
 import { registerLinearTool } from "./linear";
 import { registerAssignedActionsTool } from "./assigned-actions";
 import { registerDriveActivityTool } from "./drive-activity";
+import { registerGmailTool } from "./gmail";
+import { registerTodayTodosTool } from "./today-todos";
 
 /**
  * Tool registry - maps tool names to their registration functions
  */
-const TOOL_REGISTRY = [
+export const TOOL_REGISTRY = [
   { name: "keycard-logo", register: registerLogoTool },
   { name: "whoami", register: registerWhoamiTool },
   { name: "list-calendar-events", register: registerCalendarTool },
   { name: "list-linear-issues", register: registerLinearTool },
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
   { name: "list-drive-activity", register: registerDriveActivityTool },
+  { name: "list-gmail-todos", register: registerGmailTool },
+  { name: "list-today-todos", register: registerTodayTodosTool },
 ] as const;
 
 /**

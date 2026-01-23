@@ -218,6 +218,117 @@ export function createApp(): express.Application {
     });
   });
 
+  // Simple REST API endpoint for calling tools directly (convenience layer)
+  // This allows easier access to tools without full MCP protocol
+  app.post('/api/tools/:toolName', authMiddleware, async (req: express.Request, res: express.Response) => {
+    const { toolName } = req.params;
+    const { logger } = req.context;
+    const authInfo = req.auth;
+    const args = req.body || {};
+
+    logger.debug("REST API tool call", { toolName, args });
+
+    try {
+      // Import tool registry
+      const { TOOL_REGISTRY } = await import("./tools/index.js");
+      const toolEntry = TOOL_REGISTRY.find((t: { name: string }) => t.name === toolName);
+
+      if (!toolEntry) {
+        return res.status(404).json({
+          error: "Tool not found",
+          availableTools: TOOL_REGISTRY.map((t: { name: string }) => t.name),
+        });
+      }
+
+      // Create MCP server and transport to handle the tool call via MCP protocol
+      const tempServer = createMcpServerForSession();
+      const transport = new StreamableHTTPServerTransportImpl({
+        sessionIdGenerator: undefined,
+      });
+
+      await tempServer.connect(transport);
+
+      // Create MCP protocol request
+      const callRequest = {
+        jsonrpc: "2.0" as const,
+        id: 1,
+        method: "tools/call" as const,
+        params: {
+          name: toolName,
+          arguments: args,
+        },
+      };
+
+      // Create a response collector
+      let responseData: any = null;
+      let responseStatus = 200;
+
+      const mockRes = {
+        json: (data: any) => {
+          responseData = data;
+          if (data.error) {
+            responseStatus = 500;
+          }
+        },
+        status: (code: number) => {
+          responseStatus = code;
+          return {
+            json: (data: any) => {
+              responseData = data;
+            },
+          };
+        },
+        headersSent: false,
+      } as express.Response;
+
+      // Copy context to mock request
+      const mockReq = {
+        ...req,
+        body: callRequest,
+        context: req.context,
+      } as express.Request;
+
+      await transport.handleRequest(mockReq, mockRes, callRequest);
+
+      await tempServer.close();
+
+      // Return the response
+      if (responseData) {
+        return res.status(responseStatus).json(responseData);
+      } else {
+        return res.status(500).json({ error: "No response from tool" });
+      }
+    } catch (error) {
+      logger.error("REST API tool call failed", {
+        toolName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      res.status(500).json({
+        error: "Tool execution failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // List available tools endpoint
+  app.get('/api/tools', authMiddleware, async (_req: express.Request, res: express.Response) => {
+    try {
+      const { TOOL_REGISTRY } = await import("./tools/index.js");
+      
+      res.json({
+        tools: TOOL_REGISTRY.map((t: { name: string }) => ({
+          name: t.name,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: "Failed to list tools",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   return app;
 }
 

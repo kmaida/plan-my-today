@@ -56,15 +56,6 @@ export class STSClient {
       throw new Error("Token exchange failed: missing STS issuer URL");
     }
 
-    // DEBUG: Log token exchange request details (remove after debugging)
-    console.log("🔍 Token Exchange Debug:", {
-      stsBaseUrl,
-      clientId: this.clientId ? `${this.clientId.substring(0, 10)}...` : "(empty)",
-      clientSecretSet: !!this.clientSecret,
-      resource,
-      scopes,
-    });
-
     const params = new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
       subject_token: authInfo.token,
@@ -87,25 +78,15 @@ export class STSClient {
     } satisfies RequestInit;
 
     const tokenUrl = `${stsBaseUrl}/oauth/2/token`;
-    console.log("🔍 Token Exchange URL:", tokenUrl);
     
     let response = await fetch(tokenUrl, requestInit);
     if (response.status === 404) {
       const fallbackUrl = `${stsBaseUrl}/oauth/token`;
-      console.log("🔍 Trying fallback URL:", fallbackUrl);
       response = await fetch(fallbackUrl, requestInit);
     }
 
-    // DEBUG: Log full response details
-    console.log("🔍 Token Exchange Response:", {
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
-    });
-
     if (!response.ok) {
       const error = await response.text();
-      console.log("🔍 Token Exchange Error Body:", error);
       throw new Error(`Token exchange failed: ${response.status} - ${error}`);
     }
 
