@@ -192,23 +192,276 @@ interface GmailMessageDetail {
   link: string;
   timestamp?: number; // Internal date from Gmail (Unix timestamp in milliseconds)
   isImportant?: boolean; // Whether the email is marked as important
+  isFromIndividual?: boolean; // Whether the email is from an individual (not automated)
+  needsReply?: boolean; // Whether the email likely needs a reply
+  hasActionItems?: boolean; // Whether the email contains action items
+}
+
+/**
+ * Determines if an email is from an individual (not an automated system)
+ */
+function isFromIndividual(from: string, subject: string): boolean {
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Common automated email patterns
+  const automatedPatterns = [
+    /noreply/i,
+    /no-reply/i,
+    /donotreply/i,
+    /don't reply/i,
+    /notifications?@/i,
+    /notify@/i,
+    /automated@/i,
+    /system@/i,
+    /@.*\.(com|net|org)\s*$/i, // Generic domains that are often automated
+  ];
+  
+  // Check if from field matches automated patterns
+  if (automatedPatterns.some(pattern => pattern.test(fromLower))) {
+    return false;
+  }
+  
+  // Check for common automated service domains
+  const automatedDomains = [
+    'linear.app',
+    'github.com',
+    'zoom.us',
+    'figma.com',
+    'render.com',
+    'n8n.cloud',
+    'granola.so',
+    'instatunnel.my',
+    'google.com', // Google Calendar and other Google automated services
+  ];
+  
+  // Explicitly exclude Google Calendar emails
+  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification') || 
+      subjectLower.includes('google calendar') || subjectLower.includes('calendar event')) {
+    return false;
+  }
+  
+  const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
+  if (emailDomain && automatedDomains.some(domain => emailDomain.includes(domain))) {
+    // But allow if it's a personal email from these services (e.g., steph@keycard.ai)
+    // Check if it looks like a personal name before the @
+    const localPart = fromLower.split('@')[0];
+    // If it's a single word or looks like a name pattern, it might be individual
+    if (localPart.includes('.') || localPart.length > 8) {
+      // Could be individual, but check subject for automated patterns
+      const automatedSubjectPatterns = [
+        /notification/i,
+        /reminder/i,
+        /invitation:/i,
+        /accepted:/i,
+        /canceled event:/i,
+        /has joined your meeting/i,
+        /has invited you/i,
+      ];
+      if (automatedSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+        return false;
+      }
+    }
+  }
+  
+  // If it contains a personal name pattern (first.last, first_last, etc.) or is short, likely individual
+  const namePattern = /^[a-z]+\.[a-z]+@|^[a-z]+_[a-z]+@/i;
+  if (namePattern.test(fromLower)) {
+    return true;
+  }
+  
+  // Default: if it doesn't match automated patterns, assume individual
+  return true;
+}
+
+/**
+ * Determines if an email likely needs a reply
+ */
+function emailNeedsReply(subject: string, from: string, isUnread: boolean): boolean {
+  const subjectLower = subject.toLowerCase();
+  const fromLower = from.toLowerCase();
+  
+  // Action item keywords
+  const actionKeywords = [
+    'action items',
+    'action item',
+    'please',
+    'can you',
+    'could you',
+    'would you',
+    'need',
+    'follow up',
+    'follow-up',
+    'reply',
+    'response',
+    'question',
+    '?',
+  ];
+  
+  // Check subject for action keywords
+  if (actionKeywords.some(keyword => subjectLower.includes(keyword))) {
+    return true;
+  }
+  
+  // If it's from an individual and unread, it might need a reply
+  if (isFromIndividual(from, subject) && isUnread) {
+    return true;
+  }
+  
+  // Meeting invitations/acceptances from individuals might need acknowledgment
+  if (isFromIndividual(from, subject)) {
+    const meetingPatterns = [
+      /invitation:/i,
+      /accepted:/i,
+      /meeting/i,
+      /sync/i,
+      /1:1/i,
+      /1-1/i,
+    ];
+    if (meetingPatterns.some(pattern => pattern.test(subjectLower))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Checks if email contains action items
+ */
+function emailHasActionItems(subject: string): boolean {
+  const subjectLower = subject.toLowerCase();
+  const actionItemPatterns = [
+    /action items?/i,
+    /todo/i,
+    /action required/i,
+    /please/i,
+    /urgent/i,
+    /asap/i,
+  ];
+  return actionItemPatterns.some(pattern => pattern.test(subjectLower));
+}
+
+/**
+ * Determines if an email is a newsletter or marketing email
+ */
+function isNewsletter(from: string, subject: string): boolean {
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Newsletter/marketing patterns in subject
+  const newsletterSubjectPatterns = [
+    /newsletter/i,
+    /weekly digest/i,
+    /monthly digest/i,
+    /daily digest/i,
+    /roundup/i,
+    /round-up/i,
+    /unsubscribe/i,
+    /view in browser/i,
+    /view this email/i,
+    /marketing/i,
+    /promotion/i,
+    /special offer/i,
+    /limited time/i,
+    /act now/i,
+    /don't miss/i,
+    /exclusive/i,
+    /sale/i,
+    /discount/i,
+    /coupon/i,
+  ];
+  
+  // Newsletter/marketing patterns in from field
+  const newsletterFromPatterns = [
+    /newsletter/i,
+    /marketing/i,
+    /noreply/i,
+    /no-reply/i,
+    /donotreply/i,
+    /updates@/i,
+    /news@/i,
+    /info@/i,
+    /team@/i,
+    /hello@/i,
+    /hi@/i,
+  ];
+  
+  // Check subject
+  if (newsletterSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+    return true;
+  }
+  
+  // Check from field
+  if (newsletterFromPatterns.some(pattern => pattern.test(fromLower))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Determines if an email looks unimportant (low priority)
+ */
+function isLowImportance(from: string, subject: string, isImportant: boolean): boolean {
+  // If marked as important by Gmail, keep it
+  if (isImportant) {
+    return false;
+  }
+  
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Low importance patterns
+  const lowImportancePatterns = [
+    /^re:/i, // Replies that might be low priority
+    /^fwd:/i,
+    /^fw:/i,
+    /automated/i,
+    /system notification/i,
+    /no action required/i,
+    /for your information/i,
+    /fyi/i,
+    /read receipt/i,
+    /delivery receipt/i,
+    /out of office/i,
+    /vacation notice/i,
+    /auto-reply/i,
+    /automatic reply/i,
+  ];
+  
+  // Check subject for low importance patterns
+  if (lowImportancePatterns.some(pattern => pattern.test(subjectLower))) {
+    // But allow if it's from an individual and has action items
+    if (isFromIndividual(from, subject) && emailHasActionItems(subject)) {
+      return false; // Keep it if it has action items
+    }
+    return true;
+  }
+  
+  return false;
 }
 
 /**
  * Fetches Gmail todos
+ * Expands date range to include individual emails from the past week
  */
 async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const afterDate = Math.floor(today.getTime() / 1000);
+  // Look back 7 days to catch individual emails that may need attention
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+  const afterDate = Math.floor(sevenDaysAgo.getTime() / 1000);
   
+  // Fetch unread/important emails from the past week
   const query = `(is:unread OR is:important) after:${afterDate}`;
 
   const messagesResponse = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?` +
     new URLSearchParams({
       q: query,
-      maxResults: "10",
+      maxResults: "20", // Increased to get more emails for better prioritization
     }),
     {
       headers: {
@@ -227,7 +480,7 @@ async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[
   }
 
   // Fetch message details
-  const messagePromises = messagesData.messages.slice(0, 10).map(msg =>
+  const messagePromises = messagesData.messages.slice(0, 20).map(msg =>
     fetch(
       `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
       {
@@ -248,20 +501,100 @@ async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[
     labelIds?: string[];
   }>;
 
-  return messages.map(message => {
-    const headers = message.payload?.headers || [];
-    const getHeader = (name: string) => 
-      headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
-    
-    return {
-      id: message.id,
-      subject: getHeader("subject") || "(No subject)",
-      from: getHeader("from") || "Unknown",
-      link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
-      timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
-      isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
-    };
-  });
+  return messages
+    .map(message => {
+      const headers = message.payload?.headers || [];
+      const getHeader = (name: string) => 
+        headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
+      
+      const subject = getHeader("subject") || "(No subject)";
+      const from = getHeader("from") || "Unknown";
+      const isUnread = message.labelIds?.includes("UNREAD") ?? false;
+      const fromIndividual = isFromIndividual(from, subject);
+      const needsReply = emailNeedsReply(subject, from, isUnread);
+      const hasActionItems = emailHasActionItems(subject);
+      
+      return {
+        id: message.id,
+        subject,
+        from,
+        link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+        timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
+        isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
+        isFromIndividual: fromIndividual,
+        needsReply,
+        hasActionItems,
+      };
+    })
+    .filter(email => {
+      const fromLower = email.from.toLowerCase();
+      const subjectLower = email.subject.toLowerCase();
+      
+      // Exclude Google Calendar automated emails (already integrated)
+      if (fromLower.includes('calendar') || 
+          fromLower.includes('calendar-notification') ||
+          fromLower.includes('noreply@calendar.google.com') ||
+          fromLower.includes('calendar@google.com') ||
+          (subjectLower.includes('calendar') && fromLower.includes('google'))) {
+        return false;
+      }
+      
+      // Exclude calendar notification patterns in subject (even from individuals)
+      // These are typically automated calendar notifications
+      const calendarNotificationPatterns = [
+        /^accepted:/i,
+        /^invitation:/i,
+        /^canceled event:/i,
+        /^declined:/i,
+        /^tentative:/i,
+        /google calendar/i,
+        /calendar event/i,
+      ];
+      
+      if (calendarNotificationPatterns.some(pattern => pattern.test(subjectLower))) {
+        return false;
+      }
+      
+      // Exclude Linear automated emails (already integrated)
+      if (fromLower.includes('linear.app') || 
+          fromLower.includes('notifications@linear.app') ||
+          fromLower.includes('noreply@linear.app')) {
+        // But allow if it's from an individual at Linear (e.g., name@linear.app)
+        const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
+        if (emailDomain && emailDomain.includes('linear.app')) {
+          const localPart = fromLower.split('@')[0];
+          // If it looks like a personal name (has dot or is long), might be individual
+          if (localPart.includes('.') || localPart.length > 8) {
+            // Check if subject looks automated
+            const linearAutomatedPatterns = [
+              /notification/i,
+              /reminder/i,
+              /unread notifications/i,
+              /^\[Linear\]/i,
+            ];
+            if (linearAutomatedPatterns.some(pattern => pattern.test(subjectLower))) {
+              return false; // Automated Linear notification
+            }
+          } else {
+            return false; // Likely automated
+          }
+        } else {
+          return false; // Linear automated
+        }
+      }
+      
+      // Exclude newsletters and marketing emails
+      if (isNewsletter(email.from, email.subject)) {
+        return false;
+      }
+      
+      // Exclude low importance emails (unless from individual with action items)
+      if (isLowImportance(email.from, email.subject, email.isImportant ?? false)) {
+        return false;
+      }
+      
+      return true;
+    });
 }
 
 /**
@@ -481,7 +814,9 @@ function generateProductivityInsights(
   calendarEvents: CalendarEventDetail[],
   timeBlocks: TimeBlock[],
   linearIssues: LinearIssueDetail[],
-  categorizedIssues: ReturnType<typeof categorizeIssues>
+  categorizedIssues: ReturnType<typeof categorizeIssues>,
+  gmailTodos: GmailMessageDetail[],
+  assignedActions: AssignedActionDetail[]
 ): string[] {
   const insights: string[] = [];
   const now = new Date();
@@ -490,7 +825,27 @@ function generateProductivityInsights(
   // Filter to timed events only
   const timedEvents = calendarEvents.filter(e => e.start?.dateTime);
   
-  // Analyze meeting density by time of day
+  // Analyze overdue issues with specific recommendations
+  if (categorizedIssues.overdue.length > 0) {
+    const overdueCount = categorizedIssues.overdue.length;
+    const overdueWithHighPriority = categorizedIssues.overdue.filter(i => i.priority <= 2);
+    if (overdueWithHighPriority.length > 0) {
+      const issue = overdueWithHighPriority[0];
+      insights.push(`🚨 **${overdueCount} overdue issue${overdueCount > 1 ? "s" : ""}** — Start with [${issue.identifier}](${issue.url}) (${issue.priorityLabel}) as it's highest priority.`);
+    } else {
+      insights.push(`🚨 **${overdueCount} overdue issue${overdueCount > 1 ? "s" : ""}** — Tackle [${categorizedIssues.overdue[0].identifier}](${categorizedIssues.overdue[0].url}) first to prevent further delays.`);
+    }
+  } else if (categorizedIssues.dueToday.length > 0) {
+    const dueTodayCount = categorizedIssues.dueToday.length;
+    const totalPoints = categorizedIssues.dueToday.reduce((sum, i) => sum + (i.estimate || 1), 0);
+    if (totalPoints > 5) {
+      insights.push(`⏰ **${dueTodayCount} issue${dueTodayCount > 1 ? "s" : ""} due today** (${totalPoints} pts total) — Start early to avoid rushing. Consider breaking into smaller chunks.`);
+    } else {
+      insights.push(`⏰ **${dueTodayCount} issue${dueTodayCount > 1 ? "s" : ""} due today** — Allocate time in your schedule to complete these.`);
+    }
+  }
+  
+  // Analyze meeting density by time of day with specific recommendations
   const morningMeetings = timedEvents.filter(e => {
     const hour = new Date(e.start!.dateTime!).getHours();
     return hour >= 9 && hour < 12;
@@ -500,23 +855,56 @@ function generateProductivityInsights(
     return hour >= 12 && hour < 17;
   });
   
-  // Meeting density insight
   if (morningMeetings.length >= 3 && afternoonMeetings.length < morningMeetings.length) {
-    insights.push("🌅 Morning is meeting-heavy. Save deep work for afternoon when you have more focus time.");
+    const afternoonBlocks = timeBlocks.filter(b => {
+      const hour = b.start.getHours();
+      return hour >= 12 && hour < 17;
+    });
+    const afternoonMinutes = afternoonBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
+    if (afternoonMinutes >= 90) {
+      insights.push(`🌅 **Morning is meeting-heavy** (${morningMeetings.length} meetings) — Use your ${Math.floor(afternoonMinutes / 60)}h ${afternoonMinutes % 60}m afternoon focus time for deep work on complex tasks.`);
+    } else {
+      insights.push(`🌅 **Morning is meeting-heavy** (${morningMeetings.length} meetings) — Protect your limited afternoon time (${afternoonMinutes} min) for your most important work.`);
+    }
   } else if (afternoonMeetings.length >= 3 && morningMeetings.length < afternoonMeetings.length) {
-    insights.push("☀️ Afternoon is packed with meetings. Tackle important tasks this morning while you have focus time.");
+    const morningBlocks = timeBlocks.filter(b => {
+      const hour = b.start.getHours();
+      return hour >= 9 && hour < 12;
+    });
+    const morningMinutes = morningBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
+    if (morningMinutes >= 90) {
+      insights.push(`☀️ **Afternoon is packed** (${afternoonMeetings.length} meetings) — Use your ${Math.floor(morningMinutes / 60)}h ${morningMinutes % 60}m morning focus time to tackle important tasks before meetings drain your energy.`);
+    } else {
+      insights.push(`☀️ **Afternoon is packed** (${afternoonMeetings.length} meetings) — Maximize your ${morningMinutes} min morning window for critical work.`);
+    }
   }
   
-  // Find longest block and suggest using it for complex work
+  // Find longest block and suggest specific task
   if (timeBlocks.length > 0) {
     const longestBlock = timeBlocks.reduce((a, b) => a.durationMinutes > b.durationMinutes ? a : b);
     if (longestBlock.durationMinutes >= 60) {
       const blockTime = longestBlock.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-      insights.push(`🎯 Your longest focus block is ${longestBlock.durationMinutes} min at ${blockTime}. Use it for your most complex task.`);
+      const hours = Math.floor(longestBlock.durationMinutes / 60);
+      const mins = longestBlock.durationMinutes % 60;
+      const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      
+      // Find the most complex task that fits this block
+      const complexTasks = categorizedIssues.overdue.length > 0 
+        ? categorizedIssues.overdue 
+        : categorizedIssues.dueToday.length > 0 
+          ? categorizedIssues.dueToday 
+          : categorizedIssues.highPriority;
+      
+      if (complexTasks.length > 0) {
+        const bestTask = complexTasks.find(t => (t.estimate || 1) >= 3) || complexTasks[0];
+        insights.push(`🎯 **${durationStr} focus block at ${blockTime}** — Perfect for [${bestTask.identifier}](${bestTask.url}) (${bestTask.estimate || "unestimated"} pts, ${bestTask.priorityLabel}). This is your best window for deep work.`);
+      } else {
+        insights.push(`🎯 **${durationStr} focus block at ${blockTime}** — Use this uninterrupted time for your most complex task. Block distractions and go deep.`);
+      }
     }
   }
   
-  // Back-to-back meeting warning
+  // Back-to-back meeting warning with specific prep suggestions
   for (let i = 0; i < timedEvents.length - 1; i++) {
     const current = timedEvents[i];
     const next = timedEvents[i + 1];
@@ -536,25 +924,69 @@ function generateProductivityInsights(
         }
         if (backToBackCount >= 2) {
           const startTime = new Date(current.start!.dateTime!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-          insights.push(`⚠️ You have ${backToBackCount} back-to-back meetings starting at ${startTime}. Consider prepping materials before.`);
+          const firstMeetingTitle = current.summary || "meeting";
+          insights.push(`⚠️ **${backToBackCount} back-to-back meetings starting at ${startTime}** — Prep materials for "${firstMeetingTitle}" now to avoid context switching.`);
           break; // Only show one back-to-back warning
         }
       }
     }
   }
   
-  // Overdue/urgent warning
-  if (categorizedIssues.overdue.length > 0) {
-    insights.push(`🚨 You have ${categorizedIssues.overdue.length} overdue issue(s). Prioritize these first.`);
-  } else if (categorizedIssues.dueToday.length > 0) {
-    insights.push(`⏰ You have ${categorizedIssues.dueToday.length} issue(s) due today. Make sure to allocate time.`);
+  // Email and action item analysis
+  const urgentEmails = gmailTodos.filter(e => e.isFromIndividual && (e.hasActionItems || e.needsReply));
+  const docActions = assignedActions.filter(a => a.isAssignment);
+  
+  if (urgentEmails.length > 0 || docActions.length > 0) {
+    const quickWins: string[] = [];
+    if (urgentEmails.length > 0) {
+      quickWins.push(`${urgentEmails.length} email${urgentEmails.length > 1 ? "s" : ""} from individuals`);
+    }
+    if (docActions.length > 0) {
+      quickWins.push(`${docActions.length} doc assignment${docActions.length > 1 ? "s" : ""}`);
+    }
+    
+    // Find short time blocks for quick wins
+    const shortBlocks = timeBlocks.filter(b => b.durationMinutes < 30 && b.durationMinutes >= 15);
+    if (shortBlocks.length > 0) {
+      const totalShortTime = shortBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
+      insights.push(`⚡ **Quick wins available** — ${quickWins.join(" and ")} can be handled in your ${totalShortTime} min of short blocks (< 30 min). Batch process these between deep work.`);
+    } else {
+      insights.push(`⚡ **Quick wins** — ${quickWins.join(" and ")} need attention. Consider batching these during transition times between meetings.`);
+    }
   }
   
-  // Total work time vs tasks
+  // Workload analysis
   const totalWorkMinutes = timeBlocks.reduce((sum, b) => sum + b.durationMinutes, 0);
   const estimatedPoints = linearIssues.reduce((sum, i) => sum + (i.estimate || 1), 0);
-  if (totalWorkMinutes < 60 && linearIssues.length > 0) {
-    insights.push(`📊 Limited focus time today (${totalWorkMinutes} min). Consider moving non-urgent tasks to tomorrow.`);
+  const avgPointsPerHour = totalWorkMinutes > 0 ? Math.round((estimatedPoints / totalWorkMinutes) * 60) : 0;
+  
+  if (totalWorkMinutes < 120 && linearIssues.length > 3) {
+    const urgentCount = categorizedIssues.overdue.length + categorizedIssues.dueToday.length;
+    if (urgentCount > 0) {
+      insights.push(`📊 **Tight schedule** (${Math.floor(totalWorkMinutes / 60)}h ${totalWorkMinutes % 60}m focus time, ${linearIssues.length} tasks) — Focus on ${urgentCount} urgent item${urgentCount > 1 ? "s" : ""} only. Defer or delegate the rest.`);
+    } else {
+      insights.push(`📊 **Limited focus time** (${Math.floor(totalWorkMinutes / 60)}h ${totalWorkMinutes % 60}m) — Prioritize high-impact tasks. Consider moving ${linearIssues.length - 2}+ non-urgent items to tomorrow.`);
+    }
+  } else if (avgPointsPerHour > 5 && totalWorkMinutes > 0) {
+    insights.push(`📊 **Ambitious workload** (${estimatedPoints} pts in ${Math.floor(totalWorkMinutes / 60)}h) — ${avgPointsPerHour} pts/hour is aggressive. Consider reducing scope or extending deadlines.`);
+  }
+  
+  // Energy and timing insights
+  if (currentHour >= 9 && currentHour < 12 && timeBlocks.length > 0) {
+    const morningBlocks = timeBlocks.filter(b => {
+      const hour = b.start.getHours();
+      return hour >= 9 && hour < 12;
+    });
+    if (morningBlocks.length > 0 && categorizedIssues.overdue.length > 0) {
+      insights.push(`🌄 **Morning energy peak** — Use your ${morningBlocks.length} morning focus block${morningBlocks.length > 1 ? "s" : ""} for overdue work while you're fresh.`);
+    }
+  }
+  
+  // Context switching warning
+  const meetingCount = timedEvents.length;
+  const workBlockCount = timeBlocks.length;
+  if (meetingCount >= 4 && workBlockCount >= 3) {
+    insights.push(`🔄 **High context switching** (${meetingCount} meetings, ${workBlockCount} work blocks) — Batch similar tasks together. Consider time-blocking similar work to reduce mental overhead.`);
   }
   
   return insights;
@@ -667,7 +1099,15 @@ interface TimelineItem {
  * Higher score = higher priority
  */
 function calculateQuickActionPriority(
-  item: { type: "email" | "doc"; timestamp?: string | number; isAssignment?: boolean; isImportant?: boolean },
+  item: { 
+    type: "email" | "doc"; 
+    timestamp?: string | number; 
+    isAssignment?: boolean; 
+    isImportant?: boolean;
+    isFromIndividual?: boolean;
+    needsReply?: boolean;
+    hasActionItems?: boolean;
+  },
   now: Date
 ): number {
   let score = 0;
@@ -682,8 +1122,25 @@ function calculateQuickActionPriority(
     }
   } else if (item.type === "email") {
     score += 30; // Base priority for emails
+    
+    // Boost for emails from individuals (much higher priority)
+    if (item.isFromIndividual) {
+      score += 80; // Big boost for individual emails
+      
+      // Additional boost if it needs a reply
+      if (item.needsReply) {
+        score += 50; // Urgent: needs reply from individual
+      }
+      
+      // Additional boost if it has action items
+      if (item.hasActionItems) {
+        score += 60; // Very urgent: action items from individual
+      }
+    }
+    
+    // Boost for important emails (even if automated)
     if (item.isImportant) {
-      score += 20; // Boost for important emails
+      score += 20;
     }
   }
   
@@ -759,7 +1216,14 @@ function suggestWorkForBlock(
       quickActions.push({
         type: "email",
         priority: calculateQuickActionPriority(
-          { type: "email", timestamp: email.timestamp, isImportant: email.isImportant },
+          { 
+            type: "email", 
+            timestamp: email.timestamp, 
+            isImportant: email.isImportant,
+            isFromIndividual: email.isFromIndividual,
+            needsReply: email.needsReply,
+            hasActionItems: email.hasActionItems,
+          },
           now
         ),
         data: email,
@@ -912,7 +1376,14 @@ function suggestWorkForBlock(
     fallbackActions.push({
       type: "email",
       priority: calculateQuickActionPriority(
-        { type: "email", timestamp: email.timestamp, isImportant: email.isImportant },
+        { 
+          type: "email", 
+          timestamp: email.timestamp, 
+          isImportant: email.isImportant,
+          isFromIndividual: email.isFromIndividual,
+          needsReply: email.needsReply,
+          hasActionItems: email.hasActionItems,
+        },
         now
       ),
       data: email,
@@ -1475,7 +1946,22 @@ async function fetchGitHubTodos(accessToken: string): Promise<{
     // Silently fail - GitHub is optional
   }
 
-  return { prs, issues };
+  // Filter out items older than 30 days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoTime = thirtyDaysAgo.getTime();
+
+  const recentPRs = prs.filter(pr => {
+    const updatedAt = new Date(pr.updatedAt).getTime();
+    return updatedAt >= thirtyDaysAgoTime;
+  });
+
+  const recentIssues = issues.filter(issue => {
+    const updatedAt = new Date(issue.updatedAt).getTime();
+    return updatedAt >= thirtyDaysAgoTime;
+  });
+
+  return { prs: recentPRs, issues: recentIssues };
 }
 
 /**
@@ -1638,7 +2124,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
 
         // Generate insights
         const themes = detectThemes(calendarEvents, linearIssues);
-        const insights = generateProductivityInsights(calendarEvents, timeBlocks, linearIssues, categorizedIssues);
+        const insights = generateProductivityInsights(calendarEvents, timeBlocks, linearIssues, categorizedIssues, gmailTodos, assignedActions);
         const lookahead = generateLookahead(calendarEvents, gmailTodos, linearIssues);
         
         // Calculate summary stats for remaining items
@@ -1735,7 +2221,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
         }
         const unscheduledIssues = linearIssues.filter(i => !scheduledIssueIds.has(i.identifier));
-        const hasOtherTasks = unscheduledIssues.length > 0 || githubPRs.length > 0 || githubIssues.length > 0;
+        const hasOtherTasks = unscheduledIssues.length > 0 || githubPRs.length > 0 || githubIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0;
         
         if (hasOtherTasks) {
           output += `---\n\n## 📌 Other Tasks (not scheduled today)\n\n`;
@@ -1750,6 +2236,99 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             }
             if (unscheduledIssues.length > 5) {
               output += `- ... and ${unscheduledIssues.length - 5} more Linear issues\n`;
+            }
+            if (githubPRs.length > 0 || githubIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0) {
+              output += `\n`;
+            }
+          }
+          
+          // Gmail todos - prioritize by importance and recency
+          if (gmailTodos.length > 0) {
+            const now = new Date();
+            const sortedEmails = [...gmailTodos].sort((a, b) => {
+              const aPriority = calculateQuickActionPriority(
+                { 
+                  type: "email", 
+                  timestamp: a.timestamp, 
+                  isImportant: a.isImportant,
+                  isFromIndividual: a.isFromIndividual,
+                  needsReply: a.needsReply,
+                  hasActionItems: a.hasActionItems,
+                },
+                now
+              );
+              const bPriority = calculateQuickActionPriority(
+                { 
+                  type: "email", 
+                  timestamp: b.timestamp, 
+                  isImportant: b.isImportant,
+                  isFromIndividual: b.isFromIndividual,
+                  needsReply: b.needsReply,
+                  hasActionItems: b.hasActionItems,
+                },
+                now
+              );
+              return bPriority - aPriority;
+            });
+            
+            for (const email of sortedEmails.slice(0, 5)) {
+              const updated = email.timestamp ? new Date(email.timestamp) : null;
+              let timeAgo = "";
+              if (updated) {
+                const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+                timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+              }
+              
+              // Build urgency indicators
+              let urgencyIndicators = "";
+              if (email.isFromIndividual) {
+                if (email.hasActionItems) {
+                  urgencyIndicators += "🔴 "; // Urgent: action items from individual
+                } else if (email.needsReply) {
+                  urgencyIndicators += "⚠️ "; // Needs reply from individual
+                }
+              }
+              const important = email.isImportant ? "⭐ " : "";
+              
+              // Extract name from "from" field - handle both "Name <email>" and just "email" formats
+              const fromMatch = email.from.match(/^(.+?)\s*<.+>$/);
+              const fromName = fromMatch ? fromMatch[1].trim() : email.from.split("@")[0] || email.from;
+              
+              // Highlight individual emails
+              const fromDisplay = email.isFromIndividual ? `**${fromName}**` : fromName;
+              
+              output += `- 📧 ${urgencyIndicators}${important}[${email.subject}](${email.link})${timeAgo ? ` (${timeAgo})` : ""} — ${fromDisplay}\n`;
+            }
+            if (gmailTodos.length > 5) {
+              output += `- ... and ${gmailTodos.length - 5} more emails\n`;
+            }
+            if (assignedActions.length > 0 || githubPRs.length > 0 || githubIssues.length > 0) {
+              output += `\n`;
+            }
+          }
+          
+          // Assigned actions from Google Docs
+          if (assignedActions.length > 0) {
+            const now = new Date();
+            const sortedActions = [...assignedActions].sort((a, b) => {
+              const aPriority = calculateQuickActionPriority(
+                { type: "doc", timestamp: a.timestamp, isAssignment: a.isAssignment },
+                now
+              );
+              const bPriority = calculateQuickActionPriority(
+                { type: "doc", timestamp: b.timestamp, isAssignment: b.isAssignment },
+                now
+              );
+              return bPriority - aPriority;
+            });
+            
+            for (const action of sortedActions.slice(0, 5)) {
+              const actionType = action.isAssignment ? "assigned" : "mentioned";
+              const linkText = action.fileLink ? `[${action.fileTitle}](${action.fileLink})` : action.fileTitle;
+              output += `- 📝 ${linkText} (${actionType} in comment)\n`;
+            }
+            if (assignedActions.length > 5) {
+              output += `- ... and ${assignedActions.length - 5} more doc actions\n`;
             }
             if (githubPRs.length > 0 || githubIssues.length > 0) {
               output += `\n`;
