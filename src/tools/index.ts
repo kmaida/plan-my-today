@@ -9,6 +9,9 @@ import { registerDriveActivityTool } from "./drive-activity";
 import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
 import { registerTodayTodosTool } from "./today-todos/index";
+import { registerSlackConnectTool } from "./slack-connect";
+import { registerSlackDisconnectTool } from "./slack-disconnect";
+import { registerCheckAuthTool } from "./check-auth";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -16,6 +19,7 @@ import { registerTodayTodosTool } from "./today-todos/index";
 export const TOOL_REGISTRY = [
   { name: "keycard-logo", register: registerLogoTool },
   { name: "whoami", register: registerWhoamiTool },
+  { name: "check-auth", register: registerCheckAuthTool },
   { name: "list-calendar-events", register: registerCalendarTool },
   { name: "list-linear-issues", register: registerLinearTool },
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
@@ -23,6 +27,8 @@ export const TOOL_REGISTRY = [
   { name: "list-gmail-todos", register: registerGmailTool },
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-today-todos", register: registerTodayTodosTool },
+  { name: "connect-slack", register: registerSlackConnectTool },
+  { name: "disconnect-slack", register: registerSlackDisconnectTool },
 ] as const;
 
 /**

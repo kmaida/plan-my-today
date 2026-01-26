@@ -11,6 +11,11 @@ import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames } from "./tools/index";
 import type { McpServer } from "./types/index";
+import { generateOAuthUrl, validateState, exchangeCodeForToken } from "./services/slack-oauth";
+import * as slackTokenStore from "./services/slack-token-store";
+import { extractUserIdFromAuthInfo } from "./utils/auth-utils";
+import { registerAuthDashboard } from "./routes/auth-dashboard";
+import { registerKeycardReauth } from "./routes/keycard-reauth";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -324,7 +329,7 @@ export function createApp(): express.Application {
   app.get('/api/tools', authMiddleware, async (_req: express.Request, res: express.Response) => {
     try {
       const { TOOL_REGISTRY } = await import("./tools/index.js");
-      
+
       res.json({
         tools: TOOL_REGISTRY.map((t: { name: string }) => ({
           name: t.name,
@@ -337,6 +342,66 @@ export function createApp(): express.Application {
       });
     }
   });
+
+  // Slack OAuth: Start flow
+  app.get("/slack/auth/start", authMiddleware, (req: express.Request, res: express.Response) => {
+    const userId = extractUserIdFromAuthInfo(req.auth);
+    const oauthUrl = generateOAuthUrl(userId);
+    res.redirect(oauthUrl);
+  });
+
+  // Slack OAuth: Callback
+  app.get("/slack/auth/callback", async (req: express.Request, res: express.Response) => {
+    const { code, error, state } = req.query;
+
+    if (error) {
+      return res.status(400).send(`<html><body><h1>OAuth Error</h1><p>${error}</p></body></html>`);
+    }
+
+    if (!code || !state) {
+      return res.status(400).send("<html><body><h1>Missing Parameters</h1></body></html>");
+    }
+
+    const userId = validateState(state as string);
+    if (!userId) {
+      return res.status(400).send("<html><body><h1>Invalid or Expired State</h1></body></html>");
+    }
+
+    try {
+      const tokenData = await exchangeCodeForToken(code as string);
+
+      await slackTokenStore.saveToken(userId, {
+        access_token: tokenData.access_token,
+        team_id: tokenData.team.id,
+        team_name: tokenData.team.name,
+        user_id: tokenData.authed_user.id,
+        created_at: new Date().toISOString(),
+      });
+
+      res.send(`
+        <html>
+          <body style="font-family: system-ui; text-align: center; padding: 50px;">
+            <h1>✅ Slack Connected!</h1>
+            <p>Your Slack reminders will now appear in list-today-todos.</p>
+            <p>You can close this window.</p>
+          </body>
+        </html>
+      `);
+    } catch (err) {
+      res.status(500).send(`
+        <html>
+          <body style="font-family: system-ui; text-align: center; padding: 50px;">
+            <h1>❌ Connection Failed</h1>
+            <p>${err instanceof Error ? err.message : "Unknown error"}</p>
+          </body>
+        </html>
+      `);
+    }
+  });
+
+  // Register auth dashboard and Keycard reauth
+  registerAuthDashboard(app);
+  registerKeycardReauth(app);
 
   return app;
 }
@@ -362,6 +427,7 @@ export function startServer(): void {
       logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
       logger.info(`🔐 STS Issuer: ${issuer}`);
+      logger.info(`🔑 Auth Dashboard: ${config.baseUrl}/auth`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
       
       // Detailed debug info
