@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
+// Re-export AuthInfo for use in other modules
+export type { AuthInfo };
+
 export const JWTPayloadSchema = z.object({
   sub: z.string().optional(),
   iss: z.string().optional(),

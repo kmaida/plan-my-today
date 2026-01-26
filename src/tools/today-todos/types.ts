@@ -94,6 +94,18 @@ export interface GitHubIssueDetail {
 }
 
 /**
+ * Slack reminder detail
+ */
+export interface SlackReminderDetail {
+  id: string;
+  text: string;
+  time: number; // Unix timestamp in milliseconds
+  isRecurring: boolean;
+  user: string;
+  link?: string;
+}
+
+/**
  * Time block for work suggestions
  */
 export interface TimeBlock {
@@ -117,9 +129,10 @@ export interface LookaheadItem {
 export interface TimelineItem {
   start: Date;
   end: Date;
-  type: "meeting" | "focus" | "work" | "email" | "action";
+  type: "meeting" | "focus" | "work" | "email" | "action" | "reminder";
   title: string;
   description?: string;
+  durationMinutes?: number;
   links: {
     calendar?: string;
     zoom?: string;
@@ -127,6 +140,7 @@ export interface TimelineItem {
     gmail?: string;
     docs?: string;
     github?: string;
+    slack?: string;
   };
 }
 

@@ -8,6 +8,7 @@ import type {
   AssignedActionDetail,
   GitHubPRDetail,
   GitHubIssueDetail,
+  SlackReminderDetail,
   TimeBlock,
   CategorizedIssues,
   TimelineItem,
@@ -17,8 +18,13 @@ import { fetchLinearIssues, categorizeIssues, detectThemes } from "./linear-util
 import { fetchGmailTodos } from "./email-utils";
 import { fetchAssignedActions } from "./docs-utils";
 import { fetchGitHubTodos } from "./github-utils";
+import { fetchSlackReminders } from "./slack-utils";
 import { generateProductivityInsights, generateLookahead } from "./insights";
 import { createUnifiedTimeline, buildListOutput, calculateQuickActionPriority } from "./timeline";
+import * as slackTokenStore from "../../services/slack-token-store";
+import { extractUserIdFromAuthInfo } from "../../utils/auth-utils";
+import { config } from "../../config";
+import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -50,6 +56,9 @@ const todayTodosInputSchema = {
   includeGithub: z.boolean()
     .describe("Include GitHub PRs and issues (default: true)")
     .optional(),
+  includeSlack: z.boolean()
+    .describe("Include Slack reminders (default: false, opt-in)")
+    .optional(),
   showOnlyRemaining: z.boolean()
     .describe("Show only items that haven't passed yet based on current time (default: false). Use this when asking 'what do I have left to do?' or 'what's remaining?'")
     .optional(),
@@ -72,7 +81,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
     "list-today-todos",
     {
       title: "List Today's Todos",
-      description: "Get a comprehensive view of everything you need to do today, aggregated from Calendar, Linear, Gmail, Google Docs, and GitHub. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', 'show me my tasks', 'what do I have left to do?', or 'what's remaining?'.",
+      description: "Get a comprehensive view of everything you need to do today, aggregated from Calendar, Linear, Gmail, Google Docs, GitHub, and Slack reminders. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', 'show me my tasks', 'what do I have left to do?', or 'what's remaining?'.",
       inputSchema: todayTodosInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -90,6 +99,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
       const includeGmail = args.includeGmail ?? true;
       const includeAssignedActions = args.includeAssignedActions ?? true;
       const includeGithub = args.includeGithub ?? true;
+      const includeSlack = args.includeSlack ?? false;
       const showOnlyRemaining = args.showOnlyRemaining ?? false;
 
       const errors: string[] = [];
@@ -99,6 +109,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
       let assignedActions: AssignedActionDetail[] = [];
       let githubPRs: GitHubPRDetail[] = [];
       let githubIssues: GitHubIssueDetail[] = [];
+      let slackReminders: SlackReminderDetail[] = [];
 
       try {
         // Fetch calendar events
@@ -111,7 +122,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             );
             calendarEvents = await fetchTodayCalendarEvents(calendarToken.access_token);
           } catch (error) {
-            errors.push(`Calendar: ${error instanceof Error ? error.message : "Unknown error"}`);
+            errors.push(formatAuthError("Calendar", error));
           }
         }
 
@@ -131,7 +142,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             );
             linearIssues = await fetchLinearIssues(linearToken.access_token, sevenDaysFromNow);
           } catch (error) {
-            errors.push(`Linear: ${error instanceof Error ? error.message : "Unknown error"}`);
+            errors.push(formatAuthError("Linear", error));
           }
         }
 
@@ -145,7 +156,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             );
             gmailTodos = await fetchGmailTodos(gmailToken.access_token);
           } catch (error) {
-            errors.push(`Gmail: ${error instanceof Error ? error.message : "Unknown error"}`);
+            errors.push(formatAuthError("Gmail", error));
           }
         }
 
@@ -159,7 +170,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             );
             assignedActions = await fetchAssignedActions(driveToken.access_token);
           } catch (error) {
-            errors.push(`Assigned Actions: ${error instanceof Error ? error.message : "Unknown error"}`);
+            errors.push(formatAuthError("Assigned Actions", error));
           }
         }
 
@@ -175,7 +186,29 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             githubPRs = githubData.prs;
             githubIssues = githubData.issues;
           } catch (error) {
-            errors.push(`GitHub: ${error instanceof Error ? error.message : "Unknown error"}`);
+            errors.push(formatAuthError("GitHub", error));
+          }
+        }
+
+        // Fetch Slack reminders
+        if (includeSlack) {
+          try {
+            // Check for environment variable token first (single-user deployment)
+            if (config.slackUserToken) {
+              slackReminders = await fetchSlackReminders(config.slackUserToken);
+            } else {
+              // Fall back to token store (multi-user OAuth flow)
+              const userId = extractUserIdFromAuthInfo(authInfo);
+              const slackToken = await slackTokenStore.getToken(userId);
+
+              if (slackToken) {
+                slackReminders = await fetchSlackReminders(slackToken.access_token);
+              } else {
+                errors.push("Slack: Not connected. Set SLACK_USER_TOKEN environment variable or use 'connect-slack' tool.");
+              }
+            }
+          } catch (error) {
+            errors.push(formatAuthError("Slack", error));
           }
         }
 
@@ -201,7 +234,8 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           categorizedIssues,
           linearIssues,
           gmailTodos,
-          assignedActions
+          assignedActions,
+          slackReminders
         );
 
         // Filter timeline to show only remaining items if requested
@@ -469,6 +503,14 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
 
         if (errors.length > 0) {
           output += `⚠️ **Some sources couldn't be accessed:**\n${errors.map(e => `- ${e}`).join("\n")}`;
+
+          // Add troubleshooting footer if there are auth-related errors
+          const hasAuthErrors = errors.some(e =>
+            e.includes("Authentication") ||
+            e.includes("check-auth") ||
+            e.includes("re-authorize")
+          );
+          output += getErrorFooter(hasAuthErrors);
         }
 
         return {

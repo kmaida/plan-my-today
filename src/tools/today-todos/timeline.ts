@@ -4,6 +4,7 @@ import type {
   LinearIssueDetail,
   GmailMessageDetail,
   AssignedActionDetail,
+  SlackReminderDetail,
   CategorizedIssues,
   TimelineItem,
 } from "./types";
@@ -357,7 +358,8 @@ export function createUnifiedTimeline(
   categorizedIssues: CategorizedIssues,
   linearIssues: LinearIssueDetail[],
   gmailTodos: GmailMessageDetail[],
-  assignedActions: AssignedActionDetail[]
+  assignedActions: AssignedActionDetail[],
+  slackReminders: SlackReminderDetail[] = []
 ): TimelineItem[] {
   const timeline: TimelineItem[] = [];
   const usedIssueIds = new Set<string>(); // Track issues already assigned to blocks
@@ -450,10 +452,25 @@ export function createUnifiedTimeline(
       }
     }
   }
-  
+
+  // Add Slack reminders to timeline
+  for (const reminder of slackReminders) {
+    const reminderTime = new Date(reminder.time);
+    timeline.push({
+      start: reminderTime,
+      end: reminderTime, // Reminders are point-in-time
+      title: `🔔 Reminder: ${reminder.text}`,
+      type: "reminder",
+      durationMinutes: 0,
+      links: {
+        slack: reminder.link,
+      },
+    });
+  }
+
   // Sort chronologically
   timeline.sort((a, b) => a.start.getTime() - b.start.getTime());
-  
+
   return timeline;
 }
 
@@ -555,6 +572,19 @@ export function buildListOutput(timeline: TimelineItem[]): string {
         } else {
           output += `\n   ${item.description}`;
         }
+      }
+    } else if (item.type === "reminder") {
+      // Slack reminder
+      const timeStr = item.start.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      output += `\n`;
+      if (item.links.slack) {
+        output += `${item.title} [View in Slack](${item.links.slack})`;
+      } else {
+        output += item.title;
       }
     } else {
       // Email or action - make description the link

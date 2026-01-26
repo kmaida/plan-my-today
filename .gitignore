@@ -37,3 +37,6 @@ coverage/
 .seed
 .tmp/
 .cache/
+
+# Data
+data/

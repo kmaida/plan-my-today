@@ -12,6 +12,10 @@ export interface ServerConfig {
   mcpBaseDomain: string;
   keycardClientId: string;
   keycardClientSecret: string;
+  slackClientId: string;
+  slackClientSecret: string;
+  slackOAuthRedirectUrl: string;
+  slackUserToken: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -36,15 +40,21 @@ export interface ServerConfig {
 export function getConfig(): ServerConfig {
   const PORT = process.env.PORT || "8888";
   const HOST = process.env.HOST || "localhost";
-  // BASE_URL will be determined dynamically per request
-  const BASE_URL = `http://${HOST}:${PORT}`; // Default for local dev
+  // Use LOCAL_TUNNEL if available (for ngrok), otherwise fall back to local dev URL
+  const BASE_URL = process.env.LOCAL_TUNNEL || `http://${HOST}:${PORT}`;
   const KEYCARD_STS_ISSUER_URL = process.env.KEYCARD_STS_ISSUER_URL;
   const ISSUER_BASE_DOMAIN = process.env.ISSUER_BASE_DOMAIN;
   const MCP_BASE_DOMAIN = process.env.MCP_BASE_DOMAIN;
 
   // Keycard client ID and secret are required for the MCP server to authenticate with Keycard
   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
-  const KEYCARD_CLIENT_SECRET = process.env.KEYCARD_CLIENT_SECRET; 
+  const KEYCARD_CLIENT_SECRET = process.env.KEYCARD_CLIENT_SECRET;
+
+  // Slack OAuth configuration (optional)
+  const SLACK_CLIENT_ID = process.env.SLACK_CLIENT_ID;
+  const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET;
+  const SLACK_REDIRECT_URL = process.env.SLACK_OAUTH_REDIRECT_URL || `${BASE_URL}/slack/auth/callback`;
+  const SLACK_USER_TOKEN = process.env.SLACK_USER_TOKEN;
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -52,8 +62,16 @@ export function getConfig(): ServerConfig {
   const ENABLE_OTEL = process.env.ENABLE_OTEL !== "false";
   const OTLP_ENDPOINT = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318";
   
-  if (!KEYCARD_CLIENT_ID || !KEYCARD_CLIENT_SECRET) {
-    console.warn("⚠️  KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET not set - token exchange will not work");
+  // For URL-based credentials (web apps), only CLIENT_ID is required
+  // For confidential clients, both CLIENT_ID and CLIENT_SECRET are required
+  if (!KEYCARD_CLIENT_ID) {
+    console.warn("⚠️  KEYCARD_CLIENT_ID not set - token exchange will not work");
+  } else if (!KEYCARD_CLIENT_SECRET && !KEYCARD_CLIENT_ID.startsWith('http')) {
+    console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
+  }
+
+  if (!SLACK_CLIENT_ID || !SLACK_CLIENT_SECRET) {
+    console.warn("⚠️  SLACK_CLIENT_ID and SLACK_CLIENT_SECRET not set - Slack integration disabled");
   }
 
   // For backward compatibility, KEYCARD_STS_ISSUER_URL is still required in single-tenant mode
@@ -89,6 +107,10 @@ export function getConfig(): ServerConfig {
     mcpBaseDomain: MCP_BASE_DOMAIN || '',
     keycardClientId: KEYCARD_CLIENT_ID || '',
     keycardClientSecret: KEYCARD_CLIENT_SECRET || '',
+    slackClientId: SLACK_CLIENT_ID || '',
+    slackClientSecret: SLACK_CLIENT_SECRET || '',
+    slackOAuthRedirectUrl: SLACK_REDIRECT_URL,
+    slackUserToken: SLACK_USER_TOKEN || '',
     observability: {
       serviceName: SERVICE_NAME,
       serviceVersion: SERVICE_VERSION,
