@@ -359,7 +359,7 @@ export function startServer(): void {
       const issuer = isMultiTenant ? `https://{zoneId}.${config.issuerBaseDomain}` : config.keycardStsIssuerUrl;
       
       // Clean startup messages
-      logger.info("🚀 Keycard Hello MCP Server started!");
+      logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
       logger.info(`🔐 STS Issuer: ${issuer}`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);

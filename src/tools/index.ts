@@ -36,7 +36,7 @@ export function getAvailableToolNames(): string[] {
  * Registers all MCP tools with the server
  *
  * This function serves as the central registry for all tools provided
- * by the Keycard Hello MCP server. It demonstrates the recommended
+ * by the Todo MCP server. It demonstrates the recommended
  * pattern for organizing tools in a modular MCP server.
  *
  * @param mcpServer - The MCP server instance to register tools with

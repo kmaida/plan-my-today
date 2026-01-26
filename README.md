@@ -1,4 +1,4 @@
-# 🔐 Keycard Hello MCP Server
+# 🔐 Todo MCP Server
 
 A **production-ready MCP server** demonstrating OAuth 2.0 authentication with Keycard's Security Token Service (STS). This project showcases best practices for building secure, type-safe, and modular MCP servers with enterprise-grade observability.
 
@@ -48,8 +48,8 @@ A **production-ready MCP server** demonstrating OAuth 2.0 authentication with Ke
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/keycardai/hello-mcp-server.git
-cd hello-mcp-server
+git clone https://github.com/kmaida/todo-mcp-server.git
+cd todo-mcp-server
 npm install
 ```
 
@@ -90,7 +90,7 @@ npm run build && npm start
 
 You should see:
 ```
-🚀 Keycard Hello MCP Server started!
+🚀 Todo MCP Server started!
 🔗 MCP Endpoint: http://localhost:8888/mcp
 🔐 STS Issuer: https://your-zone-id.keycard.cloud
 🛠️  Available Tools: keycard-logo, whoami
@@ -107,7 +107,7 @@ Add to your Cursor MCP settings:
 ```json
 {
   "mcpServers": {
-    "keycard-hello-mcp": {
+    "todo-mcp-server": {
       "url": "<https://unpreferable-cropless-dede.ngrok-free.dev>/mcp"
     }
   }

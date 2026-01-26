@@ -46,8 +46,8 @@ export function getConfig(): ServerConfig {
   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
   const KEYCARD_CLIENT_SECRET = process.env.KEYCARD_CLIENT_SECRET; 
 
-  const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "hello-mcp-server";
-  const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "1.0.0";
+  const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
+  const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
   const ENVIRONMENT = process.env.OTEL_ENVIRONMENT || process.env.NODE_ENV || "development";
   const ENABLE_OTEL = process.env.ENABLE_OTEL !== "false";
   const OTLP_ENDPOINT = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318";
