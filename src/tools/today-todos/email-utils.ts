@@ -1,0 +1,410 @@
+import type { GmailMessageDetail } from "./types";
+
+/**
+ * Determines if an email is from an individual (not an automated system)
+ */
+export function isFromIndividual(from: string, subject: string): boolean {
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Common automated email patterns
+  const automatedPatterns = [
+    /noreply/i,
+    /no-reply/i,
+    /donotreply/i,
+    /don't reply/i,
+    /notifications?@/i,
+    /notify@/i,
+    /automated@/i,
+    /system@/i,
+    /@.*\.(com|net|org)\s*$/i, // Generic domains that are often automated
+  ];
+  
+  // Check if from field matches automated patterns
+  if (automatedPatterns.some(pattern => pattern.test(fromLower))) {
+    return false;
+  }
+  
+  // Check for common automated service domains
+  const automatedDomains = [
+    'linear.app',
+    'github.com',
+    'zoom.us',
+    'figma.com',
+    'render.com',
+    'n8n.cloud',
+    'granola.so',
+    'instatunnel.my',
+    'google.com', // Google Calendar and other Google automated services
+  ];
+  
+  // Explicitly exclude Google Calendar emails
+  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification') || 
+      subjectLower.includes('google calendar') || subjectLower.includes('calendar event')) {
+    return false;
+  }
+  
+  const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
+  if (emailDomain && automatedDomains.some(domain => emailDomain.includes(domain))) {
+    // But allow if it's a personal email from these services (e.g., steph@keycard.ai)
+    // Check if it looks like a personal name before the @
+    const localPart = fromLower.split('@')[0];
+    // If it's a single word or looks like a name pattern, it might be individual
+    if (localPart.includes('.') || localPart.length > 8) {
+      // Could be individual, but check subject for automated patterns
+      const automatedSubjectPatterns = [
+        /notification/i,
+        /reminder/i,
+        /invitation:/i,
+        /accepted:/i,
+        /canceled event:/i,
+        /has joined your meeting/i,
+        /has invited you/i,
+      ];
+      if (automatedSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+        return false;
+      }
+    }
+  }
+  
+  // If it contains a personal name pattern (first.last, first_last, etc.) or is short, likely individual
+  const namePattern = /^[a-z]+\.[a-z]+@|^[a-z]+_[a-z]+@/i;
+  if (namePattern.test(fromLower)) {
+    return true;
+  }
+  
+  // Default: if it doesn't match automated patterns, assume individual
+  return true;
+}
+
+/**
+ * Determines if an email likely needs a reply
+ */
+export function emailNeedsReply(subject: string, from: string, isUnread: boolean): boolean {
+  const subjectLower = subject.toLowerCase();
+  const fromLower = from.toLowerCase();
+  
+  // Action item keywords
+  const actionKeywords = [
+    'action items',
+    'action item',
+    'please',
+    'can you',
+    'could you',
+    'would you',
+    'need',
+    'follow up',
+    'follow-up',
+    'reply',
+    'response',
+    'question',
+    '?',
+  ];
+  
+  // Check subject for action keywords
+  if (actionKeywords.some(keyword => subjectLower.includes(keyword))) {
+    return true;
+  }
+  
+  // If it's from an individual and unread, it might need a reply
+  if (isFromIndividual(from, subject) && isUnread) {
+    return true;
+  }
+  
+  // Meeting invitations/acceptances from individuals might need acknowledgment
+  if (isFromIndividual(from, subject)) {
+    const meetingPatterns = [
+      /invitation:/i,
+      /accepted:/i,
+      /meeting/i,
+      /sync/i,
+      /1:1/i,
+      /1-1/i,
+    ];
+    if (meetingPatterns.some(pattern => pattern.test(subjectLower))) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Checks if email contains action items
+ */
+export function emailHasActionItems(subject: string): boolean {
+  const subjectLower = subject.toLowerCase();
+  const actionItemPatterns = [
+    /action items?/i,
+    /todo/i,
+    /action required/i,
+    /please/i,
+    /urgent/i,
+    /asap/i,
+  ];
+  return actionItemPatterns.some(pattern => pattern.test(subjectLower));
+}
+
+/**
+ * Determines if an email is a newsletter or marketing email
+ */
+export function isNewsletter(from: string, subject: string): boolean {
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Newsletter/marketing patterns in subject
+  const newsletterSubjectPatterns = [
+    /newsletter/i,
+    /weekly digest/i,
+    /monthly digest/i,
+    /daily digest/i,
+    /roundup/i,
+    /round-up/i,
+    /unsubscribe/i,
+    /view in browser/i,
+    /view this email/i,
+    /marketing/i,
+    /promotion/i,
+    /special offer/i,
+    /limited time/i,
+    /act now/i,
+    /don't miss/i,
+    /exclusive/i,
+    /sale/i,
+    /discount/i,
+    /coupon/i,
+  ];
+  
+  // Newsletter/marketing patterns in from field
+  const newsletterFromPatterns = [
+    /newsletter/i,
+    /marketing/i,
+    /noreply/i,
+    /no-reply/i,
+    /donotreply/i,
+    /updates@/i,
+    /news@/i,
+    /info@/i,
+    /team@/i,
+    /hello@/i,
+    /hi@/i,
+  ];
+  
+  // Check subject
+  if (newsletterSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+    return true;
+  }
+  
+  // Check from field
+  if (newsletterFromPatterns.some(pattern => pattern.test(fromLower))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Determines if an email looks unimportant (low priority)
+ */
+export function isLowImportance(from: string, subject: string, isImportant: boolean): boolean {
+  // If marked as important by Gmail, keep it
+  if (isImportant) {
+    return false;
+  }
+  
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  
+  // Low importance patterns
+  const lowImportancePatterns = [
+    /^re:/i, // Replies that might be low priority
+    /^fwd:/i,
+    /^fw:/i,
+    /automated/i,
+    /system notification/i,
+    /no action required/i,
+    /for your information/i,
+    /fyi/i,
+    /read receipt/i,
+    /delivery receipt/i,
+    /out of office/i,
+    /vacation notice/i,
+    /auto-reply/i,
+    /automatic reply/i,
+  ];
+  
+  // Check subject for low importance patterns
+  if (lowImportancePatterns.some(pattern => pattern.test(subjectLower))) {
+    // But allow if it's from an individual and has action items
+    if (isFromIndividual(from, subject) && emailHasActionItems(subject)) {
+      return false; // Keep it if it has action items
+    }
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Filters out unwanted emails (calendar, Linear automated, newsletters, low importance)
+ */
+export function filterEmails(emails: GmailMessageDetail[]): GmailMessageDetail[] {
+  return emails.filter(email => {
+    const fromLower = email.from.toLowerCase();
+    const subjectLower = email.subject.toLowerCase();
+    
+    // Exclude Google Calendar automated emails (already integrated)
+    if (fromLower.includes('calendar') || 
+        fromLower.includes('calendar-notification') ||
+        fromLower.includes('noreply@calendar.google.com') ||
+        fromLower.includes('calendar@google.com') ||
+        (subjectLower.includes('calendar') && fromLower.includes('google'))) {
+      return false;
+    }
+    
+    // Exclude calendar notification patterns in subject (even from individuals)
+    // These are typically automated calendar notifications
+    const calendarNotificationPatterns = [
+      /^accepted:/i,
+      /^invitation:/i,
+      /^canceled event:/i,
+      /^declined:/i,
+      /^tentative:/i,
+      /google calendar/i,
+      /calendar event/i,
+    ];
+    
+    if (calendarNotificationPatterns.some(pattern => pattern.test(subjectLower))) {
+      return false;
+    }
+    
+    // Exclude Linear automated emails (already integrated)
+    if (fromLower.includes('linear.app') || 
+        fromLower.includes('notifications@linear.app') ||
+        fromLower.includes('noreply@linear.app')) {
+      // But allow if it's from an individual at Linear (e.g., name@linear.app)
+      const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
+      if (emailDomain && emailDomain.includes('linear.app')) {
+        const localPart = fromLower.split('@')[0];
+        // If it looks like a personal name (has dot or is long), might be individual
+        if (localPart.includes('.') || localPart.length > 8) {
+          // Check if subject looks automated
+          const linearAutomatedPatterns = [
+            /notification/i,
+            /reminder/i,
+            /unread notifications/i,
+            /^\[Linear\]/i,
+          ];
+          if (linearAutomatedPatterns.some(pattern => pattern.test(subjectLower))) {
+            return false; // Automated Linear notification
+          }
+        } else {
+          return false; // Likely automated
+        }
+      } else {
+        return false; // Linear automated
+      }
+    }
+    
+    // Exclude newsletters and marketing emails
+    if (isNewsletter(email.from, email.subject)) {
+      return false;
+    }
+    
+    // Exclude low importance emails (unless from individual with action items)
+    if (isLowImportance(email.from, email.subject, email.isImportant ?? false)) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+/**
+ * Fetches Gmail todos
+ * Expands date range to include individual emails from the past week
+ */
+export async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[]> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Look back 7 days to catch individual emails that may need attention
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+  const afterDate = Math.floor(sevenDaysAgo.getTime() / 1000);
+  
+  // Fetch unread/important emails from the past week
+  const query = `(is:unread OR is:important) after:${afterDate}`;
+
+  const messagesResponse = await fetch(
+    `https://www.googleapis.com/gmail/v1/users/me/messages?` +
+    new URLSearchParams({
+      q: query,
+      maxResults: "20", // Increased to get more emails for better prioritization
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!messagesResponse.ok) {
+    return [];
+  }
+
+  const messagesData = await messagesResponse.json() as { messages?: Array<{ id: string }> };
+  if (!messagesData.messages || messagesData.messages.length === 0) {
+    return [];
+  }
+
+  // Fetch message details
+  const messagePromises = messagesData.messages.slice(0, 20).map(msg =>
+    fetch(
+      `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    ).then(r => r.ok ? r.json() : null)
+  );
+
+  const messages = (await Promise.all(messagePromises)).filter(Boolean) as Array<{
+    payload?: {
+      headers?: Array<{ name?: string; value?: string }>;
+    };
+    snippet?: string;
+    id: string;
+    internalDate?: string;
+    labelIds?: string[];
+  }>;
+
+  const emails = messages
+    .map(message => {
+      const headers = message.payload?.headers || [];
+      const getHeader = (name: string) => 
+        headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
+      
+      const subject = getHeader("subject") || "(No subject)";
+      const from = getHeader("from") || "Unknown";
+      const isUnread = message.labelIds?.includes("UNREAD") ?? false;
+      const fromIndividual = isFromIndividual(from, subject);
+      const needsReply = emailNeedsReply(subject, from, isUnread);
+      const hasActionItems = emailHasActionItems(subject);
+      
+      return {
+        id: message.id,
+        subject,
+        from,
+        link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+        timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
+        isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
+        isFromIndividual: fromIndividual,
+        needsReply,
+        hasActionItems,
+      };
+    });
+
+  // Filter out unwanted emails
+  return filterEmails(emails);
+}

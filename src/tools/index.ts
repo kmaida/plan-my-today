@@ -8,7 +8,7 @@ import { registerAssignedActionsTool } from "./assigned-actions";
 import { registerDriveActivityTool } from "./drive-activity";
 import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
-import { registerTodayTodosTool } from "./today-todos";
+import { registerTodayTodosTool } from "./today-todos/index";
 
 /**
  * Tool registry - maps tool names to their registration functions
