@@ -93,17 +93,6 @@ export interface GitHubIssueDetail {
   labels?: string[];
 }
 
-/**
- * Slack reminder detail
- */
-export interface SlackReminderDetail {
-  id: string;
-  text: string;
-  time: number; // Unix timestamp in milliseconds
-  isRecurring: boolean;
-  user: string;
-  link?: string;
-}
 
 /**
  * Time block for work suggestions
@@ -129,7 +118,7 @@ export interface LookaheadItem {
 export interface TimelineItem {
   start: Date;
   end: Date;
-  type: "meeting" | "focus" | "work" | "email" | "action" | "reminder";
+  type: "meeting" | "focus" | "work" | "email" | "action";
   title: string;
   description?: string;
   durationMinutes?: number;
