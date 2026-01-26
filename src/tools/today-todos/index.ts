@@ -8,6 +8,7 @@ import type {
   AssignedActionDetail,
   GitHubPRDetail,
   GitHubIssueDetail,
+  SlackMessageDetail,
   TimeBlock,
   CategorizedIssues,
   TimelineItem,
@@ -17,10 +18,13 @@ import { fetchLinearIssues, categorizeIssues, detectThemes } from "./linear-util
 import { fetchGmailTodos } from "./email-utils";
 import { fetchAssignedActions } from "./docs-utils";
 import { fetchGitHubTodos } from "./github-utils";
+import { fetchSlackMessages } from "./slack-utils";
 import { generateProductivityInsights, generateLookahead } from "./insights";
 import { createUnifiedTimeline, buildListOutput, calculateQuickActionPriority } from "./timeline";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
+import * as slackTokenStore from "../../services/slack-token-store";
+import { extractUserIdFromAuthInfo } from "../../utils/auth-utils";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -74,7 +78,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
     "list-today-todos",
     {
       title: "List Today's Todos",
-      description: "Get a comprehensive view of everything you need to do today, automatically aggregated from Calendar, Linear, Gmail, Google Docs, and GitHub. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', 'show me my tasks', 'what do I have left to do?', or 'what's remaining?'.",
+      description: "Get a comprehensive view of everything you need to do today, automatically aggregated from Calendar, Linear, Gmail, Google Docs, GitHub, and Slack. Use this when the user asks 'what do I have to do today?', 'what's on my plate?', 'show me my tasks', 'what do I have left to do?', or 'what's remaining?'.",
       inputSchema: todayTodosInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -101,6 +105,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
       let assignedActions: AssignedActionDetail[] = [];
       let githubPRs: GitHubPRDetail[] = [];
       let githubIssues: GitHubIssueDetail[] = [];
+      let slackMessages: SlackMessageDetail[] = [];
 
       try {
         // Fetch calendar events
@@ -181,6 +186,39 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
         }
 
+        // Fetch Slack messages (automatically included if connected)
+        try {
+          let slackToken: string | null = null;
+
+          // Check for environment variable token first (single-user deployment)
+          if (config.slackUserToken) {
+            slackToken = config.slackUserToken;
+            console.log("Using SLACK_USER_TOKEN from environment");
+          } else {
+            // Fall back to token store (multi-user OAuth flow)
+            const userId = extractUserIdFromAuthInfo(authInfo);
+            console.log("Checking token store for user:", userId);
+            const storedToken = await slackTokenStore.getToken(userId);
+            if (storedToken) {
+              slackToken = storedToken.access_token;
+              console.log("Found Slack token in token store");
+            } else {
+              console.log("No Slack token found in token store");
+            }
+          }
+
+          if (slackToken) {
+            slackMessages = await fetchSlackMessages(slackToken);
+            console.log(`Fetched ${slackMessages.length} Slack messages`);
+          } else {
+            console.log("No Slack token available - skipping Slack messages");
+          }
+          // Skip silently if not connected - Slack is optional
+        } catch (error) {
+          console.error("Error fetching Slack messages:", error);
+          errors.push(formatAuthError("Slack", error));
+        }
+
         // Build table output with integrated recommendations
         // (today is already defined above, but normalize it for date comparisons)
         const todayNormalized = new Date(today);
@@ -203,7 +241,8 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           categorizedIssues,
           linearIssues,
           gmailTodos,
-          assignedActions
+          assignedActions,
+          slackMessages
         );
 
         // Filter timeline to show only remaining items if requested

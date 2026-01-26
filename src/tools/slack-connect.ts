@@ -9,7 +9,7 @@ export function registerSlackConnectTool(mcpServer: McpServer): void {
     "connect-slack",
     {
       title: "Connect Slack Account",
-      description: "Authenticate with Slack to access your reminders. Opens OAuth flow in browser.",
+      description: "Authenticate with Slack to access your recent @mentions and DMs. Opens OAuth flow in browser.",
     },
     async ({ authInfo }: AuthenticatedToolHandlerNoArgs) => {
       if (!authInfo) {
@@ -46,7 +46,7 @@ export function registerSlackConnectTool(mcpServer: McpServer): void {
         return {
           content: [{
             type: "text",
-            text: `🔗 **Connect Slack**\n\nClick here to authorize access to your Slack reminders:\n\n${oauthUrl}\n\nAfter authorization, your reminders will appear in 'list-today-todos' when you pass \`includeSlack: true\`.`
+            text: `🔗 **Connect Slack**\n\nClick here to authorize access to your Slack messages:\n\n${oauthUrl}\n\nAfter authorization, your recent @mentions and DMs from the last 24 hours will be analyzed and incorporated as prioritized work items in 'list-today-todos'.`
           }]
         };
       } catch (error) {

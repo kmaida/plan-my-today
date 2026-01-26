@@ -262,6 +262,11 @@ export function registerAuthDashboard(app: Express): void {
       <p style="color: #718096; margin-bottom: 16px; font-size: 14px;">
         <strong>Use this when services stop working.</strong> This triggers Keycard to refresh all service connections and issue new tokens.
       </p>
+      <div style="background: #fef5e7; border: 1px solid #f9e79f; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <p style="color: #7d6608; font-size: 13px; margin: 0;">
+          ⚠️ <strong>Important:</strong> You'll be asked to authorize multiple Google services (Calendar, Gmail, Drive). This is normal - click through each one to complete setup. Expect 3-4 Google authorization screens.
+        </p>
+      </div>
       <div class="button-group">
         <a href="/keycard/reauth" class="button" style="font-size: 16px; padding: 14px 28px; background: #667eea;">
           🔐 Re-authenticate Now

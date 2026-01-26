@@ -4,9 +4,11 @@ import type {
   LinearIssueDetail,
   GmailMessageDetail,
   AssignedActionDetail,
+  SlackMessageDetail,
   CategorizedIssues,
   TimelineItem,
 } from "./types";
+import { calculateSlackPriority } from "./slack-utils";
 
 /**
  * Calculates a priority score for quick action items (emails, doc comments)
@@ -94,8 +96,10 @@ export function suggestWorkForBlock(
   linearIssues: LinearIssueDetail[],
   gmailTodos: GmailMessageDetail[],
   assignedActions: AssignedActionDetail[],
+  slackMessages: SlackMessageDetail[],
   usedIssueIds: Set<string> = new Set()
 ): { title: string; description?: string; links: TimelineItem["links"]; issueId?: string } | null {
+  console.log(`[suggestWorkForBlock] Block: ${block.durationMinutes} min at ${block.start.toLocaleTimeString()}. Slack messages available: ${slackMessages.length}`);
   const { overdue, dueToday, highPriority, dueThisWeek, noDueDate } = categorizedIssues;
   const priorityEmojis: Record<number, string> = { 0: "⚪", 1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢" };
   
@@ -108,11 +112,11 @@ export function suggestWorkForBlock(
   if (block.durationMinutes < 30) {
     const now = new Date();
     const quickActions: Array<{
-      type: "email" | "doc";
+      type: "email" | "doc" | "slack";
       priority: number;
-      data: GmailMessageDetail | AssignedActionDetail;
+      data: GmailMessageDetail | AssignedActionDetail | SlackMessageDetail;
     }> = [];
-    
+
     // Add doc actions with priority scores
     for (const action of assignedActions) {
       quickActions.push({
@@ -124,15 +128,15 @@ export function suggestWorkForBlock(
         data: action,
       });
     }
-    
+
     // Add emails with priority scores
     for (const email of gmailTodos) {
       quickActions.push({
         type: "email",
         priority: calculateQuickActionPriority(
-          { 
-            type: "email", 
-            timestamp: email.timestamp, 
+          {
+            type: "email",
+            timestamp: email.timestamp,
             isImportant: email.isImportant,
             isFromIndividual: email.isFromIndividual,
             needsReply: email.needsReply,
@@ -143,18 +147,41 @@ export function suggestWorkForBlock(
         data: email,
       });
     }
-    
+
+    // Add Slack messages with priority scores
+    for (const slack of slackMessages) {
+      const priority = calculateSlackPriority(slack, now);
+      console.log(`Adding Slack to quick actions - Priority: ${priority}, Text: "${slack.text.substring(0, 50)}..."`);
+      quickActions.push({
+        type: "slack",
+        priority,
+        data: slack,
+      });
+    }
+
     // Sort by priority (highest first) and take the top item
     if (quickActions.length > 0) {
       quickActions.sort((a, b) => b.priority - a.priority);
+      console.log(`Quick actions sorted. Top: ${quickActions[0].type} (priority: ${quickActions[0].priority})`);
       const topAction = quickActions[0];
-      
+
       if (topAction.type === "doc") {
         const action = topAction.data as AssignedActionDetail;
         return {
           title: "Quick: Doc review",
           description: `${action.fileTitle} (${action.actionType})`,
           links: action.fileLink ? { docs: action.fileLink } : {},
+        };
+      } else if (topAction.type === "slack") {
+        const slack = topAction.data as SlackMessageDetail;
+        const truncatedText = slack.text.length > 60
+          ? slack.text.substring(0, 57) + "..."
+          : slack.text;
+        const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+        return {
+          title: `Quick: Respond to Slack ${slack.type}`,
+          description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+          links: slack.permalink ? { slack: slack.permalink } : {},
         };
       } else {
         const email = topAction.data as GmailMessageDetail;
@@ -179,6 +206,9 @@ export function suggestWorkForBlock(
   
   // MEDIUM BLOCKS (30-60 min): Focused work on urgent/important items
   if (block.durationMinutes >= 30 && block.durationMinutes < 60) {
+    const now = new Date();
+    const isMorningBlock = block.start.getHours() < 10; // Before 10 AM = morning catch-up time
+
     // Overdue first - always urgent
     const overdueIssue = findUnusedIssue(overdue);
     if (overdueIssue) {
@@ -189,6 +219,27 @@ export function suggestWorkForBlock(
         issueId: overdueIssue.identifier,
       };
     }
+
+    // HIGH-PRIORITY SLACK (priority > 150) - urgent mentions/DMs compete with due today
+    const urgentSlack = slackMessages
+      .map(slack => ({ slack, priority: calculateSlackPriority(slack, now) }))
+      .filter(item => item.priority > 150)
+      .sort((a, b) => b.priority - a.priority)[0];
+
+    if (urgentSlack) {
+      const slack = urgentSlack.slack;
+      const truncatedText = slack.text.length > 60
+        ? slack.text.substring(0, 57) + "..."
+        : slack.text;
+      const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+      console.log(`PRIORITIZING urgent Slack message (priority: ${urgentSlack.priority}) over due-today Linear issues`);
+      return {
+        title: `💬 Respond to Slack ${slack.type}`,
+        description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+        links: slack.permalink ? { slack: slack.permalink } : {},
+      };
+    }
+
     // Due today
     const dueTodayIssue = findUnusedIssue(dueToday);
     if (dueTodayIssue) {
@@ -199,6 +250,26 @@ export function suggestWorkForBlock(
         issueId: dueTodayIssue.identifier,
       };
     }
+
+    // MORNING BLOCKS: Prioritize ALL Slack messages before high-priority Linear
+    if (isMorningBlock && slackMessages.length > 0) {
+      const prioritizedSlack = slackMessages
+        .map(slack => ({ slack, priority: calculateSlackPriority(slack, now) }))
+        .sort((a, b) => b.priority - a.priority)[0];
+
+      const slack = prioritizedSlack.slack;
+      const truncatedText = slack.text.length > 60
+        ? slack.text.substring(0, 57) + "..."
+        : slack.text;
+      const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+      console.log(`MORNING BLOCK: Prioritizing Slack (priority: ${prioritizedSlack.priority}) for catch-up time`);
+      return {
+        title: `💬 Catch up: Slack ${slack.type}`,
+        description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+        links: slack.permalink ? { slack: slack.permalink } : {},
+      };
+    }
+
     // High priority with medium estimate
     const mediumHighPriority = highPriority.find(i => !usedIssueIds.has(i.identifier) && (i.estimate === null || i.estimate <= 3));
     if (mediumHighPriority) {
@@ -209,72 +280,220 @@ export function suggestWorkForBlock(
         issueId: mediumHighPriority.identifier,
       };
     }
+
+    // MEDIUM-PRIORITY SLACK (priority 100-150) - compete with high-priority Linear
+    const mediumSlack = slackMessages
+      .map(slack => ({ slack, priority: calculateSlackPriority(slack, now) }))
+      .filter(item => item.priority >= 100 && item.priority <= 150)
+      .sort((a, b) => b.priority - a.priority)[0];
+
+    if (mediumSlack) {
+      const slack = mediumSlack.slack;
+      const truncatedText = slack.text.length > 60
+        ? slack.text.substring(0, 57) + "..."
+        : slack.text;
+      const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+      console.log(`Showing medium-priority Slack message (priority: ${mediumSlack.priority})`);
+      return {
+        title: `💬 Slack ${slack.type}`,
+        description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+        links: slack.permalink ? { slack: slack.permalink } : {},
+      };
+    }
   }
   
   // LONG BLOCKS (60+ min): Deep work on complex/high-priority items
   if (block.durationMinutes >= 60) {
-    // Overdue first - always urgent
+    const now = new Date();
+    const isMorningBlock = block.start.getHours() < 10; // Before 10 AM = morning catch-up time
+    console.log(`[LONG BLOCK] Duration: ${block.durationMinutes}min, Morning: ${isMorningBlock}, Overdue: ${overdue.length}, DueToday: ${dueToday.length}, Slack: ${slackMessages.length}`);
+
+    // MORNING BLOCKS: Prioritize ALL Slack/Email catch-up FIRST, even before overdue
+    if (isMorningBlock && (slackMessages.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0)) {
+      console.log(`MORNING CATCH-UP BLOCK - Showing Slack/Email before overdue Linear`);
+
+      // Build a list of all short catch-up items using markdown bullet points
+      const catchUpItems: string[] = [];
+
+      // Add all Slack messages
+      for (const slack of slackMessages) {
+        const truncatedText = slack.text.length > 80
+          ? slack.text.substring(0, 77) + "..."
+          : slack.text;
+        const prefix = slack.type === "mention" ? "@mention" : "DM";
+        const slackLink = slack.permalink || "#";
+        catchUpItems.push(`- 💬 [Slack ${prefix} from ${slack.userName || slack.user}](${slackLink}): "${truncatedText}"`);
+      }
+
+      // Add high-priority emails (up to 3)
+      const topEmails = gmailTodos.slice(0, 3);
+      for (const email of topEmails) {
+        catchUpItems.push(`- 📧 [${email.subject}](${email.link})`);
+      }
+
+      // Add doc actions (up to 2)
+      const topActions = assignedActions.slice(0, 2);
+      for (const action of topActions) {
+        const actionLink = action.fileLink || "#";
+        catchUpItems.push(`- 📄 [${action.fileTitle}](${actionLink}) (${action.actionType})`);
+      }
+
+      return {
+        title: "Morning Catch-up",
+        description: catchUpItems.join("\n"),
+        links: {},
+      };
+    }
+
+    // LONG BLOCKS: Combine multiple items (quick tasks + main work)
+    // Build a combined work block with urgent short items + primary Linear issue
+    const blockItems: string[] = [];
+    let primaryIssue: LinearIssueDetail | null = null;
+
+    // 1. Add urgent/overdue Linear first (always priority)
     const overdueIssue = findUnusedIssue(overdue);
     if (overdueIssue) {
-      return {
-        title: `🚨 OVERDUE: ${overdueIssue.identifier} - ${overdueIssue.title}`,
-        description: undefined,
-        links: { linear: overdueIssue.url },
-        issueId: overdueIssue.identifier,
-      };
+      primaryIssue = overdueIssue;
+      blockItems.push(`- 🚨 [OVERDUE: ${overdueIssue.identifier}](${overdueIssue.url}) - ${overdueIssue.title}`);
+      console.log(`Added OVERDUE issue to block: ${overdueIssue.identifier}`);
     }
-    // Due today
-    const dueTodayIssue = findUnusedIssue(dueToday);
+
+    // 2. Add due-today Linear (high urgency)
+    const dueTodayIssue = overdueIssue ? null : findUnusedIssue(dueToday);
     if (dueTodayIssue) {
-      return {
-        title: `${dueTodayIssue.identifier} - ${dueTodayIssue.title} (⏰ Due Today)`,
-        description: undefined,
-        links: { linear: dueTodayIssue.url },
-        issueId: dueTodayIssue.identifier,
-      };
+      primaryIssue = dueTodayIssue;
+      blockItems.push(`- ⏰ [${dueTodayIssue.identifier}](${dueTodayIssue.url}) - ${dueTodayIssue.title} (Due Today)`);
+      console.log(`Added DUE TODAY issue to block: ${dueTodayIssue.identifier}`);
     }
-    // High priority - perfect for deep work
-    const highPriorityIssue = findUnusedIssue(highPriority);
-    if (highPriorityIssue) {
-      return {
-        title: `${highPriorityIssue.identifier} - ${highPriorityIssue.title} (${priorityEmojis[highPriorityIssue.priority] || "⚪"} ${highPriorityIssue.priorityLabel})`,
-        description: undefined,
-        links: { linear: highPriorityIssue.url },
-        issueId: highPriorityIssue.identifier,
-      };
+
+    // 3. Add high-priority Slack (up to 2)
+    const slackPriorities = slackMessages.map(slack => ({ slack, priority: calculateSlackPriority(slack, now) }));
+    const topSlack = slackPriorities.sort((a, b) => b.priority - a.priority).slice(0, 2);
+    for (const { slack } of topSlack) {
+      const truncatedText = slack.text.length > 70
+        ? slack.text.substring(0, 67) + "..."
+        : slack.text;
+      const prefix = slack.type === "mention" ? "@mention" : "DM";
+      const slackLink = slack.permalink || "#";
+      blockItems.push(`- 💬 [Slack ${prefix} from ${slack.userName || slack.user}](${slackLink}): "${truncatedText}"`);
     }
-    // Large issues (high estimate) - need long blocks
-    const largeIssue = linearIssues.find(i => !usedIssueIds.has(i.identifier) && i.estimate !== null && i.estimate >= 3);
-    if (largeIssue) {
+
+    // 4. Add top emails (up to 2)
+    const topEmails = gmailTodos.slice(0, 2);
+    for (const email of topEmails) {
+      blockItems.push(`- 📧 [${email.subject}](${email.link})`);
+    }
+
+    // 5. If no primary issue yet, add urgent high-priority issues (only if due soon)
+    if (!primaryIssue) {
+      // Only include high-priority Linear issues if they're due this week
+      const urgentHighPriority = highPriority.filter(i => {
+        if (usedIssueIds.has(i.identifier)) return false;
+
+        // Include if due this week (timing matters!)
+        if (i.dueDate) {
+          const dueDate = new Date(i.dueDate);
+          const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return daysUntilDue <= 7; // Due within a week
+        }
+
+        // Also include if no due date but very high priority (priority 1)
+        return i.priority === 1;
+      });
+
+      const maxHighPriorityToAdd = Math.min(2, urgentHighPriority.length); // Max 2 instead of 3
+
+      for (let i = 0; i < maxHighPriorityToAdd; i++) {
+        const issue = urgentHighPriority[i];
+        if (i === 0) {
+          primaryIssue = issue;
+        }
+        const dueText = issue.dueDate ? ` (Due ${new Date(issue.dueDate).toLocaleDateString()})` : "";
+        blockItems.push(`- 🔴 [${issue.identifier}](${issue.url}) - ${issue.title}${dueText}`);
+        usedIssueIds.add(issue.identifier); // Mark as used so it doesn't appear in other blocks
+        console.log(`Added URGENT HIGH PRIORITY issue to block: ${issue.identifier}`);
+      }
+
+      // If still no primary issue, add a large issue
+      if (!primaryIssue) {
+        const largeIssue = linearIssues.find(i => !usedIssueIds.has(i.identifier) && i.estimate !== null && i.estimate >= 3);
+        if (largeIssue) {
+          primaryIssue = largeIssue;
+          blockItems.push(`- ⚫ [${largeIssue.identifier}](${largeIssue.url}) - ${largeIssue.title} (${largeIssue.estimate} pts)`);
+          console.log(`Added LARGE issue to block: ${largeIssue.identifier}`);
+        }
+      }
+    }
+
+    // Return combined block if we have items
+    if (blockItems.length > 0) {
+      const title = primaryIssue
+        ? `${primaryIssue.identifier} + ${blockItems.length - 1} more`
+        : `Work Block (${blockItems.length} items)`;
+
       return {
-        title: `${largeIssue.identifier} - ${largeIssue.title} (${largeIssue.estimate} pts)`,
-        description: undefined,
-        links: { linear: largeIssue.url },
-        issueId: largeIssue.identifier,
+        title,
+        description: blockItems.join("\n"),
+        links: primaryIssue ? { linear: primaryIssue.url } : {},
+        issueId: primaryIssue?.identifier,
       };
     }
   }
   
-  // FALLBACK: Any available prioritized work
-  const fallbackOrder = [...overdue, ...dueToday, ...highPriority, ...dueThisWeek, ...noDueDate];
-  const fallbackIssue = fallbackOrder.find(i => !usedIssueIds.has(i.identifier));
-  if (fallbackIssue) {
+  // FALLBACK 1: Due this week issues
+  const dueThisWeekIssue = findUnusedIssue(dueThisWeek);
+  if (dueThisWeekIssue) {
+    console.log(`Using due-this-week Linear issue: ${dueThisWeekIssue.identifier}`);
     return {
-      title: `${fallbackIssue.identifier} - ${fallbackIssue.title} (${priorityEmojis[fallbackIssue.priority] || "⚪"} ${fallbackIssue.priorityLabel})`,
+      title: `${dueThisWeekIssue.identifier} - ${dueThisWeekIssue.title} (${priorityEmojis[dueThisWeekIssue.priority] || "⚪"} ${dueThisWeekIssue.priorityLabel})`,
       description: undefined,
-      links: { linear: fallbackIssue.url },
-      issueId: fallbackIssue.identifier,
+      links: { linear: dueThisWeekIssue.url },
+      issueId: dueThisWeekIssue.identifier,
     };
   }
-  
-  // Check remaining emails/docs - prioritize by urgency
+
+  // FALLBACK 2: ALL REMAINING SLACK MESSAGES - before low-priority Linear
+  const nowForFallback = new Date();
+  if (slackMessages.length > 0) {
+    const remainingSlack = slackMessages
+      .map(slack => ({ slack, priority: calculateSlackPriority(slack, nowForFallback) }))
+      .sort((a, b) => b.priority - a.priority)[0];
+
+    const slack = remainingSlack.slack;
+    const truncatedText = slack.text.length > 60
+      ? slack.text.substring(0, 57) + "..."
+      : slack.text;
+    const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+    console.log(`FALLBACK: Showing Slack message (priority: ${remainingSlack.priority}) before no-due-date Linear issues`);
+    return {
+      title: `💬 Slack ${slack.type}`,
+      description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+      links: slack.permalink ? { slack: slack.permalink } : {},
+    };
+  }
+
+  // FALLBACK 3: No due date Linear issues (lowest priority)
+  const noDueDateIssue = findUnusedIssue(noDueDate);
+  if (noDueDateIssue) {
+    console.log(`Using no-due-date Linear issue: ${noDueDateIssue.identifier}`);
+    return {
+      title: `${noDueDateIssue.identifier} - ${noDueDateIssue.title} (${priorityEmojis[noDueDateIssue.priority] || "⚪"} ${noDueDateIssue.priorityLabel})`,
+      description: undefined,
+      links: { linear: noDueDateIssue.url },
+      issueId: noDueDateIssue.identifier,
+    };
+  }
+
+  console.log(`No more Linear issues or Slack - checking emails/docs for block`);
+
+  // Check remaining emails/docs/slack - prioritize by urgency
   const now = new Date();
   const fallbackActions: Array<{
-    type: "email" | "doc";
+    type: "email" | "doc" | "slack";
     priority: number;
-    data: GmailMessageDetail | AssignedActionDetail;
+    data: GmailMessageDetail | AssignedActionDetail | SlackMessageDetail;
   }> = [];
-  
+
   for (const action of assignedActions) {
     fallbackActions.push({
       type: "doc",
@@ -285,14 +504,14 @@ export function suggestWorkForBlock(
       data: action,
     });
   }
-  
+
   for (const email of gmailTodos) {
     fallbackActions.push({
       type: "email",
       priority: calculateQuickActionPriority(
-        { 
-          type: "email", 
-          timestamp: email.timestamp, 
+        {
+          type: "email",
+          timestamp: email.timestamp,
           isImportant: email.isImportant,
           isFromIndividual: email.isFromIndividual,
           needsReply: email.needsReply,
@@ -303,17 +522,36 @@ export function suggestWorkForBlock(
       data: email,
     });
   }
-  
+
+  for (const slack of slackMessages) {
+    fallbackActions.push({
+      type: "slack",
+      priority: calculateSlackPriority(slack, now),
+      data: slack,
+    });
+  }
+
   if (fallbackActions.length > 0) {
     fallbackActions.sort((a, b) => b.priority - a.priority);
     const topAction = fallbackActions[0];
-    
+
     if (topAction.type === "doc") {
       const action = topAction.data as AssignedActionDetail;
       return {
         title: "📄 Doc action",
         description: `${action.fileTitle} (${action.actionType})`,
         links: action.fileLink ? { docs: action.fileLink } : {},
+      };
+    } else if (topAction.type === "slack") {
+      const slack = topAction.data as SlackMessageDetail;
+      const truncatedText = slack.text.length > 60
+        ? slack.text.substring(0, 57) + "..."
+        : slack.text;
+      const prefix = slack.type === "mention" ? "💬 @mention" : "💬 DM";
+      return {
+        title: "💬 Slack response",
+        description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
+        links: slack.permalink ? { slack: slack.permalink } : {},
       };
     } else {
       const email = topAction.data as GmailMessageDetail;
@@ -357,10 +595,32 @@ export function createUnifiedTimeline(
   categorizedIssues: CategorizedIssues,
   linearIssues: LinearIssueDetail[],
   gmailTodos: GmailMessageDetail[],
-  assignedActions: AssignedActionDetail[]
+  assignedActions: AssignedActionDetail[],
+  slackMessages: SlackMessageDetail[]
 ): TimelineItem[] {
   const timeline: TimelineItem[] = [];
   const usedIssueIds = new Set<string>(); // Track issues already assigned to blocks
+  const now = new Date();
+
+  // Sort items by priority so we always show the most urgent first
+  // This ensures high-priority items from ALL sources (email, Slack, docs) get included
+  const sortedGmailTodos = [...gmailTodos].sort((a, b) => {
+    const priorityA = calculateQuickActionPriority({ type: "email", ...a }, now);
+    const priorityB = calculateQuickActionPriority({ type: "email", ...b }, now);
+    return priorityB - priorityA; // Higher priority first
+  });
+
+  const sortedAssignedActions = [...assignedActions].sort((a, b) => {
+    const priorityA = calculateQuickActionPriority({ type: "doc", ...a }, now);
+    const priorityB = calculateQuickActionPriority({ type: "doc", ...b }, now);
+    return priorityB - priorityA;
+  });
+
+  const sortedSlackMessages = [...slackMessages].sort((a, b) => {
+    const priorityA = calculateSlackPriority(a, now);
+    const priorityB = calculateSlackPriority(b, now);
+    return priorityB - priorityA;
+  });
   
   // Add calendar events
   for (const event of calendarEvents) {
@@ -412,18 +672,21 @@ export function createUnifiedTimeline(
   
   // Sort time blocks by duration (longest first) for optimal task assignment
   const sortedBlocks = [...timeBlocks].sort((a, b) => b.durationMinutes - a.durationMinutes);
-  
+
+  console.log(`Found ${timeBlocks.length} time blocks. Calendar events: ${calendarEvents.length}. Slack messages: ${slackMessages.length}`);
+
   // Assign work to blocks (longest blocks get priority for deep work)
   const blockSuggestions = new Map<TimeBlock, ReturnType<typeof suggestWorkForBlock>>();
   for (const block of sortedBlocks) {
-    const suggestion = suggestWorkForBlock(block, categorizedIssues, linearIssues, gmailTodos, assignedActions, usedIssueIds);
+    const suggestion = suggestWorkForBlock(block, categorizedIssues, linearIssues, sortedGmailTodos, sortedAssignedActions, sortedSlackMessages, usedIssueIds);
     if (suggestion?.issueId) {
       usedIssueIds.add(suggestion.issueId);
     }
     blockSuggestions.set(block, suggestion);
   }
-  
+
   // Add work blocks with suggestions (only if there are calendar events to create gaps)
+  console.log(`Checking if work blocks should be added. Calendar events: ${calendarEvents.length}`);
   if (calendarEvents.length > 0) {
     for (const block of timeBlocks) {
       const suggestion = blockSuggestions.get(block);
@@ -437,7 +700,7 @@ export function createUnifiedTimeline(
           description: suggestion.description,
           links: suggestion.links,
         });
-      } else if (linearIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0) {
+      } else if (linearIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0 || slackMessages.length > 0) {
         // Only show work blocks if there are tasks to work on
         timeline.push({
           start: block.start,
@@ -528,6 +791,8 @@ export function buildListOutput(timeline: TimelineItem[]): string {
         blockEmoji = "📧"; // Email tasks
       } else if (item.links.docs) {
         blockEmoji = "📝"; // Google Docs
+      } else if (item.links.slack) {
+        blockEmoji = "💬"; // Slack message
       }
       
       output += ` — WORK BLOCK (${durationStr})\n${blockEmoji} `;
@@ -547,22 +812,26 @@ export function buildListOutput(timeline: TimelineItem[]): string {
         output += item.title;
       }
       if (item.description) {
-        // Make description a link if there's an email or doc link
+        // Make description a link if there's an email, doc, or slack link
         if (item.links.gmail) {
           output += `\n   [${item.description}](${item.links.gmail})`;
         } else if (item.links.docs) {
           output += `\n   [${item.description}](${item.links.docs})`;
+        } else if (item.links.slack) {
+          output += `\n   [${item.description}](${item.links.slack})`;
         } else {
           output += `\n   ${item.description}`;
         }
       }
     } else {
-      // Email or action - make description the link
+      // Email, action, or slack - make description the link
       output += `\n`;
       if (item.links.gmail && item.description) {
         output += `📧 [${item.description}](${item.links.gmail})`;
       } else if (item.links.docs && item.description) {
         output += `📝 [${item.description}](${item.links.docs})`;
+      } else if (item.links.slack && item.description) {
+        output += `💬 [${item.description}](${item.links.slack})`;
       } else if (item.links.github && item.description) {
         // GitHub items - determine emoji from URL
         const githubUrl = item.links.github;

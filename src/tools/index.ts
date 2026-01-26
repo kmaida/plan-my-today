@@ -11,6 +11,7 @@ import { registerGithubTool } from "./github";
 import { registerTodayTodosTool } from "./today-todos/index";
 import { registerSlackConnectTool } from "./slack-connect";
 import { registerSlackDisconnectTool } from "./slack-disconnect";
+import { registerSlackListTool } from "./slack-list";
 import { registerCheckAuthTool } from "./check-auth";
 
 /**
@@ -26,6 +27,7 @@ export const TOOL_REGISTRY = [
   { name: "list-drive-activity", register: registerDriveActivityTool },
   { name: "list-gmail-todos", register: registerGmailTool },
   { name: "list-github-todos", register: registerGithubTool },
+  { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-today-todos", register: registerTodayTodosTool },
   { name: "connect-slack", register: registerSlackConnectTool },
   { name: "disconnect-slack", register: registerSlackDisconnectTool },

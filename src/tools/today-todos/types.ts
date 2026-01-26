@@ -93,6 +93,21 @@ export interface GitHubIssueDetail {
   labels?: string[];
 }
 
+/**
+ * Slack message detail
+ */
+export interface SlackMessageDetail {
+  text: string;
+  timestamp: string; // Message timestamp
+  channel: string; // Channel ID
+  channelName?: string; // Human-readable channel name
+  user: string; // User who posted
+  userName?: string; // Human-readable user name
+  permalink?: string; // Slack permalink to message
+  threadTs?: string; // Thread identifier
+  type: "mention" | "thread" | "dm"; // Message type
+  replyCount?: number; // For threads
+}
 
 /**
  * Time block for work suggestions
@@ -118,7 +133,7 @@ export interface LookaheadItem {
 export interface TimelineItem {
   start: Date;
   end: Date;
-  type: "meeting" | "focus" | "work" | "email" | "action";
+  type: "meeting" | "focus" | "work" | "email" | "action" | "slack";
   title: string;
   description?: string;
   durationMinutes?: number;

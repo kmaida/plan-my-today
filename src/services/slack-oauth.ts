@@ -15,7 +15,7 @@ export function generateOAuthUrl(userId: string): string {
 
   const params = new URLSearchParams({
     client_id: config.slackClientId,
-    scope: "reminders:read",
+    scope: "search:read",
     redirect_uri: config.slackOAuthRedirectUrl,
     state,
   });
@@ -43,7 +43,7 @@ interface SlackOAuthResponse {
   team?: { id: string; name: string };
   authed_user?: {
     id: string;
-    access_token?: string; // User token for user scopes like reminders:read
+    access_token?: string; // User token for user scopes like search:read
   };
 }
 
@@ -71,7 +71,7 @@ export async function exchangeCodeForToken(code: string): Promise<{
     throw new Error(data.error || "Failed to exchange code for token");
   }
 
-  // For user scopes like reminders:read, the token is in authed_user.access_token
+  // For user scopes like search:read, the token is in authed_user.access_token
   const userToken = data.authed_user.access_token;
   if (!userToken) {
     throw new Error("No user access token returned from Slack");

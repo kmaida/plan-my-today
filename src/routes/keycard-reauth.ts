@@ -13,9 +13,13 @@ interface ReauthState {
   state: string;
   codeVerifier: string;
   expiresAt: number;
+  timestamp: number;
+  userAgent?: string;
 }
 
 const reauthStates = new Map<string, ReauthState>();
+const recentCompletions = new Map<string, number>(); // Track recent completions to prevent loops
+const recentStarts = new Map<string, number>(); // Track recent starts to detect rapid retries
 
 /**
  * Generate PKCE parameters for secure OAuth flow
@@ -40,15 +44,50 @@ export function registerKeycardReauth(app: Express): void {
    * Start Keycard re-authentication flow
    * Opens OAuth flow that prompts user to reconnect services
    */
-  app.get("/keycard/reauth", (_req: Request, res: Response) => {
+  app.get("/keycard/reauth", (req: Request, res: Response) => {
     try {
       const zoneId = getZoneId();
       if (!zoneId) {
         return res.status(500).send("Keycard STS issuer URL not configured");
       }
 
+      // Check for recent completion to prevent loops (within last 30 seconds)
+      const userKey = req.headers['user-agent'] || 'unknown';
+      const lastCompletion = recentCompletions.get(userKey);
+      if (lastCompletion && Date.now() - lastCompletion < 30000) {
+        console.warn("Prevented potential OAuth loop - recent completion detected", {
+          userAgent: userKey,
+          timeSinceCompletion: Date.now() - lastCompletion
+        });
+        return res.send(`
+          <html>
+            <body style="font-family: system-ui; text-align: center; padding: 50px;">
+              <h1>⚠️ Re-authentication Already Completed</h1>
+              <p>You completed re-authentication ${Math.floor((Date.now() - lastCompletion) / 1000)} seconds ago.</p>
+              <p>Please <strong>restart Claude Desktop</strong> to apply the changes.</p>
+              <p><a href="/auth">Return to Auth Dashboard</a></p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Check for rapid repeated starts (within last 5 seconds) - indicates possible loop
+      const lastStart = recentStarts.get(userKey);
+      if (lastStart && Date.now() - lastStart < 5000) {
+        console.error("POSSIBLE OAUTH LOOP DETECTED - Multiple /keycard/reauth requests in rapid succession", {
+          userAgent: userKey,
+          timeSinceLastStart: Date.now() - lastStart,
+          message: "This suggests an infinite redirect loop"
+        });
+      }
+
+      // Track this start
+      recentStarts.set(userKey, Date.now());
+      setTimeout(() => recentStarts.delete(userKey), 60000); // Clean up after 1 minute
+
       const state = randomBytes(16).toString("hex");
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      const timestamp = Date.now();
 
       // Only use PKCE for public clients (no client_secret)
       // For confidential clients, use client_secret authentication
@@ -62,8 +101,14 @@ export function registerKeycardReauth(app: Express): void {
         codeChallenge = pkce.codeChallenge;
       }
 
-      // Store state
-      reauthStates.set(state, { state, codeVerifier: codeVerifier || "", expiresAt });
+      // Store state with user tracking
+      reauthStates.set(state, {
+        state,
+        codeVerifier: codeVerifier || "",
+        expiresAt,
+        timestamp,
+        userAgent: userKey
+      });
       setTimeout(() => reauthStates.delete(state), 10 * 60 * 1000);
 
       // Build Keycard OAuth URL
@@ -80,7 +125,8 @@ export function registerKeycardReauth(app: Express): void {
         response_type: "code",
         state,
         scope: "openid profile email offline_access",
-        prompt: "consent",
+        // Removed prompt: "consent" to prevent forced re-consent loops
+        // Keycard will handle consent as needed
       };
 
       // Add PKCE parameters for public clients
@@ -92,6 +138,14 @@ export function registerKeycardReauth(app: Express): void {
       const params = new URLSearchParams(authParams);
 
       const authUrl = `${config.keycardStsIssuerUrl}/oauth/2/authorize?${params.toString()}`;
+
+      console.log("Starting Keycard re-auth flow", {
+        state,
+        redirectUri,
+        clientId: clientId.substring(0, 8) + "...",
+        userAgent: userKey.substring(0, 50),
+        note: "User will be prompted to connect multiple Google services (Calendar, Gmail, Drive) - this requires 3-4 clicks"
+      });
 
       // Redirect to Keycard OAuth
       res.redirect(authUrl);
@@ -107,7 +161,15 @@ export function registerKeycardReauth(app: Express): void {
   app.get("/keycard/callback", async (req: Request, res: Response) => {
     const { code, state, error } = req.query;
 
+    console.log("OAuth callback received", {
+      hasCode: !!code,
+      hasState: !!state,
+      hasError: !!error,
+      errorValue: error
+    });
+
     if (error) {
+      console.error("OAuth callback error", { error });
       return res.status(400).send(`
         <html>
           <body style="font-family: system-ui; text-align: center; padding: 50px;">
@@ -120,18 +182,60 @@ export function registerKeycardReauth(app: Express): void {
     }
 
     if (!code || !state) {
-      return res.status(400).send("Missing code or state parameter");
+      console.error("OAuth callback missing required parameters", { hasCode: !!code, hasState: !!state });
+      return res.status(400).send(`
+        <html>
+          <body style="font-family: system-ui; text-align: center; padding: 50px;">
+            <h1>❌ Missing Parameters</h1>
+            <p>OAuth callback is missing code or state parameter.</p>
+            <p><strong>Debug Info:</strong></p>
+            <p>Redirect URI: <code>${config.baseUrl}/keycard/callback</code></p>
+            <p>Make sure this exact URI is registered in your Keycard application settings.</p>
+            <p><a href="/auth">Return to Auth Dashboard</a></p>
+          </body>
+        </html>
+      `);
     }
 
     // Validate state
     const reauthState = reauthStates.get(state as string);
     if (!reauthState) {
-      return res.status(400).send("Invalid or expired state");
+      console.error("OAuth callback state validation failed", {
+        receivedState: state,
+        statesInMemory: reauthStates.size
+      });
+      return res.status(400).send(`
+        <html>
+          <body style="font-family: system-ui; text-align: center; padding: 50px;">
+            <h1>❌ Invalid or Expired State</h1>
+            <p>The OAuth state parameter is invalid or has expired.</p>
+            <p>This can happen if:</p>
+            <ul style="text-align: left; display: inline-block;">
+              <li>The authorization took more than 10 minutes</li>
+              <li>The server was restarted during authorization</li>
+              <li>You're in a redirect loop (click Return to stop)</li>
+            </ul>
+            <p><a href="/auth">Return to Auth Dashboard</a></p>
+          </body>
+        </html>
+      `);
     }
 
     if (Date.now() > reauthState.expiresAt) {
       reauthStates.delete(state as string);
-      return res.status(400).send("State expired");
+      console.error("OAuth callback state expired", {
+        state,
+        expiredAt: new Date(reauthState.expiresAt).toISOString()
+      });
+      return res.status(400).send(`
+        <html>
+          <body style="font-family: system-ui; text-align: center; padding: 50px;">
+            <h1>❌ State Expired</h1>
+            <p>The authorization session expired (10 minute timeout).</p>
+            <p><a href="/auth">Return to Auth Dashboard</a></p>
+          </body>
+        </html>
+      `);
     }
 
     try {
@@ -147,8 +251,19 @@ export function registerKeycardReauth(app: Express): void {
         throw new Error("Invalid authorization code received from Keycard");
       }
 
+      // Track completion to prevent loops
+      const userKey = reauthState.userAgent || 'unknown';
+      recentCompletions.set(userKey, Date.now());
+      setTimeout(() => recentCompletions.delete(userKey), 60000); // Clean up after 1 minute
+
       // Clean up state
       reauthStates.delete(state as string);
+
+      console.log("OAuth callback successful", {
+        state,
+        codeLength: codeStr.length,
+        duration: Date.now() - reauthState.timestamp
+      });
 
       // Success page with instructions
       res.send(`
@@ -200,6 +315,14 @@ export function registerKeycardReauth(app: Express): void {
               <p>
                 Keycard has re-authorized your service connections.
               </p>
+              <div style="background: #e6fffa; border: 1px solid #81e6d9; border-radius: 8px; padding: 12px; margin: 16px 0; text-align: left;">
+                <p style="color: #234e52; font-size: 13px; margin: 0;">
+                  ✅ <strong>Services connected:</strong> Google Calendar, Gmail, Drive, Linear, GitHub
+                </p>
+                <p style="color: #234e52; font-size: 12px; margin: 8px 0 0 0;">
+                  If you had to click through multiple Google authorization screens (3-4 times), that's normal - each Google service requires separate authorization.
+                </p>
+              </div>
               <p>
                 <strong>Next Steps:</strong>
               </p>
@@ -297,9 +420,17 @@ export function registerKeycardReauth(app: Express): void {
                   <li>Verify redirect URI is registered in Keycard application settings:<br>
                       <code>${config.baseUrl}/keycard/callback</code></li>
                   <li>Check that client ID and secret are correct in your .env file</li>
+                  <li><strong>If you're in a loop:</strong> Wait 30 seconds before trying again</li>
+                  <li>Check server logs for detailed error information</li>
                   <li>Try clicking "Re-authenticate Now" again (state may have expired)</li>
-                  <li>If the error persists, contact Keycard support with the request ID</li>
+                  <li>If the error persists, contact Keycard support</li>
                 </ol>
+                <p style="margin-top: 12px; font-size: 13px; color: #4a5568;">
+                  <strong>Debug Info:</strong><br>
+                  Base URL: <code>${config.baseUrl}</code><br>
+                  STS Issuer: <code>${config.keycardStsIssuerUrl}</code><br>
+                  Check server console for detailed logs.
+                </p>
               </div>
               <a href="/auth" class="button">Return to Auth Dashboard</a>
             </div>
