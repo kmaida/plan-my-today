@@ -81,7 +81,6 @@ export function registerKeycardReauth(app: Express): void {
         state,
         scope: "openid profile email offline_access",
         prompt: "consent",
-        max_age: "0", // Force full re-authentication including downstream grants
       };
 
       // Add PKCE parameters for public clients
@@ -147,13 +146,6 @@ export function registerKeycardReauth(app: Express): void {
       if (!codeStr || codeStr.length < 100) {
         throw new Error("Invalid authorization code received from Keycard");
       }
-
-      // Log successful re-authentication
-      console.log("Keycard re-authentication successful:", {
-        codeReceived: true,
-        isJWT: codeStr.startsWith("eyJ"),
-        length: codeStr.length
-      });
 
       // Clean up state
       reauthStates.delete(state as string);
