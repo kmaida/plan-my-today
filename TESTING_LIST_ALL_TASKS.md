@@ -155,15 +155,49 @@ Once you've verified the tool returns data correctly:
 3. **Refine the planning strategy** through conversation
 4. **Eventually automate** with a scheduled script
 
-## Comparison with list-today-todos
+## Migration from list-today-todos (DEPRECATED)
 
-| Feature | list-today-todos | list-all-tasks-today |
-|---------|------------------|---------------------|
-| Output | Formatted markdown plan | Raw JSON data |
-| Intelligence | Workblocks, insights, timeline | None |
-| Use case | Ready-to-use plan | Data for agents |
-| Size | Large (~1000+ lines) | Small (~200 lines) |
-| Speed | Slower (more processing) | Faster (just fetching) |
+The `list-today-todos` tool has been deprecated in favor of agent-based planning.
+
+### Key Differences
+
+| Aspect | list-today-todos (DEPRECATED) | list-all-tasks-today (CURRENT) |
+|--------|-------------------------------|--------------------------------|
+| **Output** | Formatted markdown with timeline | Raw JSON grouped by source |
+| **Intelligence** | Built-in: workblocks, insights, timeline | Priority metadata for agents |
+| **Use case** | Ready-to-use daily plan | Data source for LLM agents |
+| **Flexibility** | Fixed format and logic | Fully customizable by agent |
+| **Size** | ~1000+ lines formatted output | Compact JSON (~200 lines) |
+| **Performance** | Slower (complex processing) | Faster (raw data only) |
+
+### Why the Change?
+
+1. **Agent-First Design:** LLM agents build better plans with context-aware reasoning
+2. **Flexibility:** Agents adapt to user preferences and context
+3. **Maintainability:** Separates data from presentation
+4. **Extensibility:** Easy to add sources without changing format logic
+
+### Migration Guide
+
+**Before (Old):**
+```typescript
+// Direct tool call with formatted output
+const result = await tools.listTodayTodos({ includeCalendar: true })
+```
+
+**After (New):**
+```typescript
+// Agent fetches raw data and builds custom plan
+const data = await tools.listAllTasksToday({ includeGithub: true })
+// Agent analyzes priority metadata and creates contextual plan
+// Agent can ask follow-up questions and adapt to preferences
+```
+
+**Benefits:**
+- Plans adapt to your working style
+- Agent reasons about task dependencies
+- Dynamic prioritization based on context
+- Natural conversation about schedule
 
 ## Testing Checklist
 

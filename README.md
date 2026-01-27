@@ -254,7 +254,7 @@ If you see `invalid_target` or "unknown resource" errors, the GitHub resource is
 
 ### Slack Reminders Integration
 
-The `list-today-todos` tool can include your Slack reminders. Unlike other integrations, Slack requires a separate OAuth flow because Keycard STS only provides OIDC scopes (user identity), not bot scopes needed for the Slack API.
+The `list-all-tasks-today` tool can include your Slack messages (@mentions and DMs). Unlike other integrations, Slack requires a separate OAuth flow because Keycard STS only provides OIDC scopes (user identity), not bot scopes needed for the Slack API.
 
 **Setup:**
 
@@ -281,19 +281,42 @@ The `list-today-todos` tool can include your Slack reminders. Unlike other integ
 5. **Connect Your Account**:
    - Use the `connect-slack` tool in your MCP client
    - Click the OAuth link to authorize
-   - Your reminders will now appear in `list-today-todos` when you pass `includeSlack: true`
+   - Your Slack messages will now be included in `list-all-tasks-today` output
 
 **Tools:**
 
 - `connect-slack` - Authorize Slack access
 - `disconnect-slack` - Remove Slack connection
-- `list-today-todos` - Pass `includeSlack: true` to include reminders (opt-in)
+- `list-all-tasks-today` - Automatically includes Slack messages when connected
 
 **Troubleshooting:**
 
 - **"Slack: Not connected" error**: Run `connect-slack` tool to authenticate
 - **"invalid_client" OAuth error**: Check that SLACK_CLIENT_ID and SLACK_CLIENT_SECRET are correct, and verify redirect URL matches in both Slack app settings and .env
 - **No reminders appearing**: Ensure you have reminders set in Slack for today, and check that reminders are incomplete (not already marked done)
+
+## Migration Notice: list-today-todos Deprecated
+
+> **Important:** The `list-today-todos` tool has been removed as of version 0.2.0. Use `list-all-tasks-today` with agent-based planning instead.
+
+### Why the Change?
+
+The old tool provided pre-formatted markdown with built-in intelligence. The new `list-all-tasks-today` tool returns raw JSON with priority metadata, designed for LLM agents. This enables:
+
+- **Contextual Planning:** Agents adapt to your working style
+- **Natural Interaction:** Refine plans through conversation
+- **Flexibility:** No rigid formatting
+- **Intelligence:** Priority metadata guides smart recommendations
+
+### How to Migrate
+
+Instead of calling `list-today-todos`:
+
+1. **Fetch raw data:** Use `list-all-tasks-today`
+2. **Let the agent plan:** LLM analyzes priorities and creates personalized plans
+3. **Iterate naturally:** Conversation-based refinement
+
+See [TESTING_LIST_ALL_TASKS.md](./TESTING_LIST_ALL_TASKS.md) for detailed guidance.
 
 ### Multi-Tenant Configuration
 
