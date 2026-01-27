@@ -1,6 +1,8 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod";
 import { stsClient } from "../services/sts-client";
+import { fetchGitHubTodos } from "./today-todos/github-utils";
+import type { GitHubPRDetail, GitHubIssueDetail } from "./today-todos/types";
 
 const GITHUB_RESOURCE = "https://api.github.com";
 const GITHUB_SCOPES = ["repo", "read:org"];
@@ -298,14 +300,30 @@ function extractPRRepoName(pr: GitHubPR): string {
 }
 
 /**
- * Formats a PR for display
+ * Formats a PR detail from utility for display
+ */
+function formatPRDetail(pr: GitHubPRDetail): string {
+  const draft = pr.isDraft ? "📝 [DRAFT] " : "";
+  const emoji = pr.type === "review" ? "👀" : "🔀";
+  const label = pr.type === "review" ? "Review requested" : "Assigned";
+
+  const updated = new Date(pr.updatedAt);
+  const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+  const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+
+  return `• ${emoji} **${draft}[${pr.repo}#${pr.number}](${pr.url})**: ${pr.title}\n` +
+    `  ${label} • Updated ${timeAgo}`;
+}
+
+/**
+ * Formats a PR for display (legacy, uses old GitHubPR type)
  */
 function formatPR(pr: GitHubPR, type: "assigned" | "review"): string {
   const repo = extractPRRepoName(pr);
   const draft = pr.draft ? "📝 [DRAFT] " : "";
   const emoji = type === "review" ? "👀" : "🔀";
   const label = type === "review" ? "Review requested" : "Assigned";
-  
+
   const updated = new Date(pr.updated_at);
   const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
   const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
@@ -347,7 +365,22 @@ function extractRepoName(issue: GitHubIssue): string {
 }
 
 /**
- * Formats an issue for display
+ * Formats an issue detail from utility for display
+ */
+function formatIssueDetail(issue: GitHubIssueDetail): string {
+  const labels = issue.labels?.map(l => `\`${l}\``).join(", ") || "";
+  const labelsText = labels ? ` • ${labels}` : "";
+
+  const updated = new Date(issue.updatedAt);
+  const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
+  const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+
+  return `• 🐛 **[${issue.repo}#${issue.number}](${issue.url})**: ${issue.title}\n` +
+    `  Updated ${timeAgo}${labelsText}`;
+}
+
+/**
+ * Formats an issue for display (legacy, uses old GitHubIssue type)
  */
 function formatIssue(issue: GitHubIssue): string {
   const repo = extractRepoName(issue);
@@ -395,34 +428,28 @@ export function registerGithubTool(mcpServer: McpServer): void {
         const includeIssues = args.includeIssues !== false; // default true
         const limit = args.limit || 10;
 
-        // Get GitHub username
-        const username = await getGitHubUsername(tokenResponse.access_token);
-        if (!username) {
-          return {
-            content: [{
-              type: "text",
-              text: "❌ Could not retrieve GitHub username. Please check your GitHub token permissions."
-            }]
-          };
-        }
+        // Fetch PRs and issues using utility function
+        const { prs, issues } = await fetchGitHubTodos(tokenResponse.access_token);
+
+        // Apply limit parameter
+        const limitedPRs = prs.slice(0, limit);
+        const limitedIssues = issues.slice(0, limit);
 
         const outputParts: string[] = [];
         let hasItems = false;
 
         // Fetch PRs
         if (includePRs) {
-          const { assigned, reviewRequested } = await fetchMyPRs(
-            tokenResponse.access_token,
-            username,
-            limit
-          );
+          // Separate PRs by type
+          const reviewRequested = limitedPRs.filter(pr => pr.type === "review");
+          const assigned = limitedPRs.filter(pr => pr.type === "assigned");
 
           // Show review-requested PRs first (usually more urgent)
           if (reviewRequested.length > 0) {
             hasItems = true;
             outputParts.push(`## 👀 Pull Requests Requesting Review (${reviewRequested.length})\n\n`);
             for (const pr of reviewRequested) {
-              outputParts.push(formatPR(pr, "review"));
+              outputParts.push(formatPRDetail(pr));
               outputParts.push("\n");
             }
             outputParts.push("\n");
@@ -433,7 +460,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
             hasItems = true;
             outputParts.push(`## 🔀 Assigned Pull Requests (${assigned.length})\n\n`);
             for (const pr of assigned) {
-              outputParts.push(formatPR(pr, "assigned"));
+              outputParts.push(formatPRDetail(pr));
               outputParts.push("\n");
             }
             outputParts.push("\n");
@@ -442,17 +469,11 @@ export function registerGithubTool(mcpServer: McpServer): void {
 
         // Fetch Issues
         if (includeIssues) {
-          const issues = await fetchMyIssues(
-            tokenResponse.access_token,
-            username,
-            limit
-          );
-
-          if (issues.length > 0) {
+          if (limitedIssues.length > 0) {
             hasItems = true;
-            outputParts.push(`## 🐛 Assigned Issues (${issues.length})\n\n`);
-            for (const issue of issues) {
-              outputParts.push(formatIssue(issue));
+            outputParts.push(`## 🐛 Assigned Issues (${limitedIssues.length})\n\n`);
+            for (const issue of limitedIssues) {
+              outputParts.push(formatIssueDetail(issue));
               outputParts.push("\n");
             }
           }
