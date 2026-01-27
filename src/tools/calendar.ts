@@ -1,6 +1,7 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod";
 import { stsClient } from "../services/sts-client";
+import { fetchCalendarEvents } from "./today-todos/calendar-utils";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -48,63 +49,12 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         const timeMax = args.timeMax || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const maxResults = args.maxResults || 10;
 
-        // Call Google Calendar API
-        const calendarResponse = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-          new URLSearchParams({
-            maxResults: maxResults.toString(),
-            timeMin: timeMin,
-            timeMax: timeMax,
-            singleEvents: "true",
-            orderBy: "startTime",
-          }),
-          {
-            headers: {
-              Authorization: `Bearer ${tokenResponse.access_token}`,
-            },
-          }
-        );
-
-        if (!calendarResponse.ok) {
-          const error = await calendarResponse.text();
-          return {
-            content: [{
-              type: "text",
-              text: `❌ Google Calendar API error: ${calendarResponse.status} - ${error}`
-            }]
-          };
-        }
-
-        interface CalendarEvent {
-          summary?: string;
-          description?: string;
-          start?: { dateTime?: string; date?: string };
-          end?: { dateTime?: string; date?: string };
-          location?: string;
-          htmlLink?: string;
-          hangoutLink?: string;
-          conferenceData?: {
-            entryPoints?: Array<{
-              entryPointType?: string;
-              uri?: string;
-            }>;
-          };
-          attendees?: Array<{
-            email?: string;
-            displayName?: string;
-            self?: boolean;
-            organizer?: boolean;
-            responseStatus?: string;
-          }>;
-          organizer?: {
-            email?: string;
-            displayName?: string;
-            self?: boolean;
-          };
-        }
-
-        const data = await calendarResponse.json() as { items?: CalendarEvent[] };
-        const events = data.items || [];
+        // Fetch calendar events using utility function
+        const events = await fetchCalendarEvents(tokenResponse.access_token, {
+          timeMin,
+          timeMax,
+          maxResults,
+        });
 
         if (events.length === 0) {
           return {

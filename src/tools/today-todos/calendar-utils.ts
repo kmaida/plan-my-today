@@ -3,20 +3,26 @@ import { PriorityMetadata, categorizeScore, calculateProximity } from "./priorit
 import { CALENDAR } from "../../constants";
 
 /**
- * Fetches today's calendar events with full details
+ * Fetches calendar events within a specified time range
+ *
+ * @param accessToken - Google Calendar API access token
+ * @param options - Fetch options
+ * @returns Array of calendar event details
  */
-export async function fetchTodayCalendarEvents(accessToken: string): Promise<CalendarEventDetail[]> {
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
-
+export async function fetchCalendarEvents(
+  accessToken: string,
+  options: {
+    timeMin: string;
+    timeMax: string;
+    maxResults?: number;
+  }
+): Promise<CalendarEventDetail[]> {
   const response = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
     new URLSearchParams({
-      maxResults: String(CALENDAR.MAX_RESULTS),
-      timeMin: startOfDay.toISOString(),
-      timeMax: endOfDay.toISOString(),
+      maxResults: String(options.maxResults || CALENDAR.MAX_RESULTS),
+      timeMin: options.timeMin,
+      timeMax: options.timeMax,
       singleEvents: "true",
       orderBy: "startTime",
     }),
@@ -33,6 +39,24 @@ export async function fetchTodayCalendarEvents(accessToken: string): Promise<Cal
 
   const data = await response.json() as { items?: CalendarEventDetail[] };
   return data.items || [];
+}
+
+/**
+ * Fetches today's calendar events with full details
+ *
+ * @param accessToken - Google Calendar API access token
+ * @returns Array of today's calendar event details
+ */
+export async function fetchTodayCalendarEvents(accessToken: string): Promise<CalendarEventDetail[]> {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
+
+  return fetchCalendarEvents(accessToken, {
+    timeMin: startOfDay.toISOString(),
+    timeMax: endOfDay.toISOString(),
+  });
 }
 
 /**
