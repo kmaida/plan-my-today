@@ -308,6 +308,25 @@ export function calculateLinearPriority(
     reasons.push("High priority");
   }
 
+  // Recent activity boost - issues actively being worked on
+  let ageHours: number | null = null;
+  if (issue.updatedAt) {
+    const updatedDate = new Date(issue.updatedAt);
+    ageHours = (now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60);
+
+    // Boost for recently updated issues (shows active work)
+    if (ageHours <= 24) {
+      score += 30;
+      reasons.push("Updated in last 24 hours");
+    } else if (ageHours <= 72) { // 3 days
+      score += 20;
+      reasons.push("Updated recently");
+    } else if (ageHours <= 168) { // 7 days
+      score += 10;
+      reasons.push("Updated this week");
+    }
+  }
+
   const isCompleted = issue.state?.type === "completed";
   if (isCompleted) {
     reasons.push("Recently completed");
@@ -322,7 +341,9 @@ export function calculateLinearPriority(
       daysUntilDue,
       isCompleted,
       hasEstimate: issue.estimate !== null,
-      estimatePoints: issue.estimate
+      estimatePoints: issue.estimate,
+      ageHours,
+      recentlyUpdated: ageHours !== null && ageHours <= 168 // Updated in last week
     },
     reasons
   };

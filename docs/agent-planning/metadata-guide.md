@@ -110,8 +110,57 @@ interface PriorityMetadata {
 - Base score: 70
 - Temporal urgency: +80 (due today), +40 (due this week), +100 (overdue)
 - Priority level: +50 (urgent), +30 (high), +10 (medium)
-- Recently updated: +20 if updated in last 24 hours
+- Recent activity: +30 (≤24h), +20 (≤3 days), +10 (≤7 days)
 - Has estimate: signal for planning
+
+#### Linear Issue (No Due Date, But Recently Active)
+
+```json
+{
+  "identifier": "PROJ-456",
+  "title": "Implement new feature",
+  "dueDate": null,
+  "priority": 2,
+  "priorityLabel": "High",
+  "updatedAt": "2026-01-27T10:00:00Z",
+  "priorityMetadata": {
+    "score": 130,
+    "category": "high",
+    "signals": {
+      "temporalUrgency": "no_due_date",
+      "priorityLevel": 2,
+      "daysUntilDue": null,
+      "hasEstimate": true,
+      "ageHours": 2,
+      "recentlyUpdated": true
+    },
+    "reasons": [
+      "High priority",
+      "Updated in last 24 hours"
+    ]
+  }
+}
+```
+
+**Agent interpretation:**
+```
+🟡 HIGH PRIORITY: PROJ-456 (score: 130) - High priority, active work (updated 2 hours ago)
+```
+
+**Why this matters:**
+Even without a due date, this issue gets high priority because:
+- It has "High" priority in Linear (+30)
+- It was updated 2 hours ago (+30 for recent activity)
+- Total score: 130 (high priority category)
+
+**This surfaces actively worked items that might otherwise be hidden!**
+
+**Scoring breakdown:**
+- Base: 70
+- No due date: +0
+- High priority: +30
+- Updated 2 hours ago: +30
+- **Total: 130** (high priority)
 
 #### GitHub PR (Review Requested)
 

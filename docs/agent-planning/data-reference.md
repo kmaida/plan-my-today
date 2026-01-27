@@ -397,6 +397,7 @@ interface MeetingContextMetadata {
 - Overdue: +100
 - Due today: +80
 - Due this week: +40
+- Due later: +10
 - No due date: +0
 
 **Priority level modifiers:**
@@ -405,8 +406,10 @@ interface MeetingContextMetadata {
 - Medium (priority=3): +10
 - Low (priority=4): +0
 
-**Recency bonus:**
-- Updated in last 24 hours: +20
+**Recent activity bonus:**
+- Updated in last 24 hours: +30
+- Updated in last 3 days: +20
+- Updated in last 7 days: +10
 
 **Example calculation:**
 ```
@@ -414,7 +417,17 @@ PROJ-123:
 - Base: 70
 - Due today: +80
 - Urgent priority: +50
-- Total: 200 (critical)
+- Updated 6 hours ago: +30
+- Total: 230 (critical)
+```
+
+```
+PROJ-456 (no due date, but active):
+- Base: 70
+- No due date: +0
+- High priority: +30
+- Updated 2 hours ago: +30
+- Total: 130 (high priority) ← Surfaces despite no due date!
 ```
 
 ### GitHub PRs
