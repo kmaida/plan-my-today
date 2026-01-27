@@ -1,4 +1,4 @@
-import type { GmailMessageDetail } from "./types";
+import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
 
 /**
  * Determines if an email is from an individual (not an automated system)
@@ -243,6 +243,240 @@ export function isLowImportance(from: string, subject: string, isImportant: bool
   }
   
   return false;
+}
+
+/**
+ * Detects if email is a Zoom meeting notes email
+ */
+export function isZoomMeetingNote(from: string, subject: string): boolean {
+  const fromLower = from.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+
+  // Check from address
+  if (!fromLower.includes('zoom.us') || !fromLower.includes('no-reply')) {
+    return false;
+  }
+
+  // Check subject patterns
+  const meetingNotePatterns = [
+    /meeting (assets|summary|recording) for .+ (are|is) ready/i,
+    /meeting notes for .+/i,
+  ];
+
+  return meetingNotePatterns.some(pattern => pattern.test(subjectLower));
+}
+
+/**
+ * Detects action items in email snippet
+ */
+export function snippetHasActionItems(snippet: string | undefined): boolean {
+  if (!snippet) return false;
+
+  const snippetLower = snippet.toLowerCase();
+
+  // Action item keywords
+  const actionKeywords = [
+    'action item',
+    'todo',
+    'to do',
+    'follow up',
+    'follow-up',
+    'assigned to',
+    '@', // Mentions often indicate assignments
+  ];
+
+  return actionKeywords.some(keyword => snippetLower.includes(keyword));
+}
+
+/**
+ * Extracts meeting title from Zoom subject line
+ */
+export function extractZoomMeetingTitle(subject: string): string | null {
+  const match = subject.match(/meeting (?:assets|summary|recording) for (.+?) (?:are|is) ready/i);
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Extracts recording link from email body
+ */
+export function extractRecordingLink(body: string): string | null {
+  // Common Zoom recording URL patterns
+  const zoomPatterns = [
+    /https?:\/\/[a-z0-9-]+\.zoom\.us\/rec\/share\/[^\s"<>]+/i,
+    /https?:\/\/[a-z0-9-]+\.zoom\.us\/rec\/play\/[^\s"<>]+/i,
+    /https?:\/\/zoom\.us\/rec\/[^\s"<>]+/i,
+  ];
+
+  for (const pattern of zoomPatterns) {
+    const match = body.match(pattern);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extracts plain text body from Gmail message payload
+ */
+export function extractEmailBody(payload?: {
+  parts?: Array<{
+    mimeType?: string;
+    body?: { data?: string };
+    parts?: Array<{ mimeType?: string; body?: { data?: string } }>;
+  }>;
+  body?: { data?: string };
+}): string {
+  if (!payload) return "";
+
+  // Check for plain text part
+  if (payload.parts) {
+    const textPart = payload.parts.find(p => p.mimeType === "text/plain");
+    if (textPart?.body?.data) {
+      return Buffer.from(textPart.body.data, "base64").toString("utf-8");
+    }
+
+    // Check for HTML part if no plain text
+    const htmlPart = payload.parts.find(p => p.mimeType === "text/html");
+    if (htmlPart?.body?.data) {
+      return Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
+    }
+
+    // Check nested parts (multipart/alternative)
+    for (const part of payload.parts) {
+      if (part.parts) {
+        const nestedText = part.parts.find(p => p.mimeType === "text/plain");
+        if (nestedText?.body?.data) {
+          return Buffer.from(nestedText.body.data, "base64").toString("utf-8");
+        }
+        const nestedHtml = part.parts.find(p => p.mimeType === "text/html");
+        if (nestedHtml?.body?.data) {
+          return Buffer.from(nestedHtml.body.data, "base64").toString("utf-8");
+        }
+      }
+    }
+  }
+
+  // Fall back to body
+  if (payload.body?.data) {
+    return Buffer.from(payload.body.data, "base64").toString("utf-8");
+  }
+
+  return "";
+}
+
+/**
+ * Fetches meeting summaries from Gmail (Zoom, Google Meet, etc.)
+ * Separate from regular email fetching
+ */
+export async function fetchMeetingSummaries(
+  accessToken: string,
+  options: {
+    daysBack?: number;
+    maxResults?: number;
+  } = {}
+): Promise<MeetingSummaryDetail[]> {
+  const { daysBack = 7, maxResults = 10 } = options;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const lookbackDate = new Date(today);
+  lookbackDate.setDate(today.getDate() - daysBack);
+  const afterDate = Math.floor(lookbackDate.getTime() / 1000);
+
+  // Search specifically for Zoom meeting summaries
+  const query = `from:zoom.us subject:"meeting assets" after:${afterDate}`;
+
+  const messagesResponse = await fetch(
+    `https://www.googleapis.com/gmail/v1/users/me/messages?` +
+    new URLSearchParams({
+      q: query,
+      maxResults: maxResults.toString(),
+    }),
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!messagesResponse.ok) {
+    return [];
+  }
+
+  const messagesData = await messagesResponse.json() as { messages?: Array<{ id: string }> };
+  if (!messagesData.messages || messagesData.messages.length === 0) {
+    return [];
+  }
+
+  // Fetch message details WITH FULL BODY to extract recording links
+  const messagePromises = messagesData.messages.slice(0, maxResults).map(msg =>
+    fetch(
+      `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    ).then(r => r.ok ? r.json() : null)
+  );
+
+  const messages = (await Promise.all(messagePromises)).filter(Boolean) as Array<{
+    payload?: {
+      headers?: Array<{ name?: string; value?: string }>;
+      parts?: Array<{
+        mimeType?: string;
+        body?: { data?: string };
+        parts?: Array<{ mimeType?: string; body?: { data?: string } }>;
+      }>;
+      body?: { data?: string };
+    };
+    snippet?: string;
+    id: string;
+    internalDate?: string;
+  }>;
+
+  const meetingSummaries: MeetingSummaryDetail[] = [];
+
+  for (const message of messages) {
+    const headers = message.payload?.headers || [];
+    const getHeader = (name: string) =>
+      headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
+
+    const subject = getHeader("subject") || "";
+    const from = getHeader("from") || "";
+    const snippet = message.snippet || '';
+
+    // Check if this is a Zoom meeting note
+    if (!isZoomMeetingNote(from, subject)) {
+      continue;
+    }
+
+    // Check if snippet has action items
+    if (!snippetHasActionItems(snippet)) {
+      continue; // Skip meeting summaries without action items
+    }
+
+    // Extract email body to find recording link
+    const emailBody = extractEmailBody(message.payload);
+    const recordingLink = extractRecordingLink(emailBody);
+
+    meetingSummaries.push({
+      platform: "zoom",
+      meetingTitle: extractZoomMeetingTitle(subject),
+      subject,
+      timestamp: message.internalDate ? parseInt(message.internalDate, 10) : Date.now(),
+      hasActionItems: true,
+      snippet,
+      link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+      recordingLink,
+      from,
+    });
+  }
+
+  return meetingSummaries;
 }
 
 /**

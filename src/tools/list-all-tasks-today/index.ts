@@ -3,7 +3,7 @@ import { z } from "zod";
 import { stsClient } from "../../services/sts-client";
 import { fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import { fetchLinearIssues } from "../today-todos/linear-utils";
-import { fetchGmailTodos } from "../today-todos/email-utils";
+import { fetchGmailTodos, fetchMeetingSummaries } from "../today-todos/email-utils";
 import { fetchAssignedActions } from "../today-todos/docs-utils";
 import { fetchGitHubTodos } from "../today-todos/github-utils";
 import { fetchSlackMessages } from "../today-todos/slack-utils";
@@ -76,6 +76,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       let calendarEvents: any[] = [];
       let linearIssues: any[] = [];
       let gmailTodos: any[] = [];
+      let meetingSummaries: any[] = [];
       let assignedActions: any[] = [];
       let githubPRs: any[] = [];
       let githubIssues: any[] = [];
@@ -127,6 +128,21 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         });
       } catch (error) {
         errors.push(formatAuthError("Gmail", error));
+      }
+
+      // Fetch meeting summaries (Zoom, Google Meet, etc.)
+      try {
+        const gmailToken = await stsClient.exchange(
+          authInfo,
+          GMAIL_RESOURCE,
+          GMAIL_SCOPES
+        );
+        meetingSummaries = await fetchMeetingSummaries(gmailToken.access_token, {
+          daysBack: 14,
+          maxResults: 10
+        });
+      } catch (error) {
+        errors.push(formatAuthError("Meeting Summaries (Gmail)", error));
       }
 
       // Fetch assigned actions from Google Docs (extended time window)
@@ -188,6 +204,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         calendar: calendarEvents,
         linear: linearIssues,
         gmail: gmailTodos,
+        meetingSummaries,
         docs: assignedActions,
         github: {
           prs: githubPRs,

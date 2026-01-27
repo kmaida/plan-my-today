@@ -59,6 +59,21 @@ export interface GmailMessageDetail {
 }
 
 /**
+ * Meeting summary detail (from Zoom, Google Meet, etc.)
+ */
+export interface MeetingSummaryDetail {
+  platform: "zoom" | "google-meet" | "teams" | "other"; // Meeting platform
+  meetingTitle: string | null; // Extracted meeting title
+  subject: string; // Original email subject
+  timestamp: number; // Unix timestamp in milliseconds
+  hasActionItems: boolean; // Whether action items detected in summary
+  snippet: string; // Email snippet/preview text
+  link: string; // Link to email in Gmail
+  recordingLink: string | null; // Link to meeting recording (if available)
+  from: string; // Email sender (e.g., no-reply@zoom.us)
+}
+
+/**
  * Assigned action detail
  */
 export interface AssignedActionDetail {
