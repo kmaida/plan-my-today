@@ -108,7 +108,7 @@ export function calculateDocsPriority(
   item: AssignedActionDetail,
   now: Date
 ): PriorityMetadata {
-  let score = item.isAssignment ? 100 : 50;
+  let score = item.isAssignment ? 140 : 100;
   const reasons: string[] = [];
 
   if (item.isAssignment) {
