@@ -1,5 +1,6 @@
 import type { SlackMessageDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
+import { getLogger } from "../../observability/logger";
 
 /**
  * Slack Search API response structure
@@ -362,7 +363,13 @@ async function getPermalink(
     }
 
     return undefined;
-  } catch {
+  } catch (error) {
+    const logger = getLogger().withOperation("slack_utils");
+    logger.debug('Failed to fetch Slack permalink', {
+      channel,
+      timestamp,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return undefined;
   }
 }

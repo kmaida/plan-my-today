@@ -105,16 +105,11 @@ export function createApp(): express.Application {
   app.post("/mcp", authMiddleware, async (req: express.Request, res: express.Response) => {
     const { sessionId, logger } = req.context;
 
-    logger.debug("Processing MCP request");
-
     let sessionData: { transport: InstanceType<typeof StreamableHTTPServerTransportImpl> };
 
     if (sessionId && sessionServers[sessionId]) {
-      logger.debug("Using existing session server");
       sessionData = sessionServers[sessionId];
     } else if (!sessionId && isInitializeRequest(req.body)) {
-      logger.debug("Creating new session server for initialization request");
-
       // Create NEW McpServer instance for this session (following official pattern)
       const mcpServer = createMcpServerForSession();
 
@@ -130,7 +125,6 @@ export function createApp(): express.Application {
 
       // Clean up when session closes
       transport.onclose = () => {
-        logger.debug("Transport closed for session");
         if (transport.sessionId) {
           delete sessionServers[transport.sessionId];
         }
@@ -142,7 +136,6 @@ export function createApp(): express.Application {
       // This follows the exact pattern from the official example
       try {
         await mcpServer.connect(transport);
-        logger.debug("MCP server connected to transport successfully");
       } catch (error) {
         logger.error("Failed to connect MCP server to transport", {
           error: error instanceof Error ? error.message : "Unknown error",
@@ -162,7 +155,6 @@ export function createApp(): express.Application {
 
       try {
         await mcpServer.connect(transport);
-        logger.debug("MCP server connected to stateless transport successfully");
       } catch (error) {
         logger.error("Failed to connect MCP server to stateless transport", {
           error: error instanceof Error ? error.message : "Unknown error",
@@ -175,8 +167,6 @@ export function createApp(): express.Application {
     const { transport } = sessionData;
 
     // Handle the MCP protocol request
-    logger.debug("Starting MCP protocol request handling");
-
     try {
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
@@ -185,7 +175,6 @@ export function createApp(): express.Application {
         stack: error instanceof Error ? error.stack : undefined,
       });
       if (!res.headersSent) {
-        logger.debug("Sending error response to client");
         return res.status(500).json({
           error: "MCP protocol error",
           details: error instanceof Error ? error.message : "Unknown error",
@@ -194,8 +183,6 @@ export function createApp(): express.Application {
         logger.warn("Cannot send error response - headers already sent");
       }
     }
-
-    logger.debug("MCP request handling completed");
   });
 
   /**
