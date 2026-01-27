@@ -7,6 +7,9 @@ import { fetchGmailTodos, fetchMeetingSummaries, calculateEmailPriority, calcula
 import { fetchAssignedActions, calculateDocsPriority } from "../today-todos/docs-utils";
 import { fetchGitHubTodos, calculateGitHubPriority } from "../today-todos/github-utils";
 import { fetchSlackMessages, calculateSlackPriorityWithMetadata } from "../today-todos/slack-utils";
+import { parseDependencies } from "../today-todos/dependency-utils";
+import { detectLinearMentions, detectGitHubMentions } from "../today-todos/cross-reference-utils";
+import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
 import * as slackTokenStore from "../../services/slack-token-store";
@@ -242,6 +245,81 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         ...msg,
         priorityMetadata: calculateSlackPriorityWithMetadata(msg, now)
       }));
+
+      // ============================================
+      // ENRICHMENT PHASE: Cross-Item Intelligence
+      // ============================================
+
+      // 1. Dependencies: Parse blocking relationships from Linear issue titles
+      for (const issue of linearIssues) {
+        if (issue.title) {
+          issue.dependencyMetadata = parseDependencies(issue.title);
+        }
+      }
+
+      // Compute reverse dependencies (what each item blocks)
+      const dependencyMap = new Map<string, Set<string>>();
+      for (const issue of linearIssues) {
+        if (issue.dependencyMetadata?.blockedBy) {
+          for (const blockerId of issue.dependencyMetadata.blockedBy) {
+            if (!dependencyMap.has(blockerId)) {
+              dependencyMap.set(blockerId, new Set());
+            }
+            dependencyMap.get(blockerId)!.add(issue.identifier);
+          }
+        }
+      }
+
+      // Update blocks field with reverse lookup
+      for (const issue of linearIssues) {
+        if (dependencyMap.has(issue.identifier)) {
+          issue.dependencyMetadata = issue.dependencyMetadata || {
+            blockedBy: [],
+            blocks: [],
+            waitingOn: [],
+            blockedByExternal: false,
+          };
+          issue.dependencyMetadata.blocks = Array.from(dependencyMap.get(issue.identifier)!);
+        }
+      }
+
+      // 2. Cross-references: Detect mentions across sources
+      for (const issue of linearIssues) {
+        issue.crossReferenceMetadata = detectLinearMentions(
+          issue.identifier,
+          gmailTodos,
+          slackMessages
+        );
+      }
+
+      for (const pr of githubPRs) {
+        pr.crossReferenceMetadata = detectGitHubMentions(
+          pr.repo,
+          pr.number,
+          gmailTodos,
+          slackMessages
+        );
+      }
+
+      for (const issue of githubIssues) {
+        issue.crossReferenceMetadata = detectGitHubMentions(
+          issue.repo,
+          issue.number,
+          gmailTodos,
+          slackMessages
+        );
+      }
+
+      // 3. Meeting prep: Generate context for calendar events
+      for (const meeting of calendarEvents) {
+        meeting.meetingContextMetadata = generateMeetingContext(
+          meeting,
+          linearIssues,
+          { prs: githubPRs, issues: githubIssues },
+          gmailTodos,
+          meetingSummaries
+        );
+      }
 
       // Build response data
       const responseData = {

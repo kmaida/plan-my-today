@@ -5,6 +5,58 @@
 import type { PriorityMetadata } from "./priority-utils";
 
 /**
+ * Dependency metadata for tasks (what blocks/is blocked by this item)
+ */
+export interface DependencyMetadata {
+  blockedBy: string[];        // Issue IDs that block this item (e.g., ["ABC-123", "PROJ-456"])
+  blocks: string[];           // Issue IDs that this item blocks (computed from reverse lookup)
+  waitingOn: string[];        // People we're waiting on (e.g., ["user@email.com"])
+  blockedByExternal: boolean; // True if blocked by person/external factor (not another issue)
+}
+
+/**
+ * Cross-reference metadata (same item mentioned across multiple sources)
+ */
+export interface CrossReferenceMetadata {
+  mentionedIn: string[];      // Sources where this item is mentioned (e.g., ["linear", "email", "slack"])
+  relatedItems: Array<{
+    source: string;           // Source type ("email" | "slack" | "github")
+    id: string;              // Item ID from that source
+    snippet: string;         // Brief context where mentioned (truncated to 100 chars)
+  }>;
+  totalMentions: number;      // Total count of references (including origin)
+}
+
+/**
+ * Meeting context metadata (cross-references for calendar events)
+ */
+export interface MeetingContextMetadata {
+  relatedIssues: Array<{
+    identifier: string;       // Linear issue identifier
+    title: string;           // Issue title
+    reason: string;          // Match reason ("keyword_match" | "project_match" | "attendee_match")
+  }>;
+  relatedPRs: Array<{
+    number: number;          // PR number
+    repo: string;            // Repository name
+    title: string;           // PR title
+    reason: string;          // Match reason
+  }>;
+  relatedEmails: Array<{
+    id: string;              // Gmail message ID
+    subject: string;         // Email subject
+    from: string;            // Sender email
+    reason: string;          // Relation reason ("attendee_needs_reply" | "topic_match")
+  }>;
+  attendeeContext: Array<{
+    email: string;           // Attendee email
+    pendingItems: number;    // Count of items involving this person
+  }>;
+  hasSummary: boolean;       // True if matching meeting summary/recording exists
+  summaryLink?: string;      // Link to meeting summary/recording (if available)
+}
+
+/**
  * Calendar event with full details
  */
 export interface CalendarEventDetail {
@@ -26,6 +78,7 @@ export interface CalendarEventDetail {
     self?: boolean;
   }>;
   priorityMetadata?: PriorityMetadata;
+  meetingContextMetadata?: MeetingContextMetadata;
 }
 
 /**
@@ -44,6 +97,8 @@ export interface LinearIssueDetail {
   completedAt?: string | null;
   updatedAt?: string | null;
   priorityMetadata?: PriorityMetadata;
+  dependencyMetadata?: DependencyMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
@@ -104,6 +159,7 @@ export interface GitHubPRDetail {
   updatedAt: string;
   isDraft: boolean;
   priorityMetadata?: PriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
@@ -118,6 +174,7 @@ export interface GitHubIssueDetail {
   updatedAt: string;
   labels?: string[];
   priorityMetadata?: PriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
