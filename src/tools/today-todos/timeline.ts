@@ -7,6 +7,8 @@ import type {
   SlackMessageDetail,
   CategorizedIssues,
   TimelineItem,
+  GitHubPRDetail,
+  GitHubIssueDetail,
 } from "./types";
 import { calculateSlackPriority } from "./slack-utils";
 
@@ -87,6 +89,50 @@ export function calculateQuickActionPriority(
 }
 
 /**
+ * Calculates a priority score for GitHub PRs and issues
+ * Higher score = higher priority
+ */
+export function calculateGitHubPriority(
+  item: GitHubPRDetail | GitHubIssueDetail,
+  now: Date
+): number {
+  let score = 0;
+
+  // Type-based priority
+  if ('type' in item) {
+    // It's a PR
+    const pr = item as GitHubPRDetail;
+    if (pr.type === 'review') {
+      score += 100; // Review-requested PRs are HIGH priority
+    } else if (pr.type === 'assigned') {
+      score += 60; // Assigned PRs are MEDIUM priority
+    }
+
+    // Draft PRs are lower priority
+    if (pr.isDraft) {
+      score -= 30;
+    }
+  } else {
+    // It's an issue - similar priority to Linear issues
+    score += 50; // Base priority for assigned issues
+  }
+
+  // Recency boost based on update time
+  const updatedAt = new Date(item.updatedAt);
+  const hoursAgo = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+
+  if (hoursAgo < 4) {
+    score += 40; // Recently updated
+  } else if (hoursAgo < 24) {
+    score += 20;
+  } else if (hoursAgo < 48) {
+    score += 10;
+  }
+
+  return score;
+}
+
+/**
  * Suggests work for a time block based on duration and priority
  * Optimizes for productivity by matching task complexity to available time
  */
@@ -97,8 +143,11 @@ export function suggestWorkForBlock(
   gmailTodos: GmailMessageDetail[],
   assignedActions: AssignedActionDetail[],
   slackMessages: SlackMessageDetail[],
-  usedIssueIds: Set<string> = new Set()
-): { title: string; description?: string; links: TimelineItem["links"]; issueId?: string } | null {
+  githubPRs: GitHubPRDetail[],
+  githubIssues: GitHubIssueDetail[],
+  usedIssueIds: Set<string> = new Set(),
+  usedGitHubIds: Set<string> = new Set()
+): { title: string; description?: string; links: TimelineItem["links"]; issueId?: string; githubId?: string } | null {
   console.log(`[suggestWorkForBlock] Block: ${block.durationMinutes} min at ${block.start.toLocaleTimeString()}. Slack messages available: ${slackMessages.length}`);
   const { overdue, dueToday, highPriority, dueThisWeek, noDueDate } = categorizedIssues;
   const priorityEmojis: Record<number, string> = { 0: "⚪", 1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢" };
@@ -112,9 +161,9 @@ export function suggestWorkForBlock(
   if (block.durationMinutes < 30) {
     const now = new Date();
     const quickActions: Array<{
-      type: "email" | "doc" | "slack";
+      type: "email" | "doc" | "slack" | "github";
       priority: number;
-      data: GmailMessageDetail | AssignedActionDetail | SlackMessageDetail;
+      data: GmailMessageDetail | AssignedActionDetail | SlackMessageDetail | GitHubPRDetail | GitHubIssueDetail;
     }> = [];
 
     // Add doc actions with priority scores
@@ -159,6 +208,27 @@ export function suggestWorkForBlock(
       });
     }
 
+    // Add GitHub items (PRs for quick review, especially drafts)
+    for (const pr of githubPRs) {
+      if (usedGitHubIds.has(`pr-${pr.repo}-${pr.number}`)) continue;
+      const priority = calculateGitHubPriority(pr, now);
+      quickActions.push({
+        type: "github",
+        priority,
+        data: pr,
+      });
+    }
+
+    for (const issue of githubIssues) {
+      if (usedGitHubIds.has(`issue-${issue.repo}-${issue.number}`)) continue;
+      const priority = calculateGitHubPriority(issue, now);
+      quickActions.push({
+        type: "github",
+        priority,
+        data: issue,
+      });
+    }
+
     // Sort by priority (highest first) and take the top item
     if (quickActions.length > 0) {
       quickActions.sort((a, b) => b.priority - a.priority);
@@ -182,6 +252,18 @@ export function suggestWorkForBlock(
           title: `Quick: Respond to Slack ${slack.type}`,
           description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
           links: slack.permalink ? { slack: slack.permalink } : {},
+        };
+      } else if (topAction.type === "github") {
+        const githubItem = topAction.data as GitHubPRDetail | GitHubIssueDetail;
+        const isPR = 'type' in githubItem;
+        const emoji = isPR ? (githubItem as GitHubPRDetail).type === 'review' ? '👀' : '🔀' : '🐛';
+        const id = isPR ? `pr-${githubItem.repo}-${githubItem.number}` : `issue-${githubItem.repo}-${githubItem.number}`;
+        usedGitHubIds.add(id);
+        return {
+          title: `Quick: ${isPR ? 'PR review' : 'Issue check'}`,
+          description: `${emoji} ${githubItem.repo}#${githubItem.number}: ${githubItem.title}`,
+          links: { github: githubItem.url },
+          githubId: id,
         };
       } else {
         const email = topAction.data as GmailMessageDetail;
@@ -237,6 +319,25 @@ export function suggestWorkForBlock(
         title: `💬 Respond to Slack ${slack.type}`,
         description: `${prefix} from ${slack.userName || slack.user}: "${truncatedText}"`,
         links: slack.permalink ? { slack: slack.permalink } : {},
+      };
+    }
+
+    // HIGH-PRIORITY GitHub review-requested PRs - compete with due today
+    const reviewPRs = githubPRs
+      .filter(pr => pr.type === 'review' && !usedGitHubIds.has(`pr-${pr.repo}-${pr.number}`))
+      .map(pr => ({ pr, priority: calculateGitHubPriority(pr, now) }))
+      .sort((a, b) => b.priority - a.priority)[0];
+
+    if (reviewPRs) {
+      const pr = reviewPRs.pr;
+      const id = `pr-${pr.repo}-${pr.number}`;
+      usedGitHubIds.add(id);
+      console.log(`PRIORITIZING review-requested PR (priority: ${reviewPRs.priority})`);
+      return {
+        title: `👀 Review: ${pr.repo}#${pr.number}`,
+        description: pr.title,
+        links: { github: pr.url },
+        githubId: id,
       };
     }
 
@@ -338,6 +439,16 @@ export function suggestWorkForBlock(
         catchUpItems.push(`- 📄 [${action.fileTitle}](${actionLink}) (${action.actionType})`);
       }
 
+      // Add high-priority GitHub review PRs (up to 2)
+      const reviewPRsForCatchup = githubPRs
+        .filter(pr => pr.type === 'review' && !usedGitHubIds.has(`pr-${pr.repo}-${pr.number}`))
+        .slice(0, 2);
+      for (const pr of reviewPRsForCatchup) {
+        const id = `pr-${pr.repo}-${pr.number}`;
+        usedGitHubIds.add(id);
+        catchUpItems.push(`- 👀 [${pr.repo}#${pr.number}](${pr.url}): ${pr.title}`);
+      }
+
       return {
         title: "Morning Catch-up",
         description: catchUpItems.join("\n"),
@@ -382,6 +493,25 @@ export function suggestWorkForBlock(
     const topEmails = gmailTodos.slice(0, 2);
     for (const email of topEmails) {
       blockItems.push(`- 📧 [${email.subject}](${email.link})`);
+    }
+
+    // 4.5. Add high-priority GitHub items (review PRs and recently updated items)
+    const githubPriorities = [...githubPRs, ...githubIssues]
+      .filter(item => {
+        const isPR = 'type' in item;
+        const id = isPR ? `pr-${item.repo}-${item.number}` : `issue-${item.repo}-${item.number}`;
+        return !usedGitHubIds.has(id);
+      })
+      .map(item => ({ item, priority: calculateGitHubPriority(item, now) }))
+      .sort((a, b) => b.priority - a.priority)
+      .slice(0, 2);
+
+    for (const { item } of githubPriorities) {
+      const isPR = 'type' in item;
+      const emoji = isPR ? (item as GitHubPRDetail).type === 'review' ? '👀' : '🔀' : '🐛';
+      const id = isPR ? `pr-${item.repo}-${item.number}` : `issue-${item.repo}-${item.number}`;
+      usedGitHubIds.add(id);
+      blockItems.push(`- ${emoji} [${item.repo}#${item.number}](${item.url}): ${item.title}`);
     }
 
     // 5. If no primary issue yet, add urgent high-priority issues (only if due soon)
@@ -596,10 +726,13 @@ export function createUnifiedTimeline(
   linearIssues: LinearIssueDetail[],
   gmailTodos: GmailMessageDetail[],
   assignedActions: AssignedActionDetail[],
-  slackMessages: SlackMessageDetail[]
+  slackMessages: SlackMessageDetail[],
+  githubPRs: GitHubPRDetail[],
+  githubIssues: GitHubIssueDetail[]
 ): TimelineItem[] {
   const timeline: TimelineItem[] = [];
   const usedIssueIds = new Set<string>(); // Track issues already assigned to blocks
+  const usedGitHubIds = new Set<string>(); // Track GitHub items already assigned to blocks
   const now = new Date();
 
   // Sort items by priority so we always show the most urgent first
@@ -678,9 +811,12 @@ export function createUnifiedTimeline(
   // Assign work to blocks (longest blocks get priority for deep work)
   const blockSuggestions = new Map<TimeBlock, ReturnType<typeof suggestWorkForBlock>>();
   for (const block of sortedBlocks) {
-    const suggestion = suggestWorkForBlock(block, categorizedIssues, linearIssues, sortedGmailTodos, sortedAssignedActions, sortedSlackMessages, usedIssueIds);
+    const suggestion = suggestWorkForBlock(block, categorizedIssues, linearIssues, sortedGmailTodos, sortedAssignedActions, sortedSlackMessages, githubPRs, githubIssues, usedIssueIds, usedGitHubIds);
     if (suggestion?.issueId) {
       usedIssueIds.add(suggestion.issueId);
+    }
+    if (suggestion?.githubId) {
+      usedGitHubIds.add(suggestion.githubId);
     }
     blockSuggestions.set(block, suggestion);
   }
@@ -700,7 +836,7 @@ export function createUnifiedTimeline(
           description: suggestion.description,
           links: suggestion.links,
         });
-      } else if (linearIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0 || slackMessages.length > 0) {
+      } else if (linearIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0 || slackMessages.length > 0 || githubPRs.length > 0 || githubIssues.length > 0) {
         // Only show work blocks if there are tasks to work on
         timeline.push({
           start: block.start,

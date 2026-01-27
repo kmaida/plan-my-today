@@ -50,6 +50,7 @@ export interface GmailMessageDetail {
   link: string;
   timestamp?: number; // Internal date from Gmail (Unix timestamp in milliseconds)
   isImportant?: boolean; // Whether the email is marked as important
+  isStarred?: boolean; // Whether the email is starred
   isFromIndividual?: boolean; // Whether the email is from an individual (not automated)
   needsReply?: boolean; // Whether the email likely needs a reply
   hasActionItems?: boolean; // Whether the email contains action items

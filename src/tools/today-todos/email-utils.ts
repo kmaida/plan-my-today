@@ -332,8 +332,8 @@ export async function fetchGmailTodos(accessToken: string): Promise<GmailMessage
   sevenDaysAgo.setDate(today.getDate() - 7);
   const afterDate = Math.floor(sevenDaysAgo.getTime() / 1000);
   
-  // Fetch unread/important emails from the past week
-  const query = `(is:unread OR is:important) after:${afterDate}`;
+  // Fetch unread or starred emails from the past week
+  const query = `(is:unread OR is:starred) after:${afterDate}`;
 
   const messagesResponse = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?` +
@@ -399,6 +399,7 @@ export async function fetchGmailTodos(accessToken: string): Promise<GmailMessage
         link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
         timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
         isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
+        isStarred: message.labelIds?.includes("STARRED") ?? false,
         isFromIndividual: fromIndividual,
         needsReply,
         hasActionItems,

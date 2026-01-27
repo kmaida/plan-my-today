@@ -242,7 +242,9 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           linearIssues,
           gmailTodos,
           assignedActions,
-          slackMessages
+          slackMessages,
+          githubPRs,
+          githubIssues
         );
 
         // Filter timeline to show only remaining items if requested
@@ -345,15 +347,28 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
         
         // Remaining tasks not scheduled
         const scheduledIssueIds = new Set<string>();
+        const scheduledGitHubIds = new Set<string>();
         for (const item of timeline) {
           if (item.links.linear) {
             // Extract issue ID from URL
             const match = item.links.linear.match(/issue\/([A-Z]+-\d+)/);
             if (match) scheduledIssueIds.add(match[1]);
           }
+          if (item.links.github) {
+            // Extract repo and issue/PR number from GitHub URL
+            const match = item.links.github.match(/github\.com\/([^\/]+\/[^\/]+)\/(pull|issues)\/(\d+)/);
+            if (match) {
+              const repo = match[1];
+              const type = match[2] === 'pull' ? 'pr' : 'issue';
+              const number = match[3];
+              scheduledGitHubIds.add(`${type}-${repo}-${number}`);
+            }
+          }
         }
         const unscheduledIssues = linearIssues.filter(i => !scheduledIssueIds.has(i.identifier));
-        const hasOtherTasks = unscheduledIssues.length > 0 || githubPRs.length > 0 || githubIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0;
+        const unscheduledGitHubPRs = githubPRs.filter(pr => !scheduledGitHubIds.has(`pr-${pr.repo}-${pr.number}`));
+        const unscheduledGitHubIssues = githubIssues.filter(issue => !scheduledGitHubIds.has(`issue-${issue.repo}-${issue.number}`));
+        const hasOtherTasks = unscheduledIssues.length > 0 || unscheduledGitHubPRs.length > 0 || unscheduledGitHubIssues.length > 0;
         
         if (hasOtherTasks) {
           output += `---\n\n## 📌 Other Tasks (not scheduled today)\n\n`;
@@ -369,107 +384,14 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
             if (unscheduledIssues.length > 5) {
               output += `- ... and ${unscheduledIssues.length - 5} more Linear issues\n`;
             }
-            if (githubPRs.length > 0 || githubIssues.length > 0 || gmailTodos.length > 0 || assignedActions.length > 0) {
+            if (unscheduledGitHubPRs.length > 0 || unscheduledGitHubIssues.length > 0) {
               output += `\n`;
             }
           }
-          
-          // Gmail todos - prioritize by importance and recency
-          if (gmailTodos.length > 0) {
-            const now = new Date();
-            const sortedEmails = [...gmailTodos].sort((a, b) => {
-              const aPriority = calculateQuickActionPriority(
-                { 
-                  type: "email", 
-                  timestamp: a.timestamp, 
-                  isImportant: a.isImportant,
-                  isFromIndividual: a.isFromIndividual,
-                  needsReply: a.needsReply,
-                  hasActionItems: a.hasActionItems,
-                },
-                now
-              );
-              const bPriority = calculateQuickActionPriority(
-                { 
-                  type: "email", 
-                  timestamp: b.timestamp, 
-                  isImportant: b.isImportant,
-                  isFromIndividual: b.isFromIndividual,
-                  needsReply: b.needsReply,
-                  hasActionItems: b.hasActionItems,
-                },
-                now
-              );
-              return bPriority - aPriority;
-            });
-            
-            for (const email of sortedEmails.slice(0, 5)) {
-              const updated = email.timestamp ? new Date(email.timestamp) : null;
-              let timeAgo = "";
-              if (updated) {
-                const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
-                timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
-              }
-              
-              // Build urgency indicators
-              let urgencyIndicators = "";
-              if (email.isFromIndividual) {
-                if (email.hasActionItems) {
-                  urgencyIndicators += "🔴 "; // Urgent: action items from individual
-                } else if (email.needsReply) {
-                  urgencyIndicators += "⚠️ "; // Needs reply from individual
-                }
-              }
-              const important = email.isImportant ? "⭐ " : "";
-              
-              // Extract name from "from" field - handle both "Name <email>" and just "email" formats
-              const fromMatch = email.from.match(/^(.+?)\s*<.+>$/);
-              const fromName = fromMatch ? fromMatch[1].trim() : email.from.split("@")[0] || email.from;
-              
-              // Highlight individual emails
-              const fromDisplay = email.isFromIndividual ? `**${fromName}**` : fromName;
-              
-              output += `- 📧 ${urgencyIndicators}${important}[${email.subject}](${email.link})${timeAgo ? ` (${timeAgo})` : ""} — ${fromDisplay}\n`;
-            }
-            if (gmailTodos.length > 5) {
-              output += `- ... and ${gmailTodos.length - 5} more emails\n`;
-            }
-            if (assignedActions.length > 0 || githubPRs.length > 0 || githubIssues.length > 0) {
-              output += `\n`;
-            }
-          }
-          
-          // Assigned actions from Google Docs
-          if (assignedActions.length > 0) {
-            const now = new Date();
-            const sortedActions = [...assignedActions].sort((a, b) => {
-              const aPriority = calculateQuickActionPriority(
-                { type: "doc", timestamp: a.timestamp, isAssignment: a.isAssignment },
-                now
-              );
-              const bPriority = calculateQuickActionPriority(
-                { type: "doc", timestamp: b.timestamp, isAssignment: b.isAssignment },
-                now
-              );
-              return bPriority - aPriority;
-            });
-            
-            for (const action of sortedActions.slice(0, 5)) {
-              const actionType = action.isAssignment ? "assigned" : "mentioned";
-              const linkText = action.fileLink ? `[${action.fileTitle}](${action.fileLink})` : action.fileTitle;
-              output += `- 📝 ${linkText} (${actionType} in comment)\n`;
-            }
-            if (assignedActions.length > 5) {
-              output += `- ... and ${assignedActions.length - 5} more doc actions\n`;
-            }
-            if (githubPRs.length > 0 || githubIssues.length > 0) {
-              output += `\n`;
-            }
-          }
-          
-          // GitHub PRs and Issues
+
+          // GitHub PRs and Issues (only unscheduled items)
           // Show review-requested PRs first (usually more urgent)
-          const reviewPRs = githubPRs.filter(pr => pr.type === "review");
+          const reviewPRs = unscheduledGitHubPRs.filter(pr => pr.type === "review");
           if (reviewPRs.length > 0) {
             for (const pr of reviewPRs) {
               const draft = pr.isDraft ? "📝 [DRAFT] " : "";
@@ -481,7 +403,7 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
 
           // Then assigned PRs
-          const assignedPRs = githubPRs.filter(pr => pr.type === "assigned");
+          const assignedPRs = unscheduledGitHubPRs.filter(pr => pr.type === "assigned");
           if (assignedPRs.length > 0) {
             for (const pr of assignedPRs) {
               const draft = pr.isDraft ? "📝 [DRAFT] " : "";
@@ -493,12 +415,12 @@ export function registerTodayTodosTool(mcpServer: McpServer): void {
           }
 
           // Then issues
-          if (githubIssues.length > 0) {
-            for (const issue of githubIssues) {
+          if (unscheduledGitHubIssues.length > 0) {
+            for (const issue of unscheduledGitHubIssues) {
               const updated = new Date(issue.updatedAt);
               const daysAgo = Math.floor((Date.now() - updated.getTime()) / (1000 * 60 * 60 * 24));
               const timeAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
-              const labels = issue.labels && issue.labels.length > 0 
+              const labels = issue.labels && issue.labels.length > 0
                 ? ` • ${issue.labels.slice(0, 3).map(l => `\`${l}\``).join(", ")}`
                 : "";
               output += `- 🐛 [${issue.repo}#${issue.number}](${issue.url}): ${issue.title} (updated ${timeAgo}${labels})\n`;
