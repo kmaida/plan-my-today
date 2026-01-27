@@ -1,12 +1,12 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
 import { z } from "zod";
 import { stsClient } from "../../services/sts-client";
-import { fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
-import { fetchLinearIssues } from "../today-todos/linear-utils";
-import { fetchGmailTodos, fetchMeetingSummaries } from "../today-todos/email-utils";
-import { fetchAssignedActions } from "../today-todos/docs-utils";
-import { fetchGitHubTodos } from "../today-todos/github-utils";
-import { fetchSlackMessages } from "../today-todos/slack-utils";
+import { fetchTodayCalendarEvents, calculateCalendarPriority } from "../today-todos/calendar-utils";
+import { fetchLinearIssues, calculateLinearPriority } from "../today-todos/linear-utils";
+import { fetchGmailTodos, fetchMeetingSummaries, calculateEmailPriority, calculateMeetingSummaryPriority } from "../today-todos/email-utils";
+import { fetchAssignedActions, calculateDocsPriority } from "../today-todos/docs-utils";
+import { fetchGitHubTodos, calculateGitHubPriority } from "../today-todos/github-utils";
+import { fetchSlackMessages, calculateSlackPriorityWithMetadata } from "../today-todos/slack-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
 import * as slackTokenStore from "../../services/slack-token-store";
@@ -52,7 +52,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
     "list-all-tasks-today",
     {
       title: "List All Tasks Today (Raw Data)",
-      description: "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. This tool provides data only - no intelligence, scheduling, or formatting. Use this when you need raw data to analyze or plan with. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack.",
+      description: "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack.",
       inputSchema: listAllTasksTodayInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -198,6 +198,49 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } catch (error) {
         errors.push(formatAuthError("Slack", error));
       }
+
+      // Enrich with priority metadata
+      const now = new Date();
+
+      calendarEvents = calendarEvents.map(event => ({
+        ...event,
+        priorityMetadata: calculateCalendarPriority(event, now)
+      }));
+
+      linearIssues = linearIssues.map(issue => ({
+        ...issue,
+        priorityMetadata: calculateLinearPriority(issue, now)
+      }));
+
+      gmailTodos = gmailTodos.map(email => ({
+        ...email,
+        priorityMetadata: calculateEmailPriority(email, now)
+      }));
+
+      meetingSummaries = meetingSummaries.map(summary => ({
+        ...summary,
+        priorityMetadata: calculateMeetingSummaryPriority(summary, now)
+      }));
+
+      assignedActions = assignedActions.map(action => ({
+        ...action,
+        priorityMetadata: calculateDocsPriority(action, now)
+      }));
+
+      githubPRs = githubPRs.map(pr => ({
+        ...pr,
+        priorityMetadata: calculateGitHubPriority(pr, now)
+      }));
+
+      githubIssues = githubIssues.map(issue => ({
+        ...issue,
+        priorityMetadata: calculateGitHubPriority(issue, now)
+      }));
+
+      slackMessages = slackMessages.map(msg => ({
+        ...msg,
+        priorityMetadata: calculateSlackPriorityWithMetadata(msg, now)
+      }));
 
       // Build response data
       const responseData = {

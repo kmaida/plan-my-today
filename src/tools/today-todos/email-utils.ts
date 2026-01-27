@@ -1,4 +1,5 @@
 import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
+import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 
 /**
  * Determines if an email is from an individual (not an automated system)
@@ -676,4 +677,126 @@ export async function fetchGmailTodos(
 
   // Filter out unwanted emails (pass strictFiltering parameter)
   return filterEmails(emails, strictFiltering);
+}
+
+/**
+ * Calculates priority metadata for a Gmail message
+ *
+ * @param email - Gmail message detail
+ * @param now - Current date/time for recency calculations
+ * @returns Priority metadata
+ */
+export function calculateEmailPriority(email: GmailMessageDetail, now: Date): PriorityMetadata {
+  let score = 30; // Base email score
+  const reasons: string[] = [];
+
+  // From individual boost
+  if (email.isFromIndividual) {
+    score += 80;
+    reasons.push("From individual");
+
+    if (email.needsReply) {
+      score += 50;
+      reasons.push("Needs reply");
+    }
+
+    if (email.hasActionItems) {
+      score += 60;
+      reasons.push("Has action items");
+    }
+  }
+
+  // Important flag
+  if (email.isImportant) {
+    score += 20;
+    reasons.push("Marked important");
+  }
+
+  // Starred
+  if (email.isStarred) {
+    reasons.push("Starred");
+  }
+
+  // Recency boost
+  const ageHours = email.timestamp
+    ? (now.getTime() - email.timestamp) / (1000 * 60 * 60)
+    : 999;
+
+  const recencyBoost = calculateRecencyBoost(ageHours);
+
+  if (ageHours < 1) {
+    score += 50;
+    reasons.push("Very recent");
+  } else if (ageHours < 4) {
+    score += 30;
+    reasons.push("Recent");
+  } else if (ageHours < 24) {
+    score += 10;
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      isFromIndividual: email.isFromIndividual ?? false,
+      needsReply: email.needsReply ?? false,
+      hasActionItems: email.hasActionItems ?? false,
+      isImportant: email.isImportant ?? false,
+      isStarred: email.isStarred ?? false,
+      ageHours,
+      recencyBoost
+    },
+    reasons
+  };
+}
+
+/**
+ * Calculates priority metadata for a meeting summary
+ *
+ * @param summary - Meeting summary detail
+ * @param now - Current date/time for recency calculations
+ * @returns Priority metadata
+ */
+export function calculateMeetingSummaryPriority(
+  summary: MeetingSummaryDetail,
+  now: Date
+): PriorityMetadata {
+  let score = 70; // Base meeting summary score
+  const reasons: string[] = [];
+
+  if (summary.hasActionItems) {
+    score += 80;
+    reasons.push("Has action items");
+  }
+
+  if (summary.recordingLink) {
+    score += 20;
+    reasons.push("Recording available");
+  }
+
+  const ageHours = (now.getTime() - summary.timestamp) / (1000 * 60 * 60);
+  const recencyBoost = calculateRecencyBoost(ageHours);
+
+  if (recencyBoost === "very_recent") {
+    score += 50;
+    reasons.push("Very recent");
+  } else if (recencyBoost === "recent") {
+    score += 30;
+    reasons.push("Recent");
+  } else if (recencyBoost === "moderate") {
+    score += 10;
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      platform: summary.platform,
+      hasActionItems: summary.hasActionItems,
+      hasRecording: !!summary.recordingLink,
+      ageHours,
+      recencyBoost
+    },
+    reasons
+  };
 }

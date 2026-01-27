@@ -1,4 +1,5 @@
 import type { GitHubPRDetail, GitHubIssueDetail } from "./types";
+import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 
 /**
  * Gets the authenticated user's GitHub username
@@ -203,4 +204,63 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
   });
 
   return { prs: recentPRs, issues: recentIssues };
+}
+
+/**
+ * Calculates priority metadata for GitHub PRs and issues
+ *
+ * @param item - GitHub PR or issue detail
+ * @param now - Current date/time for recency calculations
+ * @returns Priority metadata
+ */
+export function calculateGitHubPriority(
+  item: GitHubPRDetail | GitHubIssueDetail,
+  now: Date
+): PriorityMetadata {
+  let score = 50; // Base
+  const reasons: string[] = [];
+  const isPR = 'isDraft' in item;
+
+  if (isPR) {
+    const pr = item as GitHubPRDetail;
+    if (pr.type === "review") {
+      score += 100;
+      reasons.push("Review requested");
+    } else {
+      score += 60;
+      reasons.push("Assigned PR");
+    }
+
+    if (pr.isDraft) {
+      score -= 30;
+      reasons.push("Draft (lower priority)");
+    }
+  } else {
+    reasons.push("Assigned issue");
+  }
+
+  const updatedAt = new Date(item.updatedAt);
+  const ageHours = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+
+  if (ageHours < 4) {
+    score += 40;
+    reasons.push("Very recent update");
+  } else if (ageHours < 24) {
+    score += 20;
+    reasons.push("Recent update");
+  } else if (ageHours < 48) {
+    score += 10;
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      itemType: isPR ? ((item as GitHubPRDetail).type === "review" ? "pr_review" : "pr_assigned") : "issue",
+      isDraft: isPR ? (item as GitHubPRDetail).isDraft : false,
+      ageHours,
+      recencyBoost: calculateRecencyBoost(ageHours)
+    },
+    reasons
+  };
 }

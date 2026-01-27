@@ -1,4 +1,5 @@
 import type { CalendarEventDetail, TimeBlock } from "./types";
+import { PriorityMetadata, categorizeScore, calculateProximity } from "./priority-utils";
 
 /**
  * Fetches today's calendar events with full details
@@ -86,4 +87,65 @@ export function findAvailableTimeBlocks(
   }
 
   return blocks;
+}
+
+/**
+ * Calculates priority metadata for calendar events
+ *
+ * @param event - Calendar event detail
+ * @param now - Current date/time for proximity calculations
+ * @returns Priority metadata
+ */
+export function calculateCalendarPriority(
+  event: CalendarEventDetail,
+  now: Date
+): PriorityMetadata {
+  let score = 50; // Base
+  const reasons: string[] = [];
+
+  const startTime = event.start?.dateTime ? new Date(event.start.dateTime) : null;
+  const minutesUntilStart = startTime
+    ? (startTime.getTime() - now.getTime()) / (1000 * 60)
+    : 999;
+
+  const proximity = calculateProximity(minutesUntilStart);
+
+  // Boost for imminent meetings
+  if (proximity === "happening_now") {
+    score += 150;
+    reasons.push("Happening now");
+  } else if (proximity === "very_soon") {
+    score += 100;
+    reasons.push("Starting very soon");
+  } else if (proximity === "upcoming") {
+    score += 50;
+    reasons.push("Starting soon");
+  }
+
+  const attendeeCount = event.attendees?.length || 0;
+  const hasVideo = !!(event.conferenceData?.entryPoints || event.hangoutLink);
+  const isSoloFocusBlock = attendeeCount === 1 && !hasVideo;
+
+  if (attendeeCount > 5) {
+    score += 10;
+    reasons.push("Large meeting");
+  }
+
+  if (isSoloFocusBlock) {
+    reasons.push("Focus block");
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      eventType: isSoloFocusBlock ? "focus_block" : event.start?.date ? "all_day" : "meeting",
+      hasVideoLink: hasVideo,
+      attendeeCount,
+      isSoloFocusBlock,
+      minutesUntilStart,
+      proximity
+    },
+    reasons
+  };
 }

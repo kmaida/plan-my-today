@@ -1,4 +1,5 @@
 import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "./types";
+import { PriorityMetadata, categorizeScore } from "./priority-utils";
 
 /**
  * Fetches Linear issues assigned to the user
@@ -251,4 +252,80 @@ export function detectThemes(
     .sort((a, b) => b.items.length - a.items.length);
   
   return themeArray;
+}
+
+/**
+ * Calculates priority metadata for Linear issues
+ *
+ * @param issue - Linear issue detail
+ * @param now - Current date/time for temporal calculations
+ * @returns Priority metadata
+ */
+export function calculateLinearPriority(
+  issue: LinearIssueDetail,
+  now: Date
+): PriorityMetadata {
+  // Linear uses categorical priority, not numerical
+  // Score based on temporal urgency + priority level
+  let score = 70; // Base
+  const reasons: string[] = [];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let temporalUrgency: "overdue" | "due_today" | "due_this_week" | "due_later" | "no_due_date";
+  let daysUntilDue: number | null = null;
+
+  if (issue.dueDate) {
+    const dueDate = new Date(issue.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilDue < 0) {
+      temporalUrgency = "overdue";
+      score += 100;
+      reasons.push("Overdue");
+    } else if (daysUntilDue === 0) {
+      temporalUrgency = "due_today";
+      score += 80;
+      reasons.push("Due today");
+    } else if (daysUntilDue <= 7) {
+      temporalUrgency = "due_this_week";
+      score += 40;
+      reasons.push("Due this week");
+    } else {
+      temporalUrgency = "due_later";
+      score += 10;
+    }
+  } else {
+    temporalUrgency = "no_due_date";
+  }
+
+  // Priority level boost
+  if (issue.priority <= 1) {
+    score += 50;
+    reasons.push("Urgent priority");
+  } else if (issue.priority === 2) {
+    score += 30;
+    reasons.push("High priority");
+  }
+
+  const isCompleted = issue.state?.type === "completed";
+  if (isCompleted) {
+    reasons.push("Recently completed");
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      temporalUrgency,
+      priorityLevel: issue.priority,
+      daysUntilDue,
+      isCompleted,
+      hasEstimate: issue.estimate !== null,
+      estimatePoints: issue.estimate
+    },
+    reasons
+  };
 }

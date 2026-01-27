@@ -1,4 +1,5 @@
 import type { SlackMessageDetail } from "./types";
+import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 
 /**
  * Slack Search API response structure
@@ -275,6 +276,59 @@ export function calculateSlackPriority(
   }
 
   return score;
+}
+
+/**
+ * Calculates priority metadata for Slack messages
+ * Wraps calculateSlackPriority and adds structured signals
+ */
+export function calculateSlackPriorityWithMetadata(
+  message: SlackMessageDetail,
+  now: Date
+): PriorityMetadata {
+  const score = calculateSlackPriority(message, now); // Reuse existing function
+  const text = message.text.toLowerCase();
+
+  const urgentKeywords = [
+    "urgent", "asap", "immediately", "critical", "emergency", "blocker", "blocked",
+    "help", "stuck", "broken", "down", "failing", "issue", "problem"
+  ];
+  const questionKeywords = [
+    "?", "can you", "could you", "would you", "please", "need",
+    "quick question", "wondering if", "do you know"
+  ];
+  const actionKeywords = [
+    "review", "approve", "merge", "deploy", "fix", "update", "check",
+    "look at", "feedback", "thoughts"
+  ];
+
+  const hasUrgentKeywords = urgentKeywords.some(k => text.includes(k));
+  const hasQuestion = questionKeywords.some(k => text.includes(k));
+  const hasActionRequest = actionKeywords.some(k => text.includes(k));
+
+  const ageHours = (now.getTime() - parseFloat(message.timestamp) * 1000) / (1000 * 60 * 60);
+
+  const reasons: string[] = [];
+  if (message.type === "mention") reasons.push("@Mention");
+  if (message.type === "dm") reasons.push("Direct message");
+  if (hasUrgentKeywords) reasons.push("Urgent keywords");
+  if (hasQuestion) reasons.push("Question");
+  if (hasActionRequest) reasons.push("Action requested");
+  if (ageHours < 1) reasons.push("Very recent");
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      type: message.type,
+      hasUrgentKeywords,
+      hasQuestion,
+      hasActionRequest,
+      ageHours,
+      recencyBoost: calculateRecencyBoost(ageHours)
+    },
+    reasons
+  };
 }
 
 /**

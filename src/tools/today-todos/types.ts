@@ -2,6 +2,8 @@
  * Type definitions for the today-todos tool
  */
 
+import type { PriorityMetadata } from "./priority-utils";
+
 /**
  * Calendar event with full details
  */
@@ -23,6 +25,7 @@ export interface CalendarEventDetail {
     displayName?: string;
     self?: boolean;
   }>;
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -40,6 +43,7 @@ export interface LinearIssueDetail {
   project: { name: string } | null;
   completedAt?: string | null;
   updatedAt?: string | null;
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -56,6 +60,7 @@ export interface GmailMessageDetail {
   isFromIndividual?: boolean; // Whether the email is from an individual (not automated)
   needsReply?: boolean; // Whether the email likely needs a reply
   hasActionItems?: boolean; // Whether the email contains action items
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -71,6 +76,7 @@ export interface MeetingSummaryDetail {
   link: string; // Link to email in Gmail
   recordingLink: string | null; // Link to meeting recording (if available)
   from: string; // Email sender (e.g., no-reply@zoom.us)
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -82,6 +88,7 @@ export interface AssignedActionDetail {
   fileLink: string | null;
   timestamp?: string; // When the comment/assignment was created
   isAssignment?: boolean; // True if assigned, false if just mentioned
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -96,6 +103,7 @@ export interface GitHubPRDetail {
   type: "assigned" | "review";
   updatedAt: string;
   isDraft: boolean;
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -109,6 +117,7 @@ export interface GitHubIssueDetail {
   repo: string;
   updatedAt: string;
   labels?: string[];
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**
@@ -125,6 +134,7 @@ export interface SlackMessageDetail {
   threadTs?: string; // Thread identifier
   type: "mention" | "thread" | "dm"; // Message type
   replyCount?: number; // For threads
+  priorityMetadata?: PriorityMetadata;
 }
 
 /**

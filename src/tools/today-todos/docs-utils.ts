@@ -1,4 +1,5 @@
 import type { AssignedActionDetail } from "./types";
+import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 
 /**
  * Fetches assigned actions from Google Docs
@@ -94,4 +95,51 @@ export async function fetchAssignedActions(
   }
 
   return actionItems;
+}
+
+/**
+ * Calculates priority metadata for Google Docs assigned actions
+ *
+ * @param item - Assigned action detail
+ * @param now - Current date/time for recency calculations
+ * @returns Priority metadata
+ */
+export function calculateDocsPriority(
+  item: AssignedActionDetail,
+  now: Date
+): PriorityMetadata {
+  let score = item.isAssignment ? 100 : 50;
+  const reasons: string[] = [];
+
+  if (item.isAssignment) {
+    reasons.push("Assigned to you");
+  } else {
+    reasons.push("Mentioned you");
+  }
+
+  const timestamp = item.timestamp ? new Date(item.timestamp) : null;
+  const ageHours = timestamp
+    ? (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60)
+    : 999;
+
+  if (ageHours < 1) {
+    score += 50;
+    reasons.push("Very recent");
+  } else if (ageHours < 4) {
+    score += 30;
+    reasons.push("Recent");
+  } else if (ageHours < 24) {
+    score += 10;
+  }
+
+  return {
+    score,
+    category: categorizeScore(score),
+    signals: {
+      isAssignment: item.isAssignment ?? false,
+      ageHours,
+      recencyBoost: calculateRecencyBoost(ageHours)
+    },
+    reasons
+  };
 }
