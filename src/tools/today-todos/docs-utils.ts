@@ -2,9 +2,15 @@ import type { AssignedActionDetail } from "./types";
 
 /**
  * Fetches assigned actions from Google Docs
+ *
+ * @param accessToken - Google Drive Activity access token
+ * @param daysBack - Number of days to look back (default: 7, agent: 14)
+ * @returns Array of assigned actions
  */
-export async function fetchAssignedActions(accessToken: string): Promise<AssignedActionDetail[]> {
-  const daysBack = 7;
+export async function fetchAssignedActions(
+  accessToken: string,
+  daysBack: number = 7
+): Promise<AssignedActionDetail[]> {
   const maxResults = 20;
   const startTime = new Date();
   startTime.setDate(startTime.getDate() - daysBack);

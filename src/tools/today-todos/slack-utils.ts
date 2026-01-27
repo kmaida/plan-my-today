@@ -278,22 +278,44 @@ export function calculateSlackPriority(
 }
 
 /**
- * Fetch recent Slack messages from the last 24 hours (@mentions and DMs only)
- * Limited to 5 most recent messages for focused actionable items
+ * Fetch recent Slack messages (@mentions and DMs only)
+ *
+ * @param accessToken - Slack access token
+ * @param options - Optional configuration
+ * @param options.daysBack - Number of days to look back (default: 1 for 24 hours)
+ * @param options.maxMessages - Maximum messages to return (default: 5)
+ * @returns Array of Slack messages sorted by priority
  */
 export async function fetchSlackMessages(
-  accessToken: string
+  accessToken: string,
+  options: {
+    daysBack?: number;
+    maxMessages?: number;
+  } = {}
 ): Promise<SlackMessageDetail[]> {
+  // Defaults: 1 day back, 5 messages max (for backward compatibility)
+  const { daysBack = 1, maxMessages = 5 } = options;
+
   // Get user ID
   const userId = await getUserId(accessToken);
 
+  // Build time filter based on daysBack
+  // Slack search uses "after:YYYY-MM-DD" or relative terms like "yesterday", "2 days ago"
+  const timeFilter = daysBack === 1
+    ? 'yesterday'
+    : daysBack === 2
+      ? '2 days ago'
+      : daysBack === 3
+        ? '3 days ago'
+        : `${daysBack} days ago`;
+
   // Execute searches in parallel: @mentions and DMs only
   const [mentions, dms] = await Promise.all([
-    searchMessages(accessToken, `<@${userId}> after:yesterday`),
-    searchMessages(accessToken, `in:dm after:yesterday`),
+    searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
+    searchMessages(accessToken, `in:dm after:${timeFilter}`),
   ]);
 
-  // Deduplicate and group results, limit to 5 most recent
+  // Deduplicate and group results, limit to configured max
   const allMessages = deduplicateAndGroup(mentions, [], dms, userId);
-  return allMessages.slice(0, 5);
+  return allMessages.slice(0, maxMessages);
 }

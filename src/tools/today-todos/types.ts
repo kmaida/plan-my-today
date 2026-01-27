@@ -38,6 +38,8 @@ export interface LinearIssueDetail {
   dueDate: string | null;
   estimate: number | null;
   project: { name: string } | null;
+  completedAt?: string | null;
+  updatedAt?: string | null;
 }
 
 /**

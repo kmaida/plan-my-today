@@ -93,42 +93,50 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         errors.push(formatAuthError("Google Calendar", error));
       }
 
-      // Fetch Linear issues (with 7-day window for due dates)
+      // Fetch Linear issues (with 14-day window for due dates + recently completed)
       try {
-        const sevenDaysFromNow = new Date(today);
-        sevenDaysFromNow.setDate(today.getDate() + 7);
-        sevenDaysFromNow.setHours(23, 59, 59, 999);
+        const fourteenDaysFromNow = new Date(today);
+        fourteenDaysFromNow.setDate(today.getDate() + 14);
+        fourteenDaysFromNow.setHours(23, 59, 59, 999);
 
         const linearToken = await stsClient.exchange(
           authInfo,
           LINEAR_RESOURCE,
           LINEAR_SCOPES
         );
-        linearIssues = await fetchLinearIssues(linearToken.access_token, sevenDaysFromNow);
+        linearIssues = await fetchLinearIssues(linearToken.access_token, fourteenDaysFromNow, {
+          includeRecentlyCompleted: true,
+          completedDaysBack: 3
+        });
       } catch (error) {
         errors.push(formatAuthError("Linear", error));
       }
 
-      // Fetch Gmail todos
+      // Fetch Gmail todos (more inclusive for agent use)
       try {
         const gmailToken = await stsClient.exchange(
           authInfo,
           GMAIL_RESOURCE,
           GMAIL_SCOPES
         );
-        gmailTodos = await fetchGmailTodos(gmailToken.access_token);
+        gmailTodos = await fetchGmailTodos(gmailToken.access_token, {
+          daysBack: 14,
+          maxResults: 40,
+          includeRead: true,
+          strictFiltering: false
+        });
       } catch (error) {
         errors.push(formatAuthError("Gmail", error));
       }
 
-      // Fetch assigned actions from Google Docs
+      // Fetch assigned actions from Google Docs (extended time window)
       try {
         const driveActivityToken = await stsClient.exchange(
           authInfo,
           DRIVE_ACTIVITY_RESOURCE,
           DRIVE_ACTIVITY_SCOPES
         );
-        assignedActions = await fetchAssignedActions(driveActivityToken.access_token);
+        assignedActions = await fetchAssignedActions(driveActivityToken.access_token, 14);
       } catch (error) {
         errors.push(formatAuthError("Google Drive Activity", error));
       }
@@ -149,7 +157,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         }
       }
 
-      // Fetch Slack messages
+      // Fetch Slack messages (more inclusive for agent use)
       try {
         let slackToken: string | null = null;
 
@@ -166,7 +174,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         }
 
         if (slackToken) {
-          slackMessages = await fetchSlackMessages(slackToken);
+          slackMessages = await fetchSlackMessages(slackToken, {
+            daysBack: 2,
+            maxMessages: 20
+          });
         }
       } catch (error) {
         errors.push(formatAuthError("Slack", error));

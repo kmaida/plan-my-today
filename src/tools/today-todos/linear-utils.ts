@@ -1,9 +1,26 @@
 import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "./types";
 
 /**
- * Fetches Linear issues assigned to the user (due within 7 days or without due dates)
+ * Fetches Linear issues assigned to the user
+ *
+ * @param accessToken - Linear access token
+ * @param dueByDate - Include issues due on or before this date
+ * @param options - Optional configuration
+ * @param options.includeRecentlyCompleted - Include recently completed items (default: false, agent: true)
+ * @param options.completedDaysBack - Days to look back for completed items (default: 0, agent: 3)
+ * @returns Array of Linear issues
  */
-export async function fetchLinearIssues(accessToken: string, dueByDate: Date): Promise<LinearIssueDetail[]> {
+export async function fetchLinearIssues(
+  accessToken: string,
+  dueByDate: Date,
+  options: {
+    includeRecentlyCompleted?: boolean;
+    completedDaysBack?: number;
+  } = {}
+): Promise<LinearIssueDetail[]> {
+  // Defaults: backward compatible with existing behavior
+  const { includeRecentlyCompleted = false, completedDaysBack = 0 } = options;
+
   const query = `
     query MyIssues($first: Int, $filter: IssueFilter) {
       viewer {
@@ -24,17 +41,20 @@ export async function fetchLinearIssues(accessToken: string, dueByDate: Date): P
             project {
               name
             }
+            completedAt
+            updatedAt
           }
         }
       }
     }
   `;
 
-  const filter = {
+  // Fetch open issues (not completed/canceled)
+  const openFilter = {
     state: { type: { nin: ["completed", "canceled"] } }
   };
 
-  const response = await fetch("https://api.linear.app/graphql", {
+  const openResponse = await fetch("https://api.linear.app/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -42,15 +62,15 @@ export async function fetchLinearIssues(accessToken: string, dueByDate: Date): P
     },
     body: JSON.stringify({
       query,
-      variables: { first: 50, filter }, // Get more to filter by date
+      variables: { first: 50, filter: openFilter },
     }),
   });
 
-  if (!response.ok) {
+  if (!openResponse.ok) {
     return [];
   }
 
-  const data = await response.json() as {
+  const openData = await openResponse.json() as {
     data?: {
       viewer?: {
         assignedIssues?: {
@@ -60,17 +80,68 @@ export async function fetchLinearIssues(accessToken: string, dueByDate: Date): P
     };
   };
 
-  const issues = data.data?.viewer?.assignedIssues?.nodes || [];
-  
-  // Filter for issues due within 7 days, overdue, or without due dates
+  let issues = openData.data?.viewer?.assignedIssues?.nodes || [];
+
+  // If includeRecentlyCompleted, fetch recently completed items
+  if (includeRecentlyCompleted && completedDaysBack > 0) {
+    const completedFilter = {
+      state: { type: { eq: "completed" } }
+    };
+
+    const completedResponse = await fetch("https://api.linear.app/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        query,
+        variables: { first: 50, filter: completedFilter },
+      }),
+    });
+
+    if (completedResponse.ok) {
+      const completedData = await completedResponse.json() as {
+        data?: {
+          viewer?: {
+            assignedIssues?: {
+              nodes: LinearIssueDetail[];
+            };
+          };
+        };
+      };
+
+      const completedIssues = completedData.data?.viewer?.assignedIssues?.nodes || [];
+
+      // Filter to only include items completed within completedDaysBack
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - completedDaysBack);
+      cutoffDate.setHours(0, 0, 0, 0);
+
+      const recentlyCompleted = completedIssues.filter(issue => {
+        if (!issue.completedAt) return false;
+        const completedDate = new Date(issue.completedAt);
+        return completedDate >= cutoffDate;
+      });
+
+      // Merge with open issues
+      issues = [...issues, ...recentlyCompleted];
+    }
+  }
+
+  // Filter for issues due within the specified date window, overdue, or without due dates
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   return issues.filter(issue => {
+    // If completed, always include (already filtered by date above)
+    if (issue.state?.type === "completed") return true;
+
+    // For non-completed, filter by due date
     if (!issue.dueDate) return true; // Include issues without due dates
     const dueDate = new Date(issue.dueDate);
     dueDate.setHours(0, 0, 0, 0);
-    return dueDate <= dueByDate; // Include next 7 days or overdue
+    return dueDate <= dueByDate; // Include within date window or overdue
   });
 }
 

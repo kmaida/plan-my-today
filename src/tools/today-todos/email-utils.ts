@@ -247,22 +247,23 @@ export function isLowImportance(from: string, subject: string, isImportant: bool
 
 /**
  * Filters out unwanted emails (calendar, Linear automated, newsletters, low importance)
+ * @param strictFiltering - If false, only excludes calendar and Linear automation (for agent use)
  */
-export function filterEmails(emails: GmailMessageDetail[]): GmailMessageDetail[] {
+export function filterEmails(emails: GmailMessageDetail[], strictFiltering: boolean = true): GmailMessageDetail[] {
   return emails.filter(email => {
     const fromLower = email.from.toLowerCase();
     const subjectLower = email.subject.toLowerCase();
-    
-    // Exclude Google Calendar automated emails (already integrated)
-    if (fromLower.includes('calendar') || 
+
+    // ALWAYS exclude Google Calendar automated emails (already integrated)
+    if (fromLower.includes('calendar') ||
         fromLower.includes('calendar-notification') ||
         fromLower.includes('noreply@calendar.google.com') ||
         fromLower.includes('calendar@google.com') ||
         (subjectLower.includes('calendar') && fromLower.includes('google'))) {
       return false;
     }
-    
-    // Exclude calendar notification patterns in subject (even from individuals)
+
+    // ALWAYS exclude calendar notification patterns in subject (even from individuals)
     // These are typically automated calendar notifications
     const calendarNotificationPatterns = [
       /^accepted:/i,
@@ -273,13 +274,13 @@ export function filterEmails(emails: GmailMessageDetail[]): GmailMessageDetail[]
       /google calendar/i,
       /calendar event/i,
     ];
-    
+
     if (calendarNotificationPatterns.some(pattern => pattern.test(subjectLower))) {
       return false;
     }
-    
-    // Exclude Linear automated emails (already integrated)
-    if (fromLower.includes('linear.app') || 
+
+    // ALWAYS exclude Linear automated emails (already integrated)
+    if (fromLower.includes('linear.app') ||
         fromLower.includes('notifications@linear.app') ||
         fromLower.includes('noreply@linear.app')) {
       // But allow if it's from an individual at Linear (e.g., name@linear.app)
@@ -305,17 +306,20 @@ export function filterEmails(emails: GmailMessageDetail[]): GmailMessageDetail[]
         return false; // Linear automated
       }
     }
-    
-    // Exclude newsletters and marketing emails
-    if (isNewsletter(email.from, email.subject)) {
-      return false;
+
+    // Only apply these filters if strictFiltering is enabled
+    if (strictFiltering) {
+      // Exclude newsletters and marketing emails
+      if (isNewsletter(email.from, email.subject)) {
+        return false;
+      }
+
+      // Exclude low importance emails (unless from individual with action items)
+      if (isLowImportance(email.from, email.subject, email.isImportant ?? false)) {
+        return false;
+      }
     }
-    
-    // Exclude low importance emails (unless from individual with action items)
-    if (isLowImportance(email.from, email.subject, email.isImportant ?? false)) {
-      return false;
-    }
-    
+
     return true;
   });
 }
@@ -323,23 +327,53 @@ export function filterEmails(emails: GmailMessageDetail[]): GmailMessageDetail[]
 /**
  * Fetches Gmail todos
  * Expands date range to include individual emails from the past week
+ *
+ * @param accessToken - Gmail access token
+ * @param options - Optional configuration
+ * @param options.daysBack - Number of days to look back (default: 7, agent: 14)
+ * @param options.maxResults - Maximum emails to return (default: 20, agent: 30-40)
+ * @param options.includeRead - Include recent read emails (default: false, agent: true)
+ * @param options.strictFiltering - Apply strict filtering for newsletters/low-priority (default: true, agent: false)
+ * @returns Array of Gmail messages
  */
-export async function fetchGmailTodos(accessToken: string): Promise<GmailMessageDetail[]> {
+export async function fetchGmailTodos(
+  accessToken: string,
+  options: {
+    daysBack?: number;
+    maxResults?: number;
+    includeRead?: boolean;
+    strictFiltering?: boolean;
+  } = {}
+): Promise<GmailMessageDetail[]> {
+  // Defaults: backward compatible with existing behavior
+  const { daysBack = 7, maxResults = 20, includeRead = false, strictFiltering = true } = options;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  // Look back 7 days to catch individual emails that may need attention
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(today.getDate() - 7);
-  const afterDate = Math.floor(sevenDaysAgo.getTime() / 1000);
-  
-  // Fetch unread or starred emails from the past week
-  const query = `(is:unread OR is:starred) after:${afterDate}`;
+
+  // Look back based on daysBack parameter
+  const lookbackDate = new Date(today);
+  lookbackDate.setDate(today.getDate() - daysBack);
+  const afterDate = Math.floor(lookbackDate.getTime() / 1000);
+
+  // Build query based on includeRead option
+  let query: string;
+  if (includeRead) {
+    // Include starred + unread + recent read (last 3 days)
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(today.getDate() - 3);
+    const recentDate = Math.floor(threeDaysAgo.getTime() / 1000);
+    query = `(is:starred OR is:unread OR after:${recentDate}) after:${afterDate}`;
+  } else {
+    // Original behavior: only unread or starred
+    query = `(is:unread OR is:starred) after:${afterDate}`;
+  }
 
   const messagesResponse = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?` +
     new URLSearchParams({
       q: query,
-      maxResults: "20", // Increased to get more emails for better prioritization
+      maxResults: maxResults.toString(),
     }),
     {
       headers: {
@@ -357,8 +391,8 @@ export async function fetchGmailTodos(accessToken: string): Promise<GmailMessage
     return [];
   }
 
-  // Fetch message details
-  const messagePromises = messagesData.messages.slice(0, 20).map(msg =>
+  // Fetch message details (use maxResults limit)
+  const messagePromises = messagesData.messages.slice(0, maxResults).map(msg =>
     fetch(
       `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
       {
@@ -382,16 +416,16 @@ export async function fetchGmailTodos(accessToken: string): Promise<GmailMessage
   const emails = messages
     .map(message => {
       const headers = message.payload?.headers || [];
-      const getHeader = (name: string) => 
+      const getHeader = (name: string) =>
         headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
-      
+
       const subject = getHeader("subject") || "(No subject)";
       const from = getHeader("from") || "Unknown";
       const isUnread = message.labelIds?.includes("UNREAD") ?? false;
       const fromIndividual = isFromIndividual(from, subject);
       const needsReply = emailNeedsReply(subject, from, isUnread);
       const hasActionItems = emailHasActionItems(subject);
-      
+
       return {
         id: message.id,
         subject,
@@ -406,6 +440,6 @@ export async function fetchGmailTodos(accessToken: string): Promise<GmailMessage
       };
     });
 
-  // Filter out unwanted emails
-  return filterEmails(emails);
+  // Filter out unwanted emails (pass strictFiltering parameter)
+  return filterEmails(emails, strictFiltering);
 }
