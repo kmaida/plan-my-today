@@ -297,7 +297,7 @@ export function registerAuthDashboard(app: Express): void {
       <p style="color: #4a5568; margin-bottom: 12px;">
         <strong>In Claude Desktop:</strong><br>
         • Run <code>check-auth</code> to see connection status<br>
-        • Run <code>list-today-todos</code> to test all services<br>
+        • Run <code>list-all-tasks-today</code> to fetch data from all sources<br>
         • Ask "what's on my plate today?" for a quick overview
       </p>
       <p style="color: #4a5568; margin-top: 12px;">

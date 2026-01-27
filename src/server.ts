@@ -382,7 +382,7 @@ export function createApp(): express.Application {
         <html>
           <body style="font-family: system-ui; text-align: center; padding: 50px;">
             <h1>✅ Slack Connected!</h1>
-            <p>Your Slack reminders will now appear in list-today-todos.</p>
+            <p>Your Slack messages (@mentions and DMs) will now be included in list-all-tasks-today for agent-based planning.</p>
             <p>You can close this window.</p>
           </body>
         </html>

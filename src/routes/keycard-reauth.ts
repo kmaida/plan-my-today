@@ -329,7 +329,7 @@ export function registerKeycardReauth(app: Express): void {
               <ol style="text-align: left; color: #4a5568; padding-left: 40px;">
                 <li style="margin-bottom: 8px;"><strong>Restart Claude Desktop</strong> (critical!)</li>
                 <li style="margin-bottom: 8px;">Run <code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px;">check-auth</code> to verify all services are working</li>
-                <li>Try <code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px;">list-today-todos</code> to test</li>
+                <li>Try <code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px;">list-all-tasks-today</code> to test all integrations</li>
               </ol>
               <a href="/auth" class="button">Return to Auth Dashboard</a>
             </div>

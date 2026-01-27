@@ -46,7 +46,7 @@ export function registerSlackConnectTool(mcpServer: McpServer): void {
         return {
           content: [{
             type: "text",
-            text: `🔗 **Connect Slack**\n\nClick here to authorize access to your Slack messages:\n\n${oauthUrl}\n\nAfter authorization, your recent @mentions and DMs from the last 24 hours will be analyzed and incorporated as prioritized work items in 'list-today-todos'.`
+            text: `🔗 **Connect Slack**\n\nClick here to authorize access to your Slack messages:\n\n${oauthUrl}\n\nAfter authorization, your recent @mentions and DMs will be included in 'list-all-tasks-today' with priority metadata for intelligent agent-based planning.`
           }]
         };
       } catch (error) {
