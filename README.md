@@ -93,7 +93,7 @@ You should see:
 🚀 Todo MCP Server started!
 🔗 MCP Endpoint: http://localhost:8888/mcp
 🔐 STS Issuer: https://your-zone-id.keycard.cloud
-🛠️  Available Tools: keycard-logo, whoami
+🛠️  Available Tools: whoami, list-all-tasks-today, ...
 ```
 
 ### 4. Use tunnel for local dev
@@ -119,7 +119,7 @@ Add to your Cursor MCP settings:
 1. **Restart Cursor** to pick up the new MCP server
 2. **Cursor will show "needs login"** for the server
 3. **Click to authenticate** → complete OAuth flow
-4. **Use the tools**: `keycard-logo`, `whoami`, `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`
+4. **Use the tools**: `whoami`, `list-all-tasks-today`, `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`
 
 ### 7. REST API Endpoints (Optional)
 
@@ -144,9 +144,6 @@ curl -X POST \
 These endpoints use the same authentication as the MCP protocol endpoint.
 
 ## 🛠️ Available Tools
-
-### `keycard-logo`
-Displays the official Keycard ASCII art logo.
 
 ### `whoami`
 Provides detailed information about the authenticated user including:
@@ -360,7 +357,6 @@ src/
 │   └── telemetry.ts      # OpenTelemetry setup
 ├── tools/                 # MCP tools
 │   ├── index.ts          # Tool registration
-│   ├── logo.ts           # Keycard logo tool
 │   └── whoami.ts         # User information tool
 └── types/                 # Type definitions
     ├── auth.ts           # Authentication types

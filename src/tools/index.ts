@@ -1,6 +1,5 @@
 import type { McpServer } from "../types/index";
 import { getLogger } from "../observability/logger";
-import { registerLogoTool } from "./logo";
 import { registerWhoamiTool } from "./whoami";
 import { registerCalendarTool } from "./calendar";
 import { registerLinearTool } from "./linear";
@@ -18,7 +17,6 @@ import { registerCheckAuthTool } from "./check-auth";
  * Tool registry - maps tool names to their registration functions
  */
 export const TOOL_REGISTRY = [
-  { name: "keycard-logo", register: registerLogoTool },
   { name: "whoami", register: registerWhoamiTool },
   { name: "check-auth", register: registerCheckAuthTool },
   { name: "list-calendar-events", register: registerCalendarTool },
