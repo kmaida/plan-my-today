@@ -2,6 +2,14 @@ import type { McpServer, AuthenticatedToolHandlerNoArgs } from "../types/index";
 import { parseJWTPayload } from "../types/index";
 import { decodeJWT } from "../utils/auth-utils";
 
+/**
+ * Registers the whoami tool with the MCP server
+ *
+ * Provides detailed information about the authenticated user by decoding JWT claims
+ * and displaying authentication context including client ID, resource, scopes, and token details.
+ *
+ * @param mcpServer - MCP server instance to register the tool with
+ */
 export function registerWhoamiTool(mcpServer: McpServer): void {
   mcpServer.registerTool(
     "whoami",

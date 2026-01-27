@@ -5,6 +5,16 @@ import { OAUTH } from "../constants";
 // In-memory state storage with 10-minute expiry
 const oauthStates = new Map<string, { userId: string; expiresAt: number }>();
 
+/**
+ * Generates a Slack OAuth authorization URL for the given user
+ *
+ * Creates a cryptographically secure state token, stores it in memory with
+ * the user ID, and returns a Slack OAuth URL with the state parameter.
+ * State expires after 10 minutes for security.
+ *
+ * @param userId - User ID to associate with this OAuth flow
+ * @returns Slack OAuth authorization URL
+ */
 export function generateOAuthUrl(userId: string): string {
   const state = crypto.randomBytes(32).toString("hex");
   const expiresAt = Date.now() + OAUTH.STATE_EXPIRY_MS;
@@ -24,6 +34,15 @@ export function generateOAuthUrl(userId: string): string {
   return `https://slack.com/oauth/v2/authorize?${params.toString()}`;
 }
 
+/**
+ * Validates an OAuth state token and returns the associated user ID
+ *
+ * Checks if the state exists, hasn't expired, and returns the user ID.
+ * The state is consumed (deleted) after successful validation.
+ *
+ * @param state - OAuth state token to validate
+ * @returns User ID if state is valid, null otherwise
+ */
 export function validateState(state: string): string | null {
   const stateData = oauthStates.get(state);
   if (!stateData) return null;
@@ -48,6 +67,17 @@ interface SlackOAuthResponse {
   };
 }
 
+/**
+ * Exchanges a Slack OAuth authorization code for an access token
+ *
+ * Makes a request to Slack's OAuth v2 access endpoint to exchange the
+ * authorization code for a user access token. Returns the user token
+ * (not bot token) for user scopes like search:read.
+ *
+ * @param code - OAuth authorization code from Slack callback
+ * @returns Object containing access_token, team info, and authed_user info
+ * @throws Error if exchange fails or no user token is returned
+ */
 export async function exchangeCodeForToken(code: string): Promise<{
   access_token: string;
   team: { id: string; name: string };

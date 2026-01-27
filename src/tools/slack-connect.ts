@@ -4,6 +4,15 @@ import { extractUserIdFromAuthInfo } from "../utils/auth-utils";
 import { config } from "../config";
 import { generateOAuthUrl } from "../services/slack-oauth";
 
+/**
+ * Registers the connect-slack tool with the MCP server
+ *
+ * Initiates Slack OAuth flow to authenticate the user's Slack account,
+ * enabling access to recent @mentions and DMs. Generates an OAuth URL
+ * and instructs the user to complete authentication in their browser.
+ *
+ * @param mcpServer - MCP server instance to register the tool with
+ */
 export function registerSlackConnectTool(mcpServer: McpServer): void {
   mcpServer.registerTool(
     "connect-slack",

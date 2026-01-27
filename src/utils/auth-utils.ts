@@ -36,6 +36,13 @@ export function extractZoneId(issuerUrl: string): string {
   return match ? match[1] : '';
 }
 
+/**
+ * Extracts the user ID from authentication info by decoding the JWT token
+ *
+ * @param authInfo - Authentication information containing the JWT token
+ * @returns User ID from the JWT 'sub' claim
+ * @throws Error if no token is available, JWT is invalid, or 'sub' claim is missing
+ */
 export function extractUserIdFromAuthInfo(authInfo?: AuthInfo): string {
   if (!authInfo?.token) {
     throw new Error("No auth token available");
