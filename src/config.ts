@@ -39,6 +39,12 @@ export interface ServerConfig {
  */
 export function getConfig(): ServerConfig {
   const PORT = process.env.PORT || "8888";
+
+  // Validate PORT is numeric
+  if (!/^\d+$/.test(PORT)) {
+    throw new Error(`PORT must be a numeric value, got: ${PORT}`);
+  }
+
   const HOST = process.env.HOST || "localhost";
   // Use LOCAL_TUNNEL if available (for ngrok), otherwise fall back to local dev URL
   const BASE_URL = process.env.LOCAL_TUNNEL || `http://${HOST}:${PORT}`;
