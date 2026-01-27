@@ -116,22 +116,23 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         }
 
         // Format events for display
-        let output = `📅 **Upcoming Events** (${events.length}):\n\n`;
+        const lines: string[] = [`📅 **Upcoming Events** (${events.length}):\n`];
+
         for (const event of events) {
           const startRaw = event.start?.dateTime || event.start?.date || "";
           const isAllDay = !event.start?.dateTime;
           const title = event.summary || "Untitled";
-          
+
           // Format time nicely
           let timeStr = "";
           if (isAllDay) {
             timeStr = "All day";
           } else if (startRaw) {
             const startDate = new Date(startRaw);
-            timeStr = startDate.toLocaleTimeString("en-US", { 
-              hour: "numeric", 
+            timeStr = startDate.toLocaleTimeString("en-US", {
+              hour: "numeric",
               minute: "2-digit",
-              hour12: true 
+              hour12: true
             });
           }
 
@@ -157,30 +158,32 @@ export function registerCalendarTool(mcpServer: McpServer): void {
             .filter(Boolean);
           const hasMoreAttendees = (event.attendees || []).filter(a => !a.self).length > 3;
 
-          // Build output
-          output += `• 📅 **${title}**\n`;
-          output += `  ${timeStr}`;
-          
+          // Build event entry
+          let eventLine = `• 📅 **${title}**\n  ${timeStr}`;
+
           if (attendeeNames.length > 0) {
-            output += ` · with ${attendeeNames.join(", ")}`;
-            if (hasMoreAttendees) output += " +more";
+            eventLine += ` · with ${attendeeNames.join(", ")}`;
+            if (hasMoreAttendees) eventLine += " +more";
           }
-          output += `\n`;
+
+          lines.push(eventLine);
 
           if (event.location) {
-            output += `  📍 ${event.location}\n`;
+            lines.push(`  📍 ${event.location}`);
           }
-          
+
           if (meetingLink) {
-            output += `  🔗 ${meetingLink}\n`;
+            lines.push(`  🔗 ${meetingLink}`);
           }
-          
+
           if (event.htmlLink) {
-            output += `  📎 ${event.htmlLink}\n`;
+            lines.push(`  📎 ${event.htmlLink}`);
           }
-          
-          output += `\n`;
+
+          lines.push(""); // Empty line between events
         }
+
+        const output = lines.join('\n');
 
         return {
           content: [{

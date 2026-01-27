@@ -179,7 +179,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
         }
 
         // Format output
-        let output = `📋 **Your Linear Issues** (${issues.length}):\n\n`;
+        const lines: string[] = [`📋 **Your Linear Issues** (${issues.length}):\n`];
 
         // Order: in progress first, then backlog/unstarted, then others
         const stateOrder = ["started", "unstarted", "backlog", "triage", "completed", "canceled"];
@@ -196,7 +196,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
           const stateIssues = byState[stateType];
           if (!stateIssues || stateIssues.length === 0) continue;
 
-          output += `### ${stateLabels[stateType] || stateType}\n\n`;
+          lines.push(`### ${stateLabels[stateType] || stateType}\n`);
 
           for (const issue of stateIssues) {
             const priority = formatPriority(issue.priority, issue.priorityLabel);
@@ -204,15 +204,17 @@ export function registerLinearTool(mcpServer: McpServer): void {
             const estimate = issue.estimate ? `[${issue.estimate}pts]` : "";
             const project = issue.project?.name ? `(${issue.project.name})` : "";
 
-            output += `• **${issue.identifier}**: ${issue.title}\n`;
-            output += `  ${priority} ${estimate} ${project}\n`;
+            lines.push(`• **${issue.identifier}**: ${issue.title}`);
+            lines.push(`  ${priority} ${estimate} ${project}`);
             if (dueDate) {
-              output += `  ${dueDate}\n`;
+              lines.push(`  ${dueDate}`);
             }
-            output += `  🔗 ${issue.url}\n`;
-            output += `\n`;
+            lines.push(`  🔗 ${issue.url}`);
+            lines.push(""); // Empty line between issues
           }
         }
+
+        const output = lines.join('\n');
 
         return {
           content: [{

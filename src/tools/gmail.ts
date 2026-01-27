@@ -315,64 +315,65 @@ export function registerGmailTool(mcpServer: McpServer): void {
         }
 
         // Build output
-        let output = `📧 **Gmail - Emails Needing Attention**\n\n`;
+        const lines: string[] = [`📧 **Gmail - Emails Needing Attention**\n`];
 
         if (todos.length > 0) {
-          output += `📋 **Potential Todos** (${todos.length}):\n\n`;
+          lines.push(`📋 **Potential Todos** (${todos.length}):\n`);
           for (const message of todos) {
             const subject = getHeader(message.payload?.headers, "subject") || "(No subject)";
             const from = getHeader(message.payload?.headers, "from") || "Unknown";
             const date = formatEmailDate(message.internalDate);
             const link = `https://mail.google.com/mail/u/0/#inbox/${message.id}`;
-            
-            output += `• **${subject}**\n`;
-            output += `  From: ${from}\n`;
-            output += `  ${date} | 🔗 ${link}\n\n`;
+
+            lines.push(`• **${subject}**`);
+            lines.push(`  From: ${from}`);
+            lines.push(`  ${date} | 🔗 ${link}\n`);
           }
         }
 
         if (needsReplyList.length > 0) {
-          output += `💬 **Needs Reply** (${needsReplyList.length}):\n\n`;
+          lines.push(`💬 **Needs Reply** (${needsReplyList.length}):\n`);
           for (const message of needsReplyList.slice(0, 10)) {
             const subject = getHeader(message.payload?.headers, "subject") || "(No subject)";
             const from = getHeader(message.payload?.headers, "from") || "Unknown";
             const date = formatEmailDate(message.internalDate);
             const link = `https://mail.google.com/mail/u/0/#inbox/${message.id}`;
-            
-            output += `• **${subject}**\n`;
-            output += `  From: ${from}\n`;
-            output += `  ${date} | 🔗 ${link}\n\n`;
+
+            lines.push(`• **${subject}**`);
+            lines.push(`  From: ${from}`);
+            lines.push(`  ${date} | 🔗 ${link}\n`);
           }
         }
 
         if (unread.length > 0) {
-          output += `📬 **Unread** (${unread.length}):\n\n`;
+          lines.push(`📬 **Unread** (${unread.length}):\n`);
           for (const message of unread.slice(0, 10)) {
             const subject = getHeader(message.payload?.headers, "subject") || "(No subject)";
             const from = getHeader(message.payload?.headers, "from") || "Unknown";
             const date = formatEmailDate(message.internalDate);
             const link = `https://mail.google.com/mail/u/0/#inbox/${message.id}`;
-            
-            output += `• **${subject}**\n`;
-            output += `  From: ${from}\n`;
-            output += `  ${date} | 🔗 ${link}\n\n`;
+
+            lines.push(`• **${subject}**`);
+            lines.push(`  From: ${from}`);
+            lines.push(`  ${date} | 🔗 ${link}\n`);
           }
         }
 
         if (important.length > 0) {
-          output += `⭐ **Important** (${important.length}):\n\n`;
+          lines.push(`⭐ **Important** (${important.length}):\n`);
           for (const message of important.slice(0, 10)) {
             const subject = getHeader(message.payload?.headers, "subject") || "(No subject)";
             const from = getHeader(message.payload?.headers, "from") || "Unknown";
             const date = formatEmailDate(message.internalDate);
             const link = `https://mail.google.com/mail/u/0/#inbox/${message.id}`;
-            
-            output += `• **${subject}**\n`;
-            output += `  From: ${from}\n`;
-            output += `  ${date} | 🔗 ${link}\n\n`;
+
+            lines.push(`• **${subject}**`);
+            lines.push(`  From: ${from}`);
+            lines.push(`  ${date} | 🔗 ${link}\n`);
           }
         }
 
+        let output = lines.join('\n');
         if (output === `📧 **Gmail - Emails Needing Attention**\n\n`) {
           output += "No emails found matching the criteria.";
         }

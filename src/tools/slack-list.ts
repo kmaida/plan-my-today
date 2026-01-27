@@ -94,8 +94,10 @@ export function registerSlackListTool(mcpServer: McpServer): void {
         messagesWithPriority.sort((a, b) => b.priority - a.priority);
 
         // Build output
-        let output = `💬 **Slack - Recent Messages (Last 24h)**\n\n`;
-        output += `Found ${messages.length} message${messages.length > 1 ? 's' : ''}\n\n`;
+        const lines: string[] = [
+          `💬 **Slack - Recent Messages (Last 24h)**\n`,
+          `Found ${messages.length} message${messages.length > 1 ? 's' : ''}\n`
+        ];
 
         for (const { message, priority } of messagesWithPriority) {
           const typeEmoji = message.type === "mention" ? "💬 @mention" : "💬 DM";
@@ -105,26 +107,29 @@ export function registerSlackListTool(mcpServer: McpServer): void {
           const truncatedText = truncateText(message.text, 120);
           const priorityLabel = priority >= 150 ? "🔴 HIGH" : priority >= 100 ? "🟠 MEDIUM" : "🟢 LOW";
 
-          output += `**${typeEmoji}** ${priorityLabel} (score: ${priority})\n`;
+          lines.push(`**${typeEmoji}** ${priorityLabel} (score: ${priority})`);
           if (message.type === "mention") {
-            output += `Channel: #${channelInfo}\n`;
+            lines.push(`Channel: #${channelInfo}`);
           }
-          output += `From: ${sender} • ${time}\n`;
-          output += `"${truncatedText}"\n`;
+          lines.push(`From: ${sender} • ${time}`);
+          lines.push(`"${truncatedText}"`);
 
           if (message.permalink) {
-            output += `🔗 [View in Slack](${message.permalink})\n`;
+            lines.push(`🔗 [View in Slack](${message.permalink})`);
           }
 
-          output += `\n`;
+          lines.push(""); // Empty line between messages
         }
 
-        output += `\n**Priority Scoring:**\n`;
-        output += `• Base: @mentions (90 pts), DMs (70 pts)\n`;
-        output += `• Urgent keywords (+80 pts): urgent, asap, critical, blocker, help\n`;
-        output += `• Questions (+40 pts): ?, can you, need help\n`;
-        output += `• Action requests (+50 pts): review, approve, merge, fix\n`;
-        output += `• Recency: <1h (+50), <4h (+30), <12h (+15), <24h (+5)\n`;
+        lines.push("");
+        lines.push("**Priority Scoring:**");
+        lines.push("• Base: @mentions (90 pts), DMs (70 pts)");
+        lines.push("• Urgent keywords (+80 pts): urgent, asap, critical, blocker, help");
+        lines.push("• Questions (+40 pts): ?, can you, need help");
+        lines.push("• Action requests (+50 pts): review, approve, merge, fix");
+        lines.push("• Recency: <1h (+50), <4h (+30), <12h (+15), <24h (+5)");
+
+        const output = lines.join('\n');
 
         return {
           content: [{
