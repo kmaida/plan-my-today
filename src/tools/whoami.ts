@@ -1,5 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerNoArgs } from "../types/index";
 import { parseJWTPayload } from "../types/index";
+import { decodeJWT } from "../utils/auth-utils";
 
 export function registerWhoamiTool(mcpServer: McpServer): void {
   mcpServer.registerTool(
@@ -24,25 +25,12 @@ export function registerWhoamiTool(mcpServer: McpServer): void {
       userInfo += `• Scopes: ${authInfo.scopes ? authInfo.scopes.join(", ") || "None" : "N/A"}\n`;
       userInfo += `• Token Present: ${authInfo.token ? "✅ Yes" : "❌ No"}\n`;
 
-      // Try to decode the JWT manually from the token
+      // Try to decode the JWT from extra field or raw token
       let jwtPayload = parseJWTPayload(authInfo.extra);
-      
+
       // If not in extra, try to decode from the raw token
       if (!jwtPayload && authInfo.token) {
-        try {
-          // JWT tokens have 3 parts separated by dots
-          const tokenParts = authInfo.token.split('.');
-          if (tokenParts.length === 3) {
-            // Decode the payload (middle part)
-            const payloadBase64 = tokenParts[1];
-            // Add padding if necessary
-            const paddedPayload = payloadBase64 + '='.repeat((4 - payloadBase64.length % 4) % 4);
-            const decodedPayload = JSON.parse(Buffer.from(paddedPayload, 'base64').toString('utf8'));
-            jwtPayload = parseJWTPayload(decodedPayload);
-          }
-        } catch (error) {
-          console.warn('Failed to manually decode JWT:', error);
-        }
+        jwtPayload = decodeJWT(authInfo.token);
       }
       
       if (jwtPayload) {

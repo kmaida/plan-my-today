@@ -1,6 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
 import { parseJWTPayload } from "../types/index";
+import { decodeJWT } from "../utils/auth-utils";
 
 export interface TokenExchangeResponse {
   access_token: string;
@@ -31,19 +32,7 @@ export class STSClient {
       return undefined;
     }
 
-    try {
-      const tokenParts = authInfo.token.split(".");
-      if (tokenParts.length !== 3) {
-        return undefined;
-      }
-
-      const payloadBase64 = tokenParts[1];
-      const paddedPayload = payloadBase64 + "=".repeat((4 - payloadBase64.length % 4) % 4);
-      const decodedPayload = JSON.parse(Buffer.from(paddedPayload, "base64").toString("utf8"));
-      return parseJWTPayload(decodedPayload)?.iss;
-    } catch {
-      return undefined;
-    }
+    return decodeJWT(authInfo.token)?.iss;
   }
 
   async exchange(
