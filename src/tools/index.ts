@@ -9,6 +9,7 @@ import { registerDriveActivityTool } from "./drive-activity";
 import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
 import { registerTodayTodosTool } from "./today-todos/index";
+import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerSlackConnectTool } from "./slack-connect";
 import { registerSlackDisconnectTool } from "./slack-disconnect";
 import { registerSlackListTool } from "./slack-list";
@@ -29,6 +30,7 @@ export const TOOL_REGISTRY = [
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-today-todos", register: registerTodayTodosTool },
+  { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
   { name: "connect-slack", register: registerSlackConnectTool },
   { name: "disconnect-slack", register: registerSlackDisconnectTool },
 ] as const;

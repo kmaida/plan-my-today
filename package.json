@@ -20,7 +20,12 @@
     "check": "biome check src/",
     "check:fix": "biome check --write src/"
   },
-  "keywords": ["mcp", "keycard", "authentication", "oauth"],
+  "keywords": [
+    "mcp",
+    "keycard",
+    "authentication",
+    "oauth"
+  ],
   "dependencies": {
     "@keycardlabs/mcp-oauth": "file:./keycardlabs-mcp-oauth-0.0.0.tgz",
     "@modelcontextprotocol/sdk": "^1.16.0",
@@ -32,16 +37,17 @@
     "@opentelemetry/resources": "^1.30.1",
     "@opentelemetry/sdk-node": "^0.57.2",
     "@opentelemetry/semantic-conventions": "^1.30.0",
+    "@types/express": "^5.0.3",
     "@types/node": "^24.0.15",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "nodemon": "^3.1.10",
+    "open": "^11.0.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.3",
     "winston": "^3.11.0",
-    "zod": "^3.25.76",
-    "@types/express": "^5.0.3"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.1.3",
