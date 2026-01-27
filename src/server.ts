@@ -220,17 +220,6 @@ export function createApp(): express.Application {
 
   // Handle DELETE requests for session termination
   app.delete("/mcp", authMiddleware, handleSessionRequest);
-  
-  // Debug endpoint to check environment
-  app.get('/debug-config', (_req, res) => {
-    res.json({
-      NODE_ENV: process.env.NODE_ENV,
-      HOST: process.env.HOST,
-      PORT: process.env.PORT,
-      baseUrl: config.baseUrl,
-      isProduction: process.env.NODE_ENV === "production"
-    });
-  });
 
   // Simple REST API endpoint for calling tools directly (convenience layer)
   // This allows easier access to tools without full MCP protocol
