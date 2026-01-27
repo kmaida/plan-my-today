@@ -2,25 +2,20 @@ import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "
 import { PriorityMetadata, categorizeScore } from "./priority-utils";
 
 /**
- * Fetches Linear issues assigned to the user
+ * Fetches all Linear issues assigned to the user
  *
  * @param accessToken - Linear access token
- * @param dueByDate - Include issues due on or before this date
- * @param options - Optional configuration
- * @param options.includeRecentlyCompleted - Include recently completed items (default: false, agent: true)
- * @param options.completedDaysBack - Days to look back for completed items (default: 0, agent: 3)
+ * @param options - Fetch options
  * @returns Array of Linear issues
  */
-export async function fetchLinearIssues(
+export async function fetchAllAssignedIssues(
   accessToken: string,
-  dueByDate: Date,
   options: {
-    includeRecentlyCompleted?: boolean;
-    completedDaysBack?: number;
+    includeCompleted?: boolean;
+    limit?: number;
   } = {}
 ): Promise<LinearIssueDetail[]> {
-  // Defaults: backward compatible with existing behavior
-  const { includeRecentlyCompleted = false, completedDaysBack = 0 } = options;
+  const { includeCompleted = false, limit = 50 } = options;
 
   const query = `
     query MyIssues($first: Int, $filter: IssueFilter) {
@@ -50,12 +45,11 @@ export async function fetchLinearIssues(
     }
   `;
 
-  // Fetch open issues (not completed/canceled)
-  const openFilter = {
+  const filter = includeCompleted ? {} : {
     state: { type: { nin: ["completed", "canceled"] } }
   };
 
-  const openResponse = await fetch("https://api.linear.app/graphql", {
+  const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -63,15 +57,15 @@ export async function fetchLinearIssues(
     },
     body: JSON.stringify({
       query,
-      variables: { first: 50, filter: openFilter },
+      variables: { first: limit, filter },
     }),
   });
 
-  if (!openResponse.ok) {
+  if (!response.ok) {
     return [];
   }
 
-  const openData = await openResponse.json() as {
+  const data = await response.json() as {
     data?: {
       viewer?: {
         assignedIssues?: {
@@ -81,53 +75,57 @@ export async function fetchLinearIssues(
     };
   };
 
-  let issues = openData.data?.viewer?.assignedIssues?.nodes || [];
+  return data.data?.viewer?.assignedIssues?.nodes || [];
+}
 
-  // If includeRecentlyCompleted, fetch recently completed items
+/**
+ * Fetches Linear issues assigned to the user, filtered by due date
+ *
+ * @param accessToken - Linear access token
+ * @param dueByDate - Include issues due on or before this date
+ * @param options - Optional configuration
+ * @param options.includeRecentlyCompleted - Include recently completed items (default: false, agent: true)
+ * @param options.completedDaysBack - Days to look back for completed items (default: 0, agent: 3)
+ * @returns Array of Linear issues
+ */
+export async function fetchLinearIssues(
+  accessToken: string,
+  dueByDate: Date,
+  options: {
+    includeRecentlyCompleted?: boolean;
+    completedDaysBack?: number;
+  } = {}
+): Promise<LinearIssueDetail[]> {
+  // Defaults: backward compatible with existing behavior
+  const { includeRecentlyCompleted = false, completedDaysBack = 0 } = options;
+
+  // Fetch open issues
+  let issues = await fetchAllAssignedIssues(accessToken, {
+    includeCompleted: false,
+    limit: 50,
+  });
+
+  // If includeRecentlyCompleted, also fetch completed items
   if (includeRecentlyCompleted && completedDaysBack > 0) {
-    const completedFilter = {
-      state: { type: { eq: "completed" } }
-    };
-
-    const completedResponse = await fetch("https://api.linear.app/graphql", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        query,
-        variables: { first: 50, filter: completedFilter },
-      }),
+    const completedIssues = await fetchAllAssignedIssues(accessToken, {
+      includeCompleted: true,
+      limit: 50,
     });
 
-    if (completedResponse.ok) {
-      const completedData = await completedResponse.json() as {
-        data?: {
-          viewer?: {
-            assignedIssues?: {
-              nodes: LinearIssueDetail[];
-            };
-          };
-        };
-      };
+    // Filter to only include items completed within completedDaysBack
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - completedDaysBack);
+    cutoffDate.setHours(0, 0, 0, 0);
 
-      const completedIssues = completedData.data?.viewer?.assignedIssues?.nodes || [];
+    const recentlyCompleted = completedIssues.filter(issue => {
+      if (issue.state?.type !== "completed") return false;
+      if (!issue.completedAt) return false;
+      const completedDate = new Date(issue.completedAt);
+      return completedDate >= cutoffDate;
+    });
 
-      // Filter to only include items completed within completedDaysBack
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - completedDaysBack);
-      cutoffDate.setHours(0, 0, 0, 0);
-
-      const recentlyCompleted = completedIssues.filter(issue => {
-        if (!issue.completedAt) return false;
-        const completedDate = new Date(issue.completedAt);
-        return completedDate >= cutoffDate;
-      });
-
-      // Merge with open issues
-      issues = [...issues, ...recentlyCompleted];
-    }
+    // Merge with open issues
+    issues = [...issues, ...recentlyCompleted];
   }
 
   // Filter for issues due within the specified date window, overdue, or without due dates

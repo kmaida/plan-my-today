@@ -1,6 +1,8 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod";
 import { stsClient } from "../services/sts-client";
+import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
+import type { LinearIssueDetail } from "./today-todos/types";
 
 const LINEAR_RESOURCE = "https://api.linear.app";
 const LINEAR_SCOPES = ["read"];
@@ -13,71 +15,6 @@ const linearIssuesInputSchema = {
     .describe("Maximum number of issues to return (default: 20)")
     .optional(),
 };
-
-/**
- * Fetches issues assigned to the authenticated user from Linear
- */
-async function fetchMyIssues(
-  accessToken: string,
-  includeCompleted: boolean,
-  limit: number
-): Promise<LinearIssuesResponse> {
-  const query = `
-    query MyIssues($first: Int, $filter: IssueFilter) {
-      viewer {
-        assignedIssues(first: $first, filter: $filter) {
-          nodes {
-            id
-            identifier
-            title
-            description
-            priority
-            priorityLabel
-            url
-            state {
-              name
-              type
-            }
-            dueDate
-            estimate
-            project {
-              name
-            }
-            team {
-              name
-            }
-            createdAt
-            updatedAt
-          }
-        }
-      }
-    }
-  `;
-
-  // Filter out completed issues unless explicitly requested
-  const filter = includeCompleted ? {} : {
-    state: { type: { nin: ["completed", "canceled"] } }
-  };
-
-  const response = await fetch("https://api.linear.app/graphql", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      query,
-      variables: { first: limit, filter },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Linear API error: ${response.status} - ${error}`);
-  }
-
-  return await response.json() as LinearIssuesResponse;
-}
 
 /**
  * Formats a priority level into an emoji indicator
@@ -151,13 +88,11 @@ export function registerLinearTool(mcpServer: McpServer): void {
         const includeCompleted = args.includeCompleted ?? false;
         const limit = args.limit ?? 20;
 
-        const data = await fetchMyIssues(
-          tokenResponse.access_token,
+        // Fetch issues using utility function
+        const issues = await fetchAllAssignedIssues(tokenResponse.access_token, {
           includeCompleted,
-          limit
-        );
-
-        const issues = data.data?.viewer?.assignedIssues?.nodes || [];
+          limit,
+        });
 
         if (issues.length === 0) {
           return {
@@ -169,7 +104,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
         }
 
         // Group issues by state type for better organization
-        const byState: Record<string, LinearIssue[]> = {};
+        const byState: Record<string, LinearIssueDetail[]> = {};
         for (const issue of issues) {
           const stateType = issue.state?.type || "unknown";
           if (!byState[stateType]) {
@@ -256,40 +191,4 @@ export function registerLinearTool(mcpServer: McpServer): void {
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof linearIssuesInputSchema>
   );
-}
-
-// Type definitions for Linear API responses
-interface LinearIssue {
-  id: string;
-  identifier: string;
-  title: string;
-  description: string | null;
-  priority: number;
-  priorityLabel: string;
-  url: string;
-  state: {
-    name: string;
-    type: string;
-  } | null;
-  dueDate: string | null;
-  estimate: number | null;
-  project: {
-    name: string;
-  } | null;
-  team: {
-    name: string;
-  } | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface LinearIssuesResponse {
-  data?: {
-    viewer?: {
-      assignedIssues?: {
-        nodes: LinearIssue[];
-      };
-    };
-  };
-  errors?: Array<{ message: string }>;
 }
