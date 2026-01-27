@@ -524,12 +524,41 @@ export function filterEmails(emails: GmailMessageDetail[], strictFiltering: bool
         const localPart = fromLower.split('@')[0];
         // If it looks like a personal name (has dot or is long), might be individual
         if (localPart.includes('.') || localPart.length > 8) {
-          // Check if subject looks automated
+          // Check if subject looks automated (comprehensive Linear patterns)
           const linearAutomatedPatterns = [
+            // Existing patterns
             /notification/i,
             /reminder/i,
             /unread notifications/i,
             /^\[Linear\]/i,
+
+            // Overdue/Due date patterns
+            /overdue/i,
+            /due today/i,
+            /due tomorrow/i,
+            /due in \d+ day/i,
+            /due:/i,
+
+            // Assignment patterns
+            /assigned:/i,
+            /assigned to/i,
+            /you've been assigned/i,
+            /you have been assigned/i,
+
+            // Status change patterns
+            /moved to/i,
+            /status changed/i,
+            /updated:/i,
+
+            // Issue identifier patterns (Linear uses ABC-123 format)
+            // Only match if it's the main subject component, not just mentioned in passing
+            /^[A-Z]{2,10}-\d+/i,  // Starts with issue ID like "ABC-123: Task name"
+            /^⚠️\s*[A-Z]{2,10}-\d+/i,  // Urgent icon + issue ID
+
+            // Comment/mention patterns
+            /commented on/i,
+            /mentioned you/i,
+            /new comment/i,
           ];
           if (linearAutomatedPatterns.some(pattern => pattern.test(subjectLower))) {
             return false; // Automated Linear notification
