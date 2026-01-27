@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { config } from "../config";
 import open from "open";
+import { extractZoneId } from "../utils/auth-utils";
 
 /**
  * OAuth client helper for triggering Keycard authorization flows
@@ -19,19 +20,11 @@ interface OAuthState {
 const oauthStates = new Map<string, OAuthState>();
 
 /**
- * Extracts zone ID from Keycard issuer URL
- */
-function getZoneId(): string {
-  const match = config.keycardStsIssuerUrl.match(/https:\/\/([^.]+)\.keycard\.cloud/);
-  return match ? match[1] : '';
-}
-
-/**
  * Generate authorization URL for Keycard connection UI
  * This doesn't trigger direct OAuth - it opens Keycard's UI where users can connect services
  */
 export function getKeycardConnectionUrl(service?: string): string {
-  const zoneId = getZoneId();
+  const zoneId = extractZoneId(config.keycardStsIssuerUrl);
   if (!zoneId) {
     return 'https://keycard.cloud';
   }

@@ -1,20 +1,15 @@
 import type { Express, Request, Response } from "express";
 import { config } from "../config";
 import * as slackTokenStore from "../services/slack-token-store";
+import { extractZoneId } from "../utils/auth-utils";
 
 /**
  * Authentication dashboard - provides a web UI to check auth status and manage connections
  */
-// Extract zone ID from issuer URL
-function getZoneId(): string {
-  const issuerUrl = config.keycardStsIssuerUrl;
-  const match = issuerUrl.match(/https:\/\/([^.]+)\.keycard\.cloud/);
-  return match ? match[1] : '';
-}
 
 // Generate service-specific Keycard authorization URLs
 function getKeycardAuthUrl(service: string): string {
-  const zoneId = getZoneId();
+  const zoneId = extractZoneId(config.keycardStsIssuerUrl);
   if (!zoneId) return 'https://keycard.cloud';
 
   // Keycard manages connections at the zone level
@@ -25,7 +20,7 @@ function getKeycardAuthUrl(service: string): string {
 export function registerAuthDashboard(app: Express): void {
   // Main dashboard
   app.get("/auth", async (_req: Request, res: Response) => {
-    const zoneId = getZoneId();
+    const zoneId = extractZoneId(config.keycardStsIssuerUrl);
     const connectionsUrl = getKeycardAuthUrl('');
 
     const html = `

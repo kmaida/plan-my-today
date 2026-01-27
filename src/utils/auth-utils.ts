@@ -26,6 +26,16 @@ export function decodeJWT(token: string): JWTPayload | null {
   }
 }
 
+/**
+ * Extracts zone ID from Keycard issuer URL
+ * @param issuerUrl - Full Keycard issuer URL (e.g., https://z123.keycard.cloud)
+ * @returns Zone ID (e.g., "z123") or empty string if not found
+ */
+export function extractZoneId(issuerUrl: string): string {
+  const match = issuerUrl.match(/https:\/\/([^.]+)\.keycard\.cloud/);
+  return match ? match[1] : '';
+}
+
 export function extractUserIdFromAuthInfo(authInfo?: AuthInfo): string {
   if (!authInfo?.token) {
     throw new Error("No auth token available");

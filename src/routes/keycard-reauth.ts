@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { randomBytes, createHash } from "node:crypto";
 import { config } from "../config";
+import { extractZoneId } from "../utils/auth-utils";
 
 /**
  * Keycard re-authentication flow
@@ -31,14 +32,6 @@ function generatePKCE(): { codeVerifier: string; codeChallenge: string } {
   return { codeVerifier, codeChallenge };
 }
 
-/**
- * Get Keycard zone ID from issuer URL
- */
-function getZoneId(): string {
-  const match = config.keycardStsIssuerUrl.match(/https:\/\/([^.]+)\.keycard\.cloud/);
-  return match ? match[1] : '';
-}
-
 export function registerKeycardReauth(app: Express): void {
   /**
    * Start Keycard re-authentication flow
@@ -46,7 +39,7 @@ export function registerKeycardReauth(app: Express): void {
    */
   app.get("/keycard/reauth", (req: Request, res: Response) => {
     try {
-      const zoneId = getZoneId();
+      const zoneId = extractZoneId(config.keycardStsIssuerUrl);
       if (!zoneId) {
         return res.status(500).send("Keycard STS issuer URL not configured");
       }
