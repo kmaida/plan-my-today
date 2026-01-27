@@ -1,0 +1,54 @@
+/**
+ * Application-wide constants
+ * Centralizes magic numbers for maintainability and documentation
+ */
+
+/** Calendar and scheduling defaults */
+export const CALENDAR = {
+  /** Default work day start hour (24-hour format) */
+  WORK_START_HOUR: 9,
+  /** Default work day end hour (24-hour format) */
+  WORK_END_HOUR: 17,
+  /** Minimum time block duration in minutes to suggest */
+  MIN_TIME_BLOCK_MINUTES: 15,
+  /** Maximum number of calendar results to fetch */
+  MAX_RESULTS: 20,
+} as const;
+
+/** Priority score thresholds (0-300 scale) */
+export const PRIORITY_THRESHOLDS = {
+  /** Critical priority threshold - immediate action needed */
+  CRITICAL: 180,
+  /** High priority threshold - important but not urgent */
+  HIGH: 130,
+  /** Medium priority threshold - normal priority */
+  MEDIUM: 80,
+} as const;
+
+/** Time windows for data fetching (in days) */
+export const TIME_WINDOWS = {
+  /** GitHub PRs and issues lookback window */
+  GITHUB_DAYS: 30,
+  /** Default days back for Gmail and Docs */
+  DEFAULT_DAYS_BACK: 14,
+  /** Slack messages lookback window */
+  SLACK_DAYS_BACK: 2,
+} as const;
+
+/** API fetch limits */
+export const FETCH_LIMITS = {
+  /** Default fetch limit for most APIs */
+  DEFAULT: 10,
+  /** Gmail messages fetch limit */
+  GMAIL: 40,
+  /** Slack messages fetch limit */
+  SLACK: 20,
+  /** Meeting summaries fetch limit */
+  MEETINGS: 10,
+} as const;
+
+/** OAuth state management */
+export const OAUTH = {
+  /** OAuth state expiry time in milliseconds (10 minutes) */
+  STATE_EXPIRY_MS: 10 * 60 * 1000,
+} as const;

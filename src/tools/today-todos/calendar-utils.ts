@@ -1,5 +1,6 @@
 import type { CalendarEventDetail, TimeBlock } from "./types";
 import { PriorityMetadata, categorizeScore, calculateProximity } from "./priority-utils";
+import { CALENDAR } from "../../constants";
 
 /**
  * Fetches today's calendar events with full details
@@ -13,7 +14,7 @@ export async function fetchTodayCalendarEvents(accessToken: string): Promise<Cal
   const response = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
     new URLSearchParams({
-      maxResults: "20",
+      maxResults: String(CALENDAR.MAX_RESULTS),
       timeMin: startOfDay.toISOString(),
       timeMax: endOfDay.toISOString(),
       singleEvents: "true",
@@ -39,8 +40,8 @@ export async function fetchTodayCalendarEvents(accessToken: string): Promise<Cal
  */
 export function findAvailableTimeBlocks(
   calendarEvents: CalendarEventDetail[],
-  workStartHour: number = 9,
-  workEndHour: number = 17
+  workStartHour: number = CALENDAR.WORK_START_HOUR,
+  workEndHour: number = CALENDAR.WORK_END_HOUR
 ): TimeBlock[] {
   const today = new Date();
   const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), workStartHour, 0);
@@ -62,7 +63,7 @@ export function findAvailableTimeBlocks(
     // If there's a gap before this event
     if (currentTime < event.start) {
       const durationMinutes = Math.floor((event.start.getTime() - currentTime.getTime()) / (1000 * 60));
-      if (durationMinutes >= 15) { // Only suggest blocks of 15+ minutes
+      if (durationMinutes >= CALENDAR.MIN_TIME_BLOCK_MINUTES) { // Only suggest blocks of 15+ minutes
         blocks.push({
           start: new Date(currentTime),
           end: new Date(event.start),

@@ -11,6 +11,7 @@ import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
 import * as slackTokenStore from "../../services/slack-token-store";
 import { extractUserIdFromAuthInfo } from "../../utils/auth-utils";
+import { TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -121,8 +122,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           GMAIL_SCOPES
         );
         gmailTodos = await fetchGmailTodos(gmailToken.access_token, {
-          daysBack: 14,
-          maxResults: 40,
+          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+          maxResults: FETCH_LIMITS.GMAIL,
           includeRead: true,
           strictFiltering: false
         });
@@ -138,8 +139,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           GMAIL_SCOPES
         );
         meetingSummaries = await fetchMeetingSummaries(gmailToken.access_token, {
-          daysBack: 14,
-          maxResults: 10
+          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+          maxResults: FETCH_LIMITS.MEETINGS
         });
       } catch (error) {
         errors.push(formatAuthError("Meeting Summaries (Gmail)", error));
@@ -152,7 +153,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           DRIVE_ACTIVITY_RESOURCE,
           DRIVE_ACTIVITY_SCOPES
         );
-        assignedActions = await fetchAssignedActions(driveActivityToken.access_token, 14);
+        assignedActions = await fetchAssignedActions(driveActivityToken.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
       } catch (error) {
         errors.push(formatAuthError("Google Drive Activity", error));
       }
@@ -191,8 +192,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
         if (slackToken) {
           slackMessages = await fetchSlackMessages(slackToken, {
-            daysBack: 2,
-            maxMessages: 20
+            daysBack: TIME_WINDOWS.SLACK_DAYS_BACK,
+            maxMessages: FETCH_LIMITS.SLACK
           });
         }
       } catch (error) {

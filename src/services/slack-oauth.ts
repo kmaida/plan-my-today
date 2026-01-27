@@ -1,17 +1,18 @@
 import crypto from "node:crypto";
 import { config } from "../config";
+import { OAUTH } from "../constants";
 
 // In-memory state storage with 10-minute expiry
 const oauthStates = new Map<string, { userId: string; expiresAt: number }>();
 
 export function generateOAuthUrl(userId: string): string {
   const state = crypto.randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  const expiresAt = Date.now() + OAUTH.STATE_EXPIRY_MS;
 
   oauthStates.set(state, { userId, expiresAt });
 
   // Cleanup expired states
-  setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+  setTimeout(() => oauthStates.delete(state), OAUTH.STATE_EXPIRY_MS);
 
   const params = new URLSearchParams({
     client_id: config.slackClientId,

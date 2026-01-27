@@ -1,3 +1,5 @@
+import { PRIORITY_THRESHOLDS } from "../../constants";
+
 /**
  * Shared priority utilities for all data types
  */
@@ -19,9 +21,9 @@ export interface PriorityMetadata {
  * @returns Category label
  */
 export function categorizeScore(score: number): "critical" | "high" | "medium" | "low" {
-  if (score >= 180) return "critical";
-  if (score >= 130) return "high";
-  if (score >= 80) return "medium";
+  if (score >= PRIORITY_THRESHOLDS.CRITICAL) return "critical";
+  if (score >= PRIORITY_THRESHOLDS.HIGH) return "high";
+  if (score >= PRIORITY_THRESHOLDS.MEDIUM) return "medium";
   return "low";
 }
 

@@ -1,5 +1,6 @@
 import type { GitHubPRDetail, GitHubIssueDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
+import { TIME_WINDOWS } from "../../constants";
 
 /**
  * Gets the authenticated user's GitHub username
@@ -190,7 +191,7 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
 
   // Filter out items older than 30 days
   const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - TIME_WINDOWS.GITHUB_DAYS);
   const thirtyDaysAgoTime = thirtyDaysAgo.getTime();
 
   const recentPRs = prs.filter(pr => {
