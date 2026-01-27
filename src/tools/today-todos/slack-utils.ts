@@ -332,6 +332,69 @@ export function calculateSlackPriorityWithMetadata(
 }
 
 /**
+ * Fetches a permalink for a Slack message using the chat.getPermalink API
+ */
+async function getPermalink(
+  accessToken: string,
+  channel: string,
+  timestamp: string
+): Promise<string | undefined> {
+  try {
+    const url = new URL("https://slack.com/api/chat.getPermalink");
+    url.searchParams.set("channel", channel);
+    url.searchParams.set("message_ts", timestamp);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const data = (await response.json()) as { ok: boolean; permalink?: string };
+
+    if (data.ok && data.permalink) {
+      return data.permalink;
+    }
+
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Ensures all messages have permalinks by fetching missing ones
+ */
+async function ensurePermalinks(
+  accessToken: string,
+  messages: SlackMessageDetail[]
+): Promise<SlackMessageDetail[]> {
+  const messagesWithPermalinks = await Promise.all(
+    messages.map(async (msg) => {
+      // If permalink already exists, return as-is
+      if (msg.permalink) {
+        return msg;
+      }
+
+      // Fetch permalink if missing
+      const permalink = await getPermalink(accessToken, msg.channel, msg.timestamp);
+
+      return {
+        ...msg,
+        permalink,
+      };
+    })
+  );
+
+  return messagesWithPermalinks;
+}
+
+/**
  * Fetch recent Slack messages (@mentions and DMs only)
  *
  * @param accessToken - Slack access token
@@ -371,5 +434,8 @@ export async function fetchSlackMessages(
 
   // Deduplicate and group results, limit to configured max
   const allMessages = deduplicateAndGroup(mentions, [], dms, userId);
-  return allMessages.slice(0, maxMessages);
+  const limitedMessages = allMessages.slice(0, maxMessages);
+
+  // Ensure all messages have permalinks (fetch missing ones)
+  return ensurePermalinks(accessToken, limitedMessages);
 }
