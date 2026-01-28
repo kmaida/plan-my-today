@@ -7,6 +7,7 @@ import { fetchGmailTodos, fetchMeetingSummaries, calculateEmailPriority, calcula
 import { fetchAssignedActions, calculateDocsPriority } from "../today-todos/docs-utils";
 import { fetchGitHubTodos, calculateGitHubPriority } from "../today-todos/github-utils";
 import { fetchSlackMessages, calculateSlackPriorityWithMetadata } from "../today-todos/slack-utils";
+import { fetchMeetingNoteActions } from "../today-todos/granola-utils";
 import { parseDependencies } from "../today-todos/dependency-utils";
 import { detectLinearMentions, detectGitHubMentions } from "../today-todos/cross-reference-utils";
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
@@ -26,6 +27,8 @@ const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
 const GITHUB_RESOURCE = "https://api.github.com";
 const GITHUB_SCOPES = ["repo", "read:org"];
+const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
+const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 
 /**
  * Input schema for the list-all-tasks-today tool
@@ -56,7 +59,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
     "list-all-tasks-today",
     {
       title: "List All Tasks Today (Raw Data)",
-      description: "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack.",
+      description: "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
       inputSchema: listAllTasksTodayInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -85,6 +88,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       let githubPRs: any[] = [];
       let githubIssues: any[] = [];
       let slackMessages: any[] = [];
+      let meetingNoteActions: any[] = [];
 
       // Fetch Calendar events
       try {
@@ -201,6 +205,21 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         }
       } catch (error) {
         errors.push(formatAuthError("Slack", error));
+      }
+
+      // Fetch meeting notes from Granola (synced to Google Drive)
+      try {
+        const driveToken = await stsClient.exchange(
+          authInfo,
+          DRIVE_RESOURCE,
+          DRIVE_SCOPES
+        );
+        meetingNoteActions = await fetchMeetingNoteActions(driveToken.access_token, {
+          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+          maxResults: FETCH_LIMITS.MEETINGS
+        });
+      } catch (error) {
+        errors.push(formatAuthError("Meeting Notes (Google Drive)", error));
       }
 
       // Enrich with priority metadata
@@ -333,6 +352,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           issues: githubIssues
         },
         slack: slackMessages,
+        meetingNotes: meetingNoteActions,
         metadata: {
           fetched_at: new Date().toISOString(),
           date: today.toISOString(),

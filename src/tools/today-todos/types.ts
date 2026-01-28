@@ -195,6 +195,20 @@ export interface SlackMessageDetail {
 }
 
 /**
+ * Meeting note action item detail (from Granola notes synced to Google Drive)
+ */
+export interface MeetingNoteActionDetail {
+  documentId: string; // Google Drive file ID
+  documentTitle: string; // Document name
+  documentLink: string; // Link to Google Doc
+  actionItem: string; // The extracted action item text
+  assignee?: string; // @mention or "assigned to" target
+  isUrgent: boolean; // Contains urgent/asap/today markers
+  timestamp: number; // Document modified time (Unix timestamp in ms)
+  priorityMetadata?: PriorityMetadata;
+}
+
+/**
  * Time block for work suggestions
  */
 export interface TimeBlock {

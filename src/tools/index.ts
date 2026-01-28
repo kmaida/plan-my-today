@@ -13,6 +13,7 @@ import { registerSlackDisconnectTool } from "./slack-disconnect";
 import { registerSlackListTool } from "./slack-list";
 import { registerCheckAuthTool } from "./check-auth";
 import { registerMarkEmailCompleteTool } from "./mark-email-complete";
+import { registerMeetingNotesTool } from "./meeting-notes";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -29,6 +30,7 @@ export const TOOL_REGISTRY = [
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
+  { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
   { name: "connect-slack", register: registerSlackConnectTool },
   { name: "disconnect-slack", register: registerSlackDisconnectTool },
 ] as const;
