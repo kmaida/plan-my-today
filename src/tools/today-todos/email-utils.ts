@@ -627,10 +627,10 @@ export async function fetchGmailTodos(
     const threeDaysAgo = new Date(today);
     threeDaysAgo.setDate(today.getDate() - 3);
     const recentDate = Math.floor(threeDaysAgo.getTime() / 1000);
-    query = `(is:starred OR is:unread OR after:${recentDate}) after:${afterDate}`;
+    query = `(is:starred OR is:unread OR after:${recentDate}) -label:Complete after:${afterDate}`;
   } else {
     // Original behavior: only unread or starred
-    query = `(is:unread OR is:starred) after:${afterDate}`;
+    query = `(is:unread OR is:starred) -label:Complete after:${afterDate}`;
   }
 
   const messagesResponse = await fetch(

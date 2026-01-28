@@ -5,7 +5,7 @@ import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { GmailMessageDetail } from "./today-todos/types";
 
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
-const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
 
 /**
  * Input schema for the list-gmail-todos tool

@@ -12,6 +12,7 @@ import { registerSlackConnectTool } from "./slack-connect";
 import { registerSlackDisconnectTool } from "./slack-disconnect";
 import { registerSlackListTool } from "./slack-list";
 import { registerCheckAuthTool } from "./check-auth";
+import { registerMarkEmailCompleteTool } from "./mark-email-complete";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -24,6 +25,7 @@ export const TOOL_REGISTRY = [
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
   { name: "list-drive-activity", register: registerDriveActivityTool },
   { name: "list-gmail-todos", register: registerGmailTool },
+  { name: "mark-email-complete", register: registerMarkEmailCompleteTool },
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
