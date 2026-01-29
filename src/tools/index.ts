@@ -8,8 +8,6 @@ import { registerDriveActivityTool } from "./drive-activity";
 import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
-import { registerSlackConnectTool } from "./slack-connect";
-import { registerSlackDisconnectTool } from "./slack-disconnect";
 import { registerSlackListTool } from "./slack-list";
 import { registerCheckAuthTool } from "./check-auth";
 import { registerMarkEmailCompleteTool } from "./mark-email-complete";
@@ -33,8 +31,6 @@ export const TOOL_REGISTRY = [
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
-  { name: "connect-slack", register: registerSlackConnectTool },
-  { name: "disconnect-slack", register: registerSlackDisconnectTool },
 ] as const;
 
 /**

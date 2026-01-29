@@ -62,9 +62,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
             text: [
               "❌ Slack not configured.",
               "",
-              "To use this tool:",
-              "1. Set SLACK_USER_TOKEN in your .env file, OR",
-              "2. Use 'connect-slack' to set up OAuth authentication"
+              "To use this tool, set SLACK_USER_TOKEN in your .env file"
             ].join("\n")
           }]
         };

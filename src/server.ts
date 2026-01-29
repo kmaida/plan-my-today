@@ -11,9 +11,6 @@ import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames } from "./tools/index";
 import type { McpServer } from "./types/index";
-import { generateOAuthUrl, validateState, exchangeCodeForToken } from "./services/slack-oauth";
-import * as slackTokenStore from "./services/slack-token-store";
-import { extractUserIdFromAuthInfo } from "./utils/auth-utils";
 import { registerAuthDashboard } from "./routes/auth-dashboard";
 import { registerKeycardReauth } from "./routes/keycard-reauth";
 
@@ -307,62 +304,6 @@ export function createApp(): express.Application {
         error: "Failed to list tools",
         message: error instanceof Error ? error.message : String(error),
       });
-    }
-  });
-
-  // Slack OAuth: Start flow
-  app.get("/slack/auth/start", authMiddleware, (req: express.Request, res: express.Response) => {
-    const userId = extractUserIdFromAuthInfo(req.auth);
-    const oauthUrl = generateOAuthUrl(userId);
-    res.redirect(oauthUrl);
-  });
-
-  // Slack OAuth: Callback
-  app.get("/slack/auth/callback", async (req: express.Request, res: express.Response) => {
-    const { code, error, state } = req.query;
-
-    if (error) {
-      return res.status(400).send(`<html><body><h1>OAuth Error</h1><p>${error}</p></body></html>`);
-    }
-
-    if (!code || !state) {
-      return res.status(400).send("<html><body><h1>Missing Parameters</h1></body></html>");
-    }
-
-    const userId = validateState(state as string);
-    if (!userId) {
-      return res.status(400).send("<html><body><h1>Invalid or Expired State</h1></body></html>");
-    }
-
-    try {
-      const tokenData = await exchangeCodeForToken(code as string);
-
-      await slackTokenStore.saveToken(userId, {
-        access_token: tokenData.access_token,
-        team_id: tokenData.team.id,
-        team_name: tokenData.team.name,
-        user_id: tokenData.authed_user.id,
-        created_at: new Date().toISOString(),
-      });
-
-      res.send(`
-        <html>
-          <body style="font-family: system-ui; text-align: center; padding: 50px;">
-            <h1>✅ Slack Connected!</h1>
-            <p>Your Slack messages (@mentions and DMs) will now be included in list-all-tasks-today for agent-based planning.</p>
-            <p>You can close this window.</p>
-          </body>
-        </html>
-      `);
-    } catch (err) {
-      res.status(500).send(`
-        <html>
-          <body style="font-family: system-ui; text-align: center; padding: 50px;">
-            <h1>❌ Connection Failed</h1>
-            <p>${err instanceof Error ? err.message : "Unknown error"}</p>
-          </body>
-        </html>
-      `);
     }
   });
 

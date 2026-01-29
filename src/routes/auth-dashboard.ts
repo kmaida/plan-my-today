@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from "express";
 import { config } from "../config";
-import * as slackTokenStore from "../services/slack-token-store";
 import { extractZoneId } from "../utils/auth-utils";
 
 /**
@@ -243,11 +242,11 @@ export function registerAuthDashboard(app: Express): void {
         <div class="status-item">
           <div>
             <span class="name">Slack</span>
-            <div style="font-size: 12px; color: #718096; margin-top: 4px;">Reminders ${config.slackUserToken ? '(direct token)' : '(separate OAuth)'}</div>
+            <div style="font-size: 12px; color: #718096; margin-top: 4px;">Reminders (env var)</div>
           </div>
           ${config.slackUserToken
             ? '<span class="status env">✓ Configured</span>'
-            : '<span class="status" style="background: #fed7d7; color: #9b2c2c;">Not Connected</span>'}
+            : '<span class="status" style="background: #fed7d7; color: #9b2c2c;">Not Set</span>'}
         </div>
       </div>
     </div>
@@ -301,23 +300,6 @@ export function registerAuthDashboard(app: Express): void {
       </p>
     </div>
 
-    ${!config.slackUserToken ? `
-    <div class="section">
-      <h2>💬 Slack Setup (Optional)</h2>
-      <p style="color: #718096; margin-bottom: 16px; font-size: 14px;">
-        Slack uses a separate authentication flow (not Keycard STS). Set <code>SLACK_USER_TOKEN</code> in your environment variables or use the OAuth flow.
-      </p>
-      <div class="button-group">
-        <a href="/slack/auth/start" class="button secondary">
-          Connect Slack via OAuth
-        </a>
-      </div>
-      <p style="color: #718096; margin-top: 12px; font-size: 13px;">
-        Or add <code>SLACK_USER_TOKEN=xoxp-...</code> to your <code>.env</code> file for single-user setup.
-      </p>
-    </div>
-    ` : ''}
-
     <div class="section">
       <h2>🔄 Troubleshooting</h2>
       <p style="color: #4a5568; margin-bottom: 12px; font-size: 14px;">
@@ -358,18 +340,8 @@ export function registerAuthDashboard(app: Express): void {
   // Clear all server-side tokens
   app.post("/auth/clear", async (_req: Request, res: Response) => {
     try {
-      // Clear Slack tokens by removing the file
-      const fs = await import("node:fs/promises");
-      const path = await import("node:path");
-      const tokenFile = path.join(process.cwd(), "data", "slack-tokens.json");
-
-      try {
-        await fs.unlink(tokenFile);
-      } catch {
-        // File might not exist, that's OK
-      }
-
-      res.json({ success: true, message: "All tokens cleared" });
+      // Note: Slack tokens are stored in environment variables only (no server-side storage)
+      res.json({ success: true, message: "No server-side tokens to clear (using environment variables)" });
     } catch (error) {
       res.status(500).json({
         success: false,

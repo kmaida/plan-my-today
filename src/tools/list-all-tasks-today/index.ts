@@ -13,8 +13,6 @@ import { detectLinearMentions, detectGitHubMentions } from "../today-todos/cross
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
-import * as slackTokenStore from "../../services/slack-token-store";
-import { extractUserIdFromAuthInfo } from "../../utils/auth-utils";
 import { TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
@@ -183,19 +181,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // Fetch Slack messages (more inclusive for agent use)
       try {
-        let slackToken: string | null = null;
-
-        // Check for environment variable token first (single-user deployment)
-        if (config.slackUserToken) {
-          slackToken = config.slackUserToken;
-        } else {
-          // Fall back to token store (multi-user OAuth flow)
-          const userId = extractUserIdFromAuthInfo(authInfo);
-          const storedToken = await slackTokenStore.getToken(userId);
-          if (storedToken) {
-            slackToken = storedToken.access_token;
-          }
-        }
+        // Use environment variable token (single-user deployment)
+        const slackToken = config.slackUserToken || null;
 
         if (slackToken) {
           slackMessages = await fetchSlackMessages(slackToken, {
