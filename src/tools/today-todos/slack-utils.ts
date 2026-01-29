@@ -1,6 +1,8 @@
 import type { SlackMessageDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { getLogger } from "../../observability/logger";
+import { isActionCompleted } from "../../services/action-completion-store";
+import { buildSlackId } from "../../utils/action-identifiers";
 
 /**
  * Slack Search API response structure
@@ -444,5 +446,17 @@ export async function fetchSlackMessages(
   const limitedMessages = allMessages.slice(0, maxMessages);
 
   // Ensure all messages have permalinks (fetch missing ones)
-  return ensurePermalinks(accessToken, limitedMessages);
+  const messagesWithPermalinks = await ensurePermalinks(accessToken, limitedMessages);
+
+  // Filter out completed messages
+  const filteredMessages: SlackMessageDetail[] = [];
+  for (const message of messagesWithPermalinks) {
+    const actionId = buildSlackId(message.channel, message.timestamp);
+    const completed = await isActionCompleted("slack", actionId);
+    if (!completed) {
+      filteredMessages.push(message);
+    }
+  }
+
+  return filteredMessages;
 }

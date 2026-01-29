@@ -60,6 +60,7 @@ export interface MeetingContextMetadata {
  * Calendar event with full details
  */
 export interface CalendarEventDetail {
+  id?: string; // Google Calendar event ID
   summary?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
@@ -139,6 +140,7 @@ export interface MeetingSummaryDetail {
  */
 export interface AssignedActionDetail {
   fileTitle: string;
+  fileId?: string; // Google Drive file ID
   actionType: string;
   fileLink: string | null;
   timestamp?: string; // When the comment/assignment was created

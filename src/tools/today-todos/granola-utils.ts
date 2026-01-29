@@ -1,6 +1,8 @@
 import type { MeetingNoteActionDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { PRIORITY_THRESHOLDS, TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
+import { isActionCompleted } from "../../services/action-completion-store";
+import { buildMeetingNoteId } from "../../utils/action-identifiers";
 
 /**
  * Google Drive API types
@@ -381,5 +383,15 @@ export async function fetchMeetingNoteActions(
     return scoreB - scoreA;
   });
 
-  return allActionItems;
+  // Filter out completed actions
+  const filteredActions: MeetingNoteActionDetail[] = [];
+  for (const action of allActionItems) {
+    const actionId = buildMeetingNoteId(action.documentId, action.actionItem);
+    const completed = await isActionCompleted("meeting-note", actionId);
+    if (!completed) {
+      filteredActions.push(action);
+    }
+  }
+
+  return filteredActions;
 }

@@ -76,7 +76,7 @@ export async function fetchAssignedActions(
       const fileTitle = target?.driveItem?.title || "Untitled";
       const fileId = target?.driveItem?.name?.match(/^items\/(.+)$/)?.[1];
       const fileLink = fileId ? `https://docs.google.com/document/d/${fileId}` : null;
-      
+
       let actionType = "";
       if (comment.assignment) {
         actionType = "assigned to you";
@@ -86,6 +86,7 @@ export async function fetchAssignedActions(
 
       actionItems.push({
         fileTitle,
+        fileId,
         actionType,
         fileLink,
         timestamp: activity.timestamp,
