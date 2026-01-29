@@ -3,6 +3,7 @@ import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./prio
 import { PRIORITY_THRESHOLDS, TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { buildMeetingNoteId } from "../../utils/action-identifiers";
+import { parseDateFromFilename, isWithinBusinessDays } from "../../utils/date-utils";
 
 /**
  * Google Drive API types
@@ -41,6 +42,7 @@ export interface FetchMeetingNotesOptions {
 const DEFAULT_FOLDER_NAME = "Meeting Notes";
 const DEFAULT_DAYS_BACK = TIME_WINDOWS.DEFAULT_DAYS_BACK;
 const DEFAULT_MAX_RESULTS = FETCH_LIMITS.MEETINGS;
+const BUSINESS_DAYS_LOOKBACK = 10;
 
 /**
  * Finds the ID of a folder by name in Google Drive
@@ -270,9 +272,14 @@ export function calculateMeetingNotePriority(
   const reasons: string[] = [];
   const signals: Record<string, any> = {};
 
-  // Recency boost
-  const ageHours = (now.getTime() - actionItem.timestamp) / (1000 * 60 * 60);
+  // Recency boost - use meetingDate if available, otherwise fall back to timestamp
+  const relevantTimestamp = actionItem.meetingDate
+    ? actionItem.meetingDate.getTime()
+    : actionItem.timestamp;
+
+  const ageHours = (now.getTime() - relevantTimestamp) / (1000 * 60 * 60);
   signals.ageHours = Math.round(ageHours * 10) / 10;
+  signals.usedMeetingDate = !!actionItem.meetingDate;
   signals.recencyBoost = calculateRecencyBoost(ageHours);
 
   if (ageHours < 1) {
@@ -317,7 +324,7 @@ export async function fetchMeetingNoteActions(
   options: FetchMeetingNotesOptions = {}
 ): Promise<MeetingNoteActionDetail[]> {
   const {
-    daysBack = DEFAULT_DAYS_BACK,
+    daysBack = 21, // Increased to ~3 weeks to ensure 10 business days coverage
     maxResults = DEFAULT_MAX_RESULTS,
     folderName = DEFAULT_FOLDER_NAME,
   } = options;
@@ -334,16 +341,36 @@ export async function fetchMeetingNoteActions(
     return [];
   }
 
-  const allActionItems: MeetingNoteActionDetail[] = [];
+  // Filter documents by meeting date (last 10 business days)
   const now = new Date();
+  const eligibleDocs = docs.filter(doc => {
+    if (!doc.name) return false;
+
+    const meetingDate = parseDateFromFilename(doc.name);
+    if (!meetingDate) {
+      // No parseable date - include for backward compatibility
+      return true;
+    }
+
+    return isWithinBusinessDays(meetingDate, BUSINESS_DAYS_LOOKBACK, now);
+  });
+
+  if (eligibleDocs.length === 0) {
+    return [];
+  }
+
+  const allActionItems: MeetingNoteActionDetail[] = [];
 
   // Process each document (with concurrency limit)
   const concurrencyLimit = 3;
-  for (let i = 0; i < docs.length; i += concurrencyLimit) {
-    const batch = docs.slice(i, i + concurrencyLimit);
+  for (let i = 0; i < eligibleDocs.length; i += concurrencyLimit) {
+    const batch = eligibleDocs.slice(i, i + concurrencyLimit);
     const batchResults = await Promise.all(
       batch.map(async (doc) => {
         if (!doc.id || !doc.name) return [];
+
+        // Parse meeting date from filename
+        const meetingDate = parseDateFromFilename(doc.name);
 
         try {
           const content = await exportDocAsText(accessToken, doc.id);
@@ -361,6 +388,7 @@ export async function fetchMeetingNoteActions(
               assignee: item.assignee,
               isUrgent: item.isUrgent,
               timestamp,
+              meetingDate: meetingDate || undefined,
             };
             actionDetail.priorityMetadata = calculateMeetingNotePriority(actionDetail, now);
             return actionDetail;

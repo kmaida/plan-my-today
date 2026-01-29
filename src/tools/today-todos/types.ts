@@ -207,6 +207,7 @@ export interface MeetingNoteActionDetail {
   assignee?: string; // @mention or "assigned to" target
   isUrgent: boolean; // Contains urgent/asap/today markers
   timestamp: number; // Document modified time (Unix timestamp in ms)
+  meetingDate?: Date; // Parsed meeting date from filename
   priorityMetadata?: PriorityMetadata;
 }
 

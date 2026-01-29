@@ -73,7 +73,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
     "list-meeting-notes-actions",
     {
       title: "List Meeting Notes Action Items",
-      description: "Extract action items from Granola meeting notes synced to Google Drive. Searches a specified folder (default: 'Meeting Notes') for recent documents and extracts todos, action items, and assignments. Use this when the user asks about action items from meetings, follow-ups from calls, or todos from meeting notes.",
+      description: "Extract action items from Granola meeting notes synced to Google Drive. Searches for documents with meeting dates in the filename from the last 10 business days (weekdays only). Searches a specified folder (default: 'Meeting Notes') for recent documents and extracts todos, action items, and assignments. Use this when the user asks about action items from meetings, follow-ups from calls, or todos from meeting notes.",
       inputSchema: meetingNotesInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -94,7 +94,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
           DRIVE_SCOPES
         );
 
-        const daysBack = args.daysBack || 7;
+        const daysBack = args.daysBack || 21; // Increased to ~3 weeks to ensure 10 business days coverage
         const maxResults = args.maxResults || 10;
         const folderName = args.folderName || "Meeting Notes";
 
