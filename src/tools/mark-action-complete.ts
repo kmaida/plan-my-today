@@ -5,6 +5,10 @@ import {
   markActionIncomplete as storeMarkIncomplete,
 } from "../services/action-completion-store";
 import type { ActionSource } from "../utils/action-identifiers";
+import { removeSlackReaction } from "./today-todos/slack-utils";
+import { SLACK_SAVED_MESSAGES } from "../constants";
+import { config } from "../config";
+import { getLogger } from "../observability/logger";
 
 /**
  * Input schema for the mark-action-complete tool
@@ -47,7 +51,7 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
     {
       title: "Mark Action Complete",
       description:
-        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages, and ad-hoc tasks that don't have native completion tracking. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
+        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages, and ad-hoc tasks that don't have native completion tracking. For Slack saved messages, this also removes the emoji reaction. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
       inputSchema: markActionCompleteInputSchema,
     },
     (async (args, _extra) => {
@@ -58,11 +62,39 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
 
         if (shouldComplete) {
           await storeMarkComplete(source, identifier, args.metadata);
+
+          // If this is a Slack message, also remove the emoji reaction
+          if (source === "slack") {
+            try {
+              if (config.slackUserToken) {
+                // Parse identifier: format is "channelId:messageTs"
+                const [channel, timestamp] = identifier.split(":");
+                if (channel && timestamp) {
+                  await removeSlackReaction(
+                    config.slackUserToken,
+                    channel,
+                    timestamp,
+                    SLACK_SAVED_MESSAGES.EMOJI_NAME
+                  );
+                }
+              }
+            } catch (error) {
+              // Log but don't fail - completion tracking still works
+              const logger = getLogger().withOperation("mark_action_complete");
+              logger.warn("Failed to remove Slack emoji reaction", {
+                error: error instanceof Error ? error.message : String(error),
+                identifier,
+              });
+            }
+          }
+
           return {
             content: [
               {
                 type: "text",
-                text: `Action marked as complete: ${source}:${identifier}`,
+                text: `Action marked as complete: ${source}:${identifier}${
+                  source === "slack" ? " (emoji removed from Slack)" : ""
+                }`,
               },
             ],
           };

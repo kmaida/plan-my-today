@@ -249,11 +249,18 @@ You can customize the results with:
 
 If you see `invalid_target` or "unknown resource" errors, the GitHub resource is not registered in your Keycard zone. Follow the setup steps above to register GitHub as a credential provider and configure token exchange permissions.
 
-### Slack Reminders Integration
+### Slack Integration
 
-The `list-all-tasks-today` tool can include your Slack messages (@mentions and DMs). Unlike other integrations, Slack requires a separate OAuth flow because Keycard STS only provides OIDC scopes (user identity), not bot scopes needed for the Slack API.
+The Slack integration tracks messages that need your attention: @mentions, DMs, and messages you've saved with a custom emoji. Use the `list-slack-todos` tool for a formatted view or `list-all-tasks-today` to include Slack messages with all your other tasks.
 
-**Setup:**
+**Features:**
+- **@mentions**: Messages where someone directly mentioned you
+- **DMs**: Direct messages
+- **Saved messages**: Messages you've marked with the `:kims-reminder-for-mcp:` emoji
+- **Priority scoring**: Automatic prioritization based on urgency keywords, questions, and recency
+- **Completion tracking**: Mark messages complete with `mark-action-complete` (automatically removes the emoji)
+
+**Setup (Single-User Deployment):**
 
 1. **Create Slack App**: Visit [api.slack.com/apps](https://api.slack.com/apps)
    - Create new app "From scratch"
@@ -262,35 +269,31 @@ The `list-all-tasks-today` tool can include your Slack messages (@mentions and D
 
 2. **Configure OAuth & Permissions**:
    - Go to "OAuth & Permissions"
-   - Add redirect URL: `https://your-tunnel-url/slack/auth/callback`
-   - Bot Token Scopes: Add `reminders:read`
+   - Under "User Token Scopes", add:
+     - `search:read` - For @mentions and DM search
+     - `reactions:read` - For emoji-saved message tracking
+     - `reactions:write` - For removing emoji when marking messages complete
 
-3. **Get Credentials**:
-   - Copy "Client ID" and "Client Secret" from Basic Information page
+3. **Install App & Get Token**:
+   - Click "Install to Workspace"
+   - Copy the "User OAuth Token" (starts with `xoxp-`)
 
-4. **Set Environment Variables**:
+4. **Set Environment Variable**:
    ```bash
-   SLACK_CLIENT_ID=your-client-id
-   SLACK_CLIENT_SECRET=your-client-secret
-   SLACK_OAUTH_REDIRECT_URL=https://your-tunnel-url/slack/auth/callback
+   SLACK_USER_TOKEN=xoxp-your-user-token-here
    ```
-
-5. **Connect Your Account**:
-   - Use the `connect-slack` tool in your MCP client
-   - Click the OAuth link to authorize
-   - Your Slack messages will now be included in `list-all-tasks-today` output
 
 **Tools:**
 
-- `connect-slack` - Authorize Slack access
-- `disconnect-slack` - Remove Slack connection
-- `list-all-tasks-today` - Automatically includes Slack messages when connected
+- `list-slack-todos` - View recent Slack messages with priority analysis
+- `list-all-tasks-today` - Includes Slack messages with all your tasks
+- `mark-action-complete` - Mark a Slack message complete (removes emoji)
 
 **Troubleshooting:**
 
-- **"Slack: Not connected" error**: Run `connect-slack` tool to authenticate
-- **"invalid_client" OAuth error**: Check that SLACK_CLIENT_ID and SLACK_CLIENT_SECRET are correct, and verify redirect URL matches in both Slack app settings and .env
-- **No reminders appearing**: Ensure you have reminders set in Slack for today, and check that reminders are incomplete (not already marked done)
+- **"Slack not configured" error**: Set `SLACK_USER_TOKEN` in your `.env` file
+- **No saved messages appearing**: Add the `:kims-reminder-for-mcp:` emoji to messages in Slack, wait a moment, then fetch again
+- **Missing scopes**: Ensure your user token has all three required scopes (`search:read`, `reactions:read`, `reactions:write`)
 
 ## Migration Notice: list-today-todos Deprecated
 

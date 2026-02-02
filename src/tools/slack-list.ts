@@ -43,7 +43,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
     "list-slack-todos",
     {
       title: "List Slack Todos",
-      description: "Get recent @mentions and DMs from Slack with priority analysis. Shows the 5 most recent messages from the last 24 hours. Use this when the user asks about their Slack messages or what needs attention on Slack.",
+      description: "Get recent @mentions, DMs, and saved messages (marked with :kims-reminder-for-mcp:) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
     },
     async ({ authInfo }: AuthenticatedToolHandlerNoArgs) => {
       if (!authInfo) {
@@ -76,7 +76,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
           return {
             content: [{
               type: "text",
-              text: "💬 No @mentions or DMs found in the last 24 hours."
+              text: "💬 No @mentions, DMs, or saved messages found."
             }]
           };
         }
@@ -98,7 +98,10 @@ export function registerSlackListTool(mcpServer: McpServer): void {
         ];
 
         for (const { message, priority } of messagesWithPriority) {
-          const typeEmoji = message.type === "mention" ? "💬 @mention" : "💬 DM";
+          const typeEmoji =
+            message.type === "mention" ? "💬 @mention"
+            : message.type === "saved" ? "💾 Saved"
+            : "💬 DM";
           const channelInfo = message.channelName || message.channel;
           const sender = message.userName || message.user;
           const time = formatRelativeTime(message.timestamp);
@@ -121,7 +124,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
 
         lines.push("");
         lines.push("**Priority Scoring:**");
-        lines.push("• Base: @mentions (90 pts), DMs (70 pts)");
+        lines.push("• Base: Saved (100 pts), @mentions (90 pts), DMs (70 pts)");
         lines.push("• Urgent keywords (+80 pts): urgent, asap, critical, blocker, help");
         lines.push("• Questions (+40 pts): ?, can you, need help");
         lines.push("• Action requests (+50 pts): review, approve, merge, fix");

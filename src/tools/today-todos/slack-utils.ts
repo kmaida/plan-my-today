@@ -3,6 +3,7 @@ import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./prio
 import { getLogger } from "../../observability/logger";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { buildSlackId } from "../../utils/action-identifiers";
+import { SLACK_SAVED_MESSAGES } from "../../constants";
 
 /**
  * Slack Search API response structure
@@ -37,6 +38,31 @@ interface SlackAuthResponse {
 }
 
 /**
+ * Slack reactions.list API response structure
+ */
+interface SlackReactionsResponse {
+  ok: boolean;
+  error?: string;
+  items?: Array<{
+    type: "message" | "file" | "file_comment";
+    channel?: string;
+    message?: {
+      type: string;
+      user: string;
+      username?: string;
+      ts: string;
+      text: string;
+      permalink?: string;
+      thread_ts?: string;
+      reactions?: Array<{
+        name: string;
+        users: string[];
+      }>;
+    };
+  }>;
+}
+
+/**
  * Get the authenticated user's Slack ID
  */
 async function getUserId(accessToken: string): Promise<string> {
@@ -58,6 +84,148 @@ async function getUserId(accessToken: string): Promise<string> {
   }
 
   return data.user_id;
+}
+
+/**
+ * Fetch messages the user has saved with a specific emoji reaction
+ * Uses reactions.list API to get all reactions, then filters by emoji
+ */
+/**
+ * Fetches messages that the user has bookmarked with a specific emoji reaction
+ *
+ * @param accessToken - Slack user token with reactions:read scope
+ * @param userId - Slack user ID
+ * @param emojiName - Name of the emoji to filter by (without colons)
+ * @param daysBack - Number of days to look back
+ * @param maxResults - Maximum number of messages to return
+ * @returns Array of saved messages matching the criteria
+ */
+async function fetchSlackSavedMessages(
+  accessToken: string,
+  userId: string,
+  emojiName: string,
+  daysBack: number,
+  maxResults: number
+): Promise<Array<{
+  type: string;
+  user: string;
+  username?: string;
+  ts: string;
+  text: string;
+  channel?: { id: string; name: string };
+  permalink?: string;
+  thread_ts?: string;
+}>> {
+  const url = new URL("https://slack.com/api/reactions.list");
+  url.searchParams.set("limit", "100");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Slack reactions.list API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as SlackReactionsResponse;
+
+  if (!data.ok) {
+    throw new Error(data.error || "Reactions fetch failed");
+  }
+
+  const items = data.items || [];
+  const cutoffTime = Date.now() / 1000 - daysBack * 24 * 60 * 60;
+  const filtered: Array<{
+    type: string;
+    user: string;
+    username?: string;
+    ts: string;
+    text: string;
+    channel?: { id: string; name: string };
+    permalink?: string;
+    thread_ts?: string;
+  }> = [];
+
+  for (const item of items) {
+    // Only process message items (skip files, file comments, etc.)
+    if (item.type !== "message" || !item.message) continue;
+
+    // Skip messages outside the time window
+    const msgTs = parseFloat(item.message.ts);
+    if (msgTs < cutoffTime) continue;
+
+    // Check if this message has the target emoji reaction from the authenticated user
+    const reactions = item.message.reactions || [];
+    const hasTargetEmoji = reactions.some(
+      (r) => r.name === emojiName && r.users.includes(userId)
+    );
+
+    if (!hasTargetEmoji) continue;
+
+    filtered.push({
+      type: item.message.type,
+      user: item.message.user,
+      username: item.message.username,
+      ts: item.message.ts,
+      text: item.message.text || "",
+      channel: item.channel ? { id: item.channel, name: "" } : undefined,
+      permalink: item.message.permalink,
+      thread_ts: item.message.thread_ts,
+    });
+
+    if (filtered.length >= maxResults) break;
+  }
+
+  return filtered;
+}
+
+/**
+ * Removes a specific emoji reaction from a Slack message
+ *
+ * This is used to automatically remove the bookmark emoji when marking a saved message as complete.
+ * Gracefully handles the case where the reaction has already been removed.
+ *
+ * @param accessToken - Slack user token with reactions:write scope
+ * @param channel - Slack channel ID
+ * @param timestamp - Message timestamp (ts)
+ * @param emojiName - Name of the emoji to remove (without colons)
+ * @throws Error if the API returns an error other than "no_reaction"
+ */
+export async function removeSlackReaction(
+  accessToken: string,
+  channel: string,
+  timestamp: string,
+  emojiName: string
+): Promise<void> {
+  const url = new URL("https://slack.com/api/reactions.remove");
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      channel,
+      timestamp,
+      name: emojiName,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Slack reactions.remove API error: ${response.status}`);
+  }
+
+  const data = (await response.json()) as { ok: boolean; error?: string };
+  if (!data.ok) {
+    // Don't throw on already_removed error - that's fine
+    if (data.error !== "no_reaction") {
+      throw new Error(data.error || "Failed to remove reaction");
+    }
+  }
 }
 
 /**
@@ -134,15 +302,41 @@ function deduplicateAndGroup(
     permalink?: string;
     thread_ts?: string;
   }>,
+  saved: Array<{
+    type: string;
+    user: string;
+    username?: string;
+    ts: string;
+    text: string;
+    channel?: { id: string; name: string };
+    permalink?: string;
+    thread_ts?: string;
+  }>,
   userId: string
 ): SlackMessageDetail[] {
   const seen = new Set<string>();
   const results: SlackMessageDetail[] = [];
 
-  // Process @mentions first (highest priority)
-  for (const msg of mentions) {
+  /**
+   * Helper to add a message if not already seen
+   * Returns true if added, false if duplicate
+   */
+  const addIfNew = (
+    msg: {
+      type: string;
+      user: string;
+      username?: string;
+      ts: string;
+      text: string;
+      channel?: { id: string; name: string };
+      permalink?: string;
+      thread_ts?: string;
+    },
+    messageType: "saved" | "mention" | "thread" | "dm",
+    additionalFields?: Partial<SlackMessageDetail>
+  ): boolean => {
     const key = msg.thread_ts || msg.ts;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) return false;
     seen.add(key);
 
     results.push({
@@ -154,51 +348,24 @@ function deduplicateAndGroup(
       userName: msg.username,
       permalink: msg.permalink,
       threadTs: msg.thread_ts,
-      type: "mention",
+      type: messageType,
+      ...additionalFields,
     });
-  }
 
-  // Process threads where user participated
-  for (const msg of threads) {
-    // Skip if user is the only one in thread (not interesting)
-    if (msg.user === userId) {
-      const key = msg.thread_ts || msg.ts;
-      if (seen.has(key)) continue;
-      seen.add(key);
+    return true;
+  };
 
-      results.push({
-        text: msg.text || "",
-        timestamp: msg.ts,
-        channel: msg.channel?.id || "",
-        channelName: msg.channel?.name,
-        user: msg.user,
-        userName: msg.username,
-        permalink: msg.permalink,
-        threadTs: msg.thread_ts,
-        type: "thread",
-        replyCount: 1, // Simplified: actual count would need conversations.replies
-      });
+  // Process in priority order: saved > mentions > threads > DMs
+  // First occurrence wins due to deduplication
+  saved.forEach((msg) => addIfNew(msg, "saved"));
+  mentions.forEach((msg) => addIfNew(msg, "mention"));
+  threads.forEach((msg) => {
+    // Only include threads where user participated (not self-threads)
+    if (msg.user !== userId) {
+      addIfNew(msg, "thread", { replyCount: 1 });
     }
-  }
-
-  // Process DMs
-  for (const msg of dms) {
-    const key = msg.thread_ts || msg.ts;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    results.push({
-      text: msg.text || "",
-      timestamp: msg.ts,
-      channel: msg.channel?.id || "",
-      channelName: msg.channel?.name,
-      user: msg.user,
-      userName: msg.username,
-      permalink: msg.permalink,
-      threadTs: msg.thread_ts,
-      type: "dm",
-    });
-  }
+  });
+  dms.forEach((msg) => addIfNew(msg, "dm"));
 
   // Sort by timestamp descending (most recent first)
   results.sort((a, b) => parseFloat(b.timestamp) - parseFloat(a.timestamp));
@@ -206,9 +373,48 @@ function deduplicateAndGroup(
   return results;
 }
 
+/** Priority scoring constants */
+const PRIORITY_WEIGHTS = {
+  TYPE: {
+    SAVED: 100,    // User explicitly bookmarked
+    MENTION: 90,   // Direct @mention
+    DM: 70,        // Direct message
+  },
+  CONTENT: {
+    URGENT: 80,    // Urgent keywords
+    ACTION: 50,    // Action request
+    QUESTION: 40,  // Question or request
+  },
+  RECENCY: {
+    VERY_RECENT: 50,  // < 1 hour
+    RECENT: 30,       // < 4 hours
+    MODERATE: 15,     // < 12 hours
+    STALE: 5,         // < 24 hours
+  },
+} as const;
+
+const URGENCY_KEYWORDS = [
+  "urgent", "asap", "immediately", "critical", "emergency", "blocker", "blocked",
+  "help", "stuck", "broken", "down", "failing", "issue", "problem"
+] as const;
+
+const QUESTION_KEYWORDS = [
+  "?", "can you", "could you", "would you", "please", "need", "help",
+  "quick question", "wondering if", "do you know"
+] as const;
+
+const ACTION_KEYWORDS = [
+  "review", "approve", "merge", "deploy", "fix", "update", "check",
+  "look at", "take a look", "feedback", "thoughts"
+] as const;
+
 /**
- * Calculates a priority score for Slack messages based on content and urgency
+ * Calculates a priority score for Slack messages based on type, content, and recency
  * Higher score = higher priority
+ *
+ * @param message - The Slack message to score
+ * @param now - Current timestamp for recency calculation
+ * @returns Priority score (0-300+ scale)
  */
 export function calculateSlackPriority(
   message: SlackMessageDetail,
@@ -217,101 +423,62 @@ export function calculateSlackPriority(
   let score = 0;
   const text = message.text.toLowerCase();
 
-  // Base priority by type
-  if (message.type === "mention") {
-    score += 90; // @mentions are high priority - someone directly addressed you
-  } else if (message.type === "dm") {
-    score += 70; // DMs are important but slightly lower than @mentions
-  }
+  // Base priority by message type
+  const typeScores: Record<string, number> = {
+    saved: PRIORITY_WEIGHTS.TYPE.SAVED,
+    mention: PRIORITY_WEIGHTS.TYPE.MENTION,
+    dm: PRIORITY_WEIGHTS.TYPE.DM,
+  };
+  score += typeScores[message.type] || 0;
 
-  // Analyze message content for urgency signals
-  const urgentKeywords = [
-    "urgent", "asap", "immediately", "critical", "emergency", "blocker", "blocked",
-    "help", "stuck", "broken", "down", "failing", "issue", "problem"
-  ];
+  // Content analysis - only apply first matching boost per category
+  const hasKeyword = (keywords: readonly string[]) =>
+    keywords.some(keyword => text.includes(keyword));
 
-  const questionKeywords = [
-    "?", "can you", "could you", "would you", "please", "need", "help",
-    "quick question", "wondering if", "do you know"
-  ];
+  if (hasKeyword(URGENCY_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.URGENT;
+  else if (hasKeyword(QUESTION_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.QUESTION;
+  else if (hasKeyword(ACTION_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.ACTION;
 
-  const actionKeywords = [
-    "review", "approve", "merge", "deploy", "fix", "update", "check",
-    "look at", "take a look", "feedback", "thoughts"
-  ];
-
-  // Boost for urgent language
-  for (const keyword of urgentKeywords) {
-    if (text.includes(keyword)) {
-      score += 80; // Very high boost for urgent language
-      break; // Only count once
-    }
-  }
-
-  // Boost for questions (likely needs response)
-  for (const keyword of questionKeywords) {
-    if (text.includes(keyword)) {
-      score += 40;
-      break;
-    }
-  }
-
-  // Boost for action requests
-  for (const keyword of actionKeywords) {
-    if (text.includes(keyword)) {
-      score += 50;
-      break;
-    }
-  }
-
-  // Recency boost: more recent = higher priority
+  // Recency boost - more recent messages get higher priority
   const msgTime = new Date(parseFloat(message.timestamp) * 1000);
   const hoursAgo = (now.getTime() - msgTime.getTime()) / (1000 * 60 * 60);
 
-  if (hoursAgo < 1) {
-    score += 50; // Very recent
-  } else if (hoursAgo < 4) {
-    score += 30;
-  } else if (hoursAgo < 12) {
-    score += 15;
-  } else if (hoursAgo < 24) {
-    score += 5;
-  }
+  if (hoursAgo < 1) score += PRIORITY_WEIGHTS.RECENCY.VERY_RECENT;
+  else if (hoursAgo < 4) score += PRIORITY_WEIGHTS.RECENCY.RECENT;
+  else if (hoursAgo < 12) score += PRIORITY_WEIGHTS.RECENCY.MODERATE;
+  else if (hoursAgo < 24) score += PRIORITY_WEIGHTS.RECENCY.STALE;
 
   return score;
 }
 
 /**
  * Calculates priority metadata for Slack messages
- * Wraps calculateSlackPriority and adds structured signals
+ * Extends calculateSlackPriority with structured signals for debugging/display
+ *
+ * @param message - The Slack message to score
+ * @param now - Current timestamp for recency calculation
+ * @returns Priority metadata with score, category, signals, and human-readable reasons
  */
 export function calculateSlackPriorityWithMetadata(
   message: SlackMessageDetail,
   now: Date
 ): PriorityMetadata {
-  const score = calculateSlackPriority(message, now); // Reuse existing function
+  const score = calculateSlackPriority(message, now);
   const text = message.text.toLowerCase();
 
-  const urgentKeywords = [
-    "urgent", "asap", "immediately", "critical", "emergency", "blocker", "blocked",
-    "help", "stuck", "broken", "down", "failing", "issue", "problem"
-  ];
-  const questionKeywords = [
-    "?", "can you", "could you", "would you", "please", "need",
-    "quick question", "wondering if", "do you know"
-  ];
-  const actionKeywords = [
-    "review", "approve", "merge", "deploy", "fix", "update", "check",
-    "look at", "feedback", "thoughts"
-  ];
+  // Check for content signals using shared keyword constants
+  const hasKeyword = (keywords: readonly string[]) =>
+    keywords.some(k => text.includes(k));
 
-  const hasUrgentKeywords = urgentKeywords.some(k => text.includes(k));
-  const hasQuestion = questionKeywords.some(k => text.includes(k));
-  const hasActionRequest = actionKeywords.some(k => text.includes(k));
+  const hasUrgentKeywords = hasKeyword(URGENCY_KEYWORDS);
+  const hasQuestion = hasKeyword(QUESTION_KEYWORDS);
+  const hasActionRequest = hasKeyword(ACTION_KEYWORDS);
 
   const ageHours = (now.getTime() - parseFloat(message.timestamp) * 1000) / (1000 * 60 * 60);
 
+  // Build human-readable reasons for priority score
   const reasons: string[] = [];
+  if (message.type === "saved") reasons.push("Saved with emoji");
   if (message.type === "mention") reasons.push("@Mention");
   if (message.type === "dm") reasons.push("Direct message");
   if (hasUrgentKeywords) reasons.push("Urgent keywords");
@@ -417,10 +584,15 @@ export async function fetchSlackMessages(
   options: {
     daysBack?: number;
     maxMessages?: number;
+    savedMessagesDaysBack?: number;
   } = {}
 ): Promise<SlackMessageDetail[]> {
   // Defaults: 1 day back, 5 messages max (for backward compatibility)
-  const { daysBack = 1, maxMessages = 5 } = options;
+  const {
+    daysBack = 1,
+    maxMessages = 5,
+    savedMessagesDaysBack = SLACK_SAVED_MESSAGES.DAYS_BACK
+  } = options;
 
   // Get user ID
   const userId = await getUserId(accessToken);
@@ -435,14 +607,65 @@ export async function fetchSlackMessages(
         ? '3 days ago'
         : `${daysBack} days ago`;
 
-  // Execute searches in parallel: @mentions and DMs only
-  const [mentions, dms] = await Promise.all([
-    searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
-    searchMessages(accessToken, `in:dm after:${timeFilter}`),
-  ]);
+  // Execute searches in parallel: @mentions, DMs, and saved messages
+  let mentions: Array<{
+    type: string;
+    user: string;
+    username?: string;
+    ts: string;
+    text: string;
+    channel?: { id: string; name: string };
+    permalink?: string;
+    thread_ts?: string;
+  }>;
+  let dms: Array<{
+    type: string;
+    user: string;
+    username?: string;
+    ts: string;
+    text: string;
+    channel?: { id: string; name: string };
+    permalink?: string;
+    thread_ts?: string;
+  }>;
+  let saved: Array<{
+    type: string;
+    user: string;
+    username?: string;
+    ts: string;
+    text: string;
+    channel?: { id: string; name: string };
+    permalink?: string;
+    thread_ts?: string;
+  }>;
+
+  try {
+    [mentions, dms, saved] = await Promise.all([
+      searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
+      searchMessages(accessToken, `in:dm after:${timeFilter}`),
+      fetchSlackSavedMessages(
+        accessToken,
+        userId,
+        SLACK_SAVED_MESSAGES.EMOJI_NAME,
+        savedMessagesDaysBack,
+        SLACK_SAVED_MESSAGES.MAX_RESULTS
+      ),
+    ]);
+  } catch (error) {
+    const logger = getLogger().withOperation("slack_utils");
+    logger.warn("Failed to fetch saved messages - continuing with mentions/DMs only", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Fallback: fetch only mentions and DMs
+    [mentions, dms] = await Promise.all([
+      searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
+      searchMessages(accessToken, `in:dm after:${timeFilter}`),
+    ]);
+    saved = [];
+  }
 
   // Deduplicate and group results, limit to configured max
-  const allMessages = deduplicateAndGroup(mentions, [], dms, userId);
+  const allMessages = deduplicateAndGroup(mentions, [], dms, saved, userId);
   const limitedMessages = allMessages.slice(0, maxMessages);
 
   // Ensure all messages have permalinks (fetch missing ones)

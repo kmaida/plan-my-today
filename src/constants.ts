@@ -35,6 +35,16 @@ export const TIME_WINDOWS = {
   SLACK_DAYS_BACK: 2,
 } as const;
 
+/** Slack saved messages configuration */
+export const SLACK_SAVED_MESSAGES = {
+  /** Emoji name to track as "saved" (without colons, e.g., "kims-reminder-for-mcp") */
+  EMOJI_NAME: "kims-reminder-for-mcp",
+  /** Lookback window for saved messages (in days) */
+  DAYS_BACK: 14,
+  /** Maximum saved messages to fetch */
+  MAX_RESULTS: 50,
+} as const;
+
 /** API fetch limits */
 export const FETCH_LIMITS = {
   /** Default fetch limit for most APIs */

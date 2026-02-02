@@ -191,7 +191,7 @@ export interface SlackMessageDetail {
   userName?: string; // Human-readable user name
   permalink?: string; // Slack permalink to message
   threadTs?: string; // Thread identifier
-  type: "mention" | "thread" | "dm"; // Message type
+  type: "mention" | "thread" | "dm" | "saved"; // Message type
   replyCount?: number; // For threads
   priorityMetadata?: PriorityMetadata;
 }
