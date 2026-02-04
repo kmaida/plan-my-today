@@ -40,3 +40,6 @@ coverage/
 
 # Data
 data/
+
+# AI
+.claude/
