@@ -256,7 +256,7 @@ The Slack integration tracks messages that need your attention: @mentions, DMs, 
 **Features:**
 - **@mentions**: Messages where someone directly mentioned you
 - **DMs**: Direct messages
-- **Saved messages**: Messages you've marked with the `:kims-reminder-for-mcp:` emoji
+- **Saved messages**: Messages you've marked with your custom emoji (configurable)
 - **Priority scoring**: Automatic prioritization based on urgency keywords, questions, and recency
 - **Completion tracking**: Mark messages complete with `mark-action-complete` (automatically removes the emoji)
 
@@ -278,9 +278,16 @@ The Slack integration tracks messages that need your attention: @mentions, DMs, 
    - Click "Install to Workspace"
    - Copy the "User OAuth Token" (starts with `xoxp-`)
 
-4. **Set Environment Variable**:
+4. **Create Custom Emoji** (Optional but Recommended):
+   - In Slack: Click workspace name → Customize Slack → Add Custom Emoji
+   - Upload an image or use an existing emoji
+   - Name it (e.g., "my-todo-reminder")
+   - This emoji will be used to mark messages as saved/todo items
+
+5. **Set Environment Variables**:
    ```bash
    SLACK_USER_TOKEN=xoxp-your-user-token-here
+   SLACK_EMOJI_NAME=my-todo-reminder  # Optional, defaults to "mcp-todo-reminder"
    ```
 
 **Tools:**
@@ -292,7 +299,11 @@ The Slack integration tracks messages that need your attention: @mentions, DMs, 
 **Troubleshooting:**
 
 - **"Slack not configured" error**: Set `SLACK_USER_TOKEN` in your `.env` file
-- **No saved messages appearing**: Add the `:kims-reminder-for-mcp:` emoji to messages in Slack, wait a moment, then fetch again
+- **No saved messages appearing**:
+  - Create your custom emoji in Slack if you haven't already
+  - Add the emoji to messages in Slack (e.g., `:my-todo-reminder:`)
+  - Set `SLACK_EMOJI_NAME` in your `.env` file to match your emoji name (without colons)
+  - Wait a moment, then fetch again
 - **Missing scopes**: Ensure your user token has all three required scopes (`search:read`, `reactions:read`, `reactions:write`)
 
 ## Migration Notice: list-today-todos Deprecated

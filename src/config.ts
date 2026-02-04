@@ -13,6 +13,7 @@ export interface ServerConfig {
   keycardClientId: string;
   keycardClientSecret: string;
   slackUserToken: string;
+  slackEmojiName: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -55,6 +56,7 @@ export function getConfig(): ServerConfig {
 
   // Slack configuration (optional - single-user deployment only)
   const SLACK_USER_TOKEN = process.env.SLACK_USER_TOKEN;
+  const SLACK_EMOJI_NAME = process.env.SLACK_EMOJI_NAME;
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -94,6 +96,15 @@ export function getConfig(): ServerConfig {
     );
   }
 
+  // Warn if Slack is enabled but custom emoji is not configured
+  if (SLACK_USER_TOKEN && !SLACK_EMOJI_NAME) {
+    console.warn(
+      "⚠️  SLACK_EMOJI_NAME not set - using default 'mcp-todo-reminder'.\n" +
+        "💡 To use a custom emoji, set SLACK_EMOJI_NAME in your .env file.\n" +
+        "   Create the emoji in your Slack workspace first: Customize Slack → Add Custom Emoji"
+    );
+  }
+
   return {
     port: PORT,
     host: HOST,
@@ -104,6 +115,7 @@ export function getConfig(): ServerConfig {
     keycardClientId: KEYCARD_CLIENT_ID || '',
     keycardClientSecret: KEYCARD_CLIENT_SECRET || '',
     slackUserToken: SLACK_USER_TOKEN || '',
+    slackEmojiName: SLACK_EMOJI_NAME || 'mcp-todo-reminder',
     observability: {
       serviceName: SERVICE_NAME,
       serviceVersion: SERVICE_VERSION,

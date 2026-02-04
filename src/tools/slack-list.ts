@@ -43,7 +43,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
     "list-slack-todos",
     {
       title: "List Slack Todos",
-      description: "Get recent @mentions, DMs, and saved messages (marked with :kims-reminder-for-mcp:) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
+      description: "Get recent @mentions, DMs, and saved messages (marked with your custom emoji) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
     },
     async ({ authInfo }: AuthenticatedToolHandlerNoArgs) => {
       if (!authInfo) {

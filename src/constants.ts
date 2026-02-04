@@ -37,8 +37,8 @@ export const TIME_WINDOWS = {
 
 /** Slack saved messages configuration */
 export const SLACK_SAVED_MESSAGES = {
-  /** Emoji name to track as "saved" (without colons, e.g., "kims-reminder-for-mcp") */
-  EMOJI_NAME: "kims-reminder-for-mcp",
+  /** Emoji name to track as "saved" (without colons, e.g., "mcp-todo-reminder") */
+  EMOJI_NAME: process.env.SLACK_EMOJI_NAME || "mcp-todo-reminder",
   /** Lookback window for saved messages (in days) */
   DAYS_BACK: 14,
   /** Maximum saved messages to fetch */
