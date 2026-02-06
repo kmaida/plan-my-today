@@ -1,0 +1,131 @@
+/* Design Tokens - "Paper Over Coffee" Theme */
+
+:root {
+  /* ===== Color Palette - Light Mode ===== */
+
+  /* Background */
+  --color-bg: #FAFAF8;         /* Warm white background */
+  --color-surface: #FFFFFF;     /* Pure white for cards */
+
+  /* Text — warm browns for "paper over coffee" feel */
+  --color-text-primary: #2C2520;   /* Dark warm brown */
+  --color-text-secondary: #6B6058; /* Medium warm brown */
+  --color-text-tertiary: #9C9490;  /* Light warm brown */
+
+  /* Borders & Dividers */
+  --color-divider: #DDD8D3;     /* Warm taupe border */
+
+  /* Priority Colors - Muted, not garish */
+  --color-critical: #C45B5B;    /* Muted red */
+  --color-high: #D89B5A;        /* Muted orange */
+  --color-medium: #7A9C9F;      /* Muted teal */
+  --color-low: #9FA3A8;         /* Muted gray */
+
+  /* Interactive States */
+  --color-hover: rgba(0, 0, 0, 0.04);
+  --color-active: rgba(0, 0, 0, 0.08);
+  --color-focus: #7A9C9F;
+
+  /* ===== Typography ===== */
+
+  /* Font Families */
+  --font-serif: 'Lora', 'Georgia', serif;
+  --font-sans: 'Inter', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+
+  /* Font Sizes */
+  --font-size-title: 32px;
+  --font-size-section: 20px;
+  --font-size-task: 16px;
+  --font-size-meta: 14px;
+  --font-size-small: 12px;
+
+  /* Font Weights */
+  --font-weight-semibold: 600;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+
+  /* ===== Spacing System ===== */
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ===== Shadows ===== */
+
+  /* Soft, natural shadows (not harsh drop-shadows) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.06);
+
+  /* ===== Border Radius ===== */
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* ===== Transitions ===== */
+
+  --transition-fast: 150ms ease-in-out;
+  --transition-normal: 250ms ease-in-out;
+  --transition-slow: 350ms ease-in-out;
+
+  /* ===== Z-Index Scale ===== */
+
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 300;
+  --z-tooltip: 400;
+}
+
+/* ===== Dark Mode ===== */
+
+[data-theme="dark"] {
+  /* Background */
+  --color-bg: #1A1A1A;          /* Soft black, not pure black */
+  --color-surface: #252525;     /* Elevated surface */
+
+  /* Text */
+  --color-text-primary: #E8E8E6;   /* Warm white */
+  --color-text-secondary: #A0A0A0; /* Medium gray */
+  --color-text-tertiary: #6B6B6B;  /* Darker gray */
+
+  /* Borders & Dividers */
+  --color-divider: #333333;     /* Subtle */
+
+  /* Priority Colors - Adjusted for dark mode */
+  --color-critical: #D87676;    /* Softer red */
+  --color-high: #E5B57A;        /* Softer orange */
+  --color-medium: #8FB4B7;      /* Softer teal */
+  --color-low: #B3B7BC;         /* Softer gray */
+
+  /* Interactive States */
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-active: rgba(255, 255, 255, 0.12);
+  --color-focus: #8FB4B7;
+
+  /* Shadows (softer in dark mode) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.4), 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== Reduced Motion ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

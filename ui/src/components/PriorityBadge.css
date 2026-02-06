@@ -1,0 +1,70 @@
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  border: 1px solid;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  cursor: help;
+  transition: all var(--transition-fast);
+}
+
+.priority-badge:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.priority-badge__icon {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.priority-badge__label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+/* Icon-only mode: no background, just the emoji */
+
+.priority-badge--icon-only {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: help;
+}
+
+.priority-badge--icon-only:hover {
+  transform: none;
+  opacity: 1;
+}
+
+.priority-badge--icon-only .priority-badge__icon {
+  font-size: 16px;
+}
+
+/* Priority-specific colors (used when label is shown) */
+
+.priority-badge--critical {
+  background-color: var(--color-critical);
+  color: white;
+}
+
+.priority-badge--high {
+  background-color: var(--color-high);
+  color: white;
+}
+
+.priority-badge--medium {
+  background-color: var(--color-medium);
+  color: white;
+}
+
+.priority-badge--low {
+  background-color: var(--color-low);
+  color: white;
+}

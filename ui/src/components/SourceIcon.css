@@ -1,0 +1,16 @@
+.source-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-normal);
+}
+
+.source-icon svg {
+  flex-shrink: 0;
+}
+
+.source-icon__label {
+  color: var(--color-text-secondary);
+}
