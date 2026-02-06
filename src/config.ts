@@ -36,7 +36,7 @@ export interface ServerConfig {
  * @throws Error if required environment variables are missing
  */
 export function getConfig(): ServerConfig {
-  const PORT = process.env.PORT || "8888";
+  const PORT = process.env.PORT || "9005";
 
   // Validate PORT is numeric
   if (!/^\d+$/.test(PORT)) {

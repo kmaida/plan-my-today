@@ -25,7 +25,7 @@ A **production-ready MCP server** demonstrating OAuth 2.0 authentication with Ke
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
 │   Cursor    │───▶│  MCP Server  │───▶│ Keycard STS │
 │    IDE      │    │ (localhost:  │    │             │
-│             │    │     8888)    │    │             │
+│             │    │     9005)    │    │             │
 └─────────────┘    └──────────────┘    └─────────────┘
        │                   │                   │
    OAuth Flow          JWT Validation      Token Issuance
@@ -66,7 +66,7 @@ KEYCARD_CLIENT_ID=your-client-id
 KEYCARD_CLIENT_SECRET=your-client-secret
 
 # Optional: Server configuration
-PORT=8888
+PORT=9005
 HOST=localhost
 ```
 
@@ -91,7 +91,7 @@ npm run build && npm start
 You should see:
 ```
 🚀 Todo MCP Server started!
-🔗 MCP Endpoint: http://localhost:8888/mcp
+🔗 MCP Endpoint: http://localhost:9005/mcp
 🔐 STS Issuer: https://your-zone-id.keycard.cloud
 🛠️  Available Tools: whoami, list-all-tasks-today, ...
 ```
@@ -131,14 +131,14 @@ The server also provides REST API endpoints for easier tool access:
 Example:
 ```bash
 # List available tools
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8888/api/tools
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:9005/api/tools
 
 # Call a tool
 curl -X POST \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"maxResults": 10}' \
-  http://localhost:8888/api/tools/list-calendar-events
+  http://localhost:9005/api/tools/list-calendar-events
 ```
 
 These endpoints use the same authentication as the MCP protocol endpoint.
@@ -169,7 +169,7 @@ Fetches issues assigned to you from Linear, grouped by status (In Progress, To D
 | `MCP_BASE_DOMAIN` | Base domain for MCP server (multi-tenant mode) | - | ✅* |
 | `KEYCARD_CLIENT_ID` | Keycard client ID (token exchange) | - | ✅ for token exchange |
 | `KEYCARD_CLIENT_SECRET` | Keycard client secret (token exchange) | - | ✅ for token exchange |
-| `PORT` | Server port | `8888` | |
+| `PORT` | Server port | `9005` | |
 | `HOST` | Server host | `localhost` | |
 | `LOG_LEVEL` | Logging level | `INFO` | |
 | `ENABLE_OTEL` | Enable OpenTelemetry | `true` | |
@@ -339,7 +339,7 @@ ISSUER_BASE_DOMAIN=keycard.cloud
 MCP_BASE_DOMAIN=mcp.example.com
 
 # Other configuration
-PORT=8888
+PORT=9005
 ENABLE_OTEL=true
 ```
 
@@ -418,14 +418,14 @@ npm run check:fix
 
 1. Start the server: `npm run dev`
 2. In Cursor, go to Settings > MCP Servers
-3. Add server: `http://localhost:8888/mcp`
+3. Add server: `http://localhost:9005/mcp`
 
 ## 🚦 Health Checks
 
 The server provides a health check endpoint at `/health`:
 
 ```bash
-curl http://localhost:8888/health
+curl http://localhost:9005/health
 ```
 
 Response:
