@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { requireBearerAuth } from "@keycardlabs/mcp-oauth/server/auth/middleware/bearerAuth";
 import { mcpAuthMetadataRouter, InferredAuthMetadataOptions } from "@keycardlabs/mcp-oauth/server/auth/router";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -304,6 +306,18 @@ export function createApp(): express.Application {
         error: "Failed to list tools",
         message: error instanceof Error ? error.message : String(error),
       });
+    }
+  });
+
+  // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today)
+  app.get('/api/tasks', async (_req: express.Request, res: express.Response) => {
+    try {
+      const filePath = path.join(process.cwd(), 'data', 'latest-tasks.json');
+      const content = await fs.readFile(filePath, 'utf-8');
+      res.setHeader('Content-Type', 'application/json');
+      res.send(content);
+    } catch {
+      res.status(404).json({ error: 'No task data yet. Ask Claude to fetch your tasks first.' });
     }
   });
 

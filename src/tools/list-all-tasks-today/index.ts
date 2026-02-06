@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
 import { z } from "zod";
 import { stsClient } from "../../services/sts-client";
@@ -346,6 +348,18 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           errors: errors.length > 0 ? errors : undefined
         }
       };
+
+      // Write to local file so the UI can read it without auth
+      try {
+        const dataDir = path.join(process.cwd(), "data");
+        await fs.mkdir(dataDir, { recursive: true });
+        await fs.writeFile(
+          path.join(dataDir, "latest-tasks.json"),
+          JSON.stringify(responseData, null, 2)
+        );
+      } catch {
+        // Non-fatal: UI cache write failed, tool still returns data normally
+      }
 
       // Return JSON string
       return {
