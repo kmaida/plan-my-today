@@ -544,6 +544,109 @@ async function getPermalink(
 }
 
 /**
+ * Resolve channel IDs to human-readable names for messages missing channelName.
+ * Uses conversations.info API. DMs (D-prefixed channels) are resolved to the
+ * other user's display name via users.info.
+ */
+async function resolveChannelNames(
+  accessToken: string,
+  messages: SlackMessageDetail[]
+): Promise<SlackMessageDetail[]> {
+  // Collect unique channel IDs that need resolution
+  const idsToResolve = new Set<string>();
+  for (const msg of messages) {
+    if (!msg.channelName && msg.channel) {
+      idsToResolve.add(msg.channel);
+    }
+  }
+
+  if (idsToResolve.size === 0) return messages;
+
+  const nameCache = new Map<string, string>();
+  const logger = getLogger().withOperation("slack_utils");
+
+  await Promise.all(
+    Array.from(idsToResolve).map(async (channelId) => {
+      try {
+        if (channelId.startsWith("D")) {
+          // DM channel — resolve via conversations.info to get the user, then users.info for name
+          const convResponse = await fetch(
+            `https://slack.com/api/conversations.info?channel=${channelId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const convData = (await convResponse.json()) as {
+            ok: boolean;
+            channel?: { user?: string };
+          };
+          if (convData.ok && convData.channel?.user) {
+            const userResponse = await fetch(
+              `https://slack.com/api/users.info?user=${convData.channel.user}`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const userData = (await userResponse.json()) as {
+              ok: boolean;
+              user?: { real_name?: string; profile?: { display_name?: string }; name?: string };
+            };
+            if (userData.ok && userData.user) {
+              const name =
+                userData.user.profile?.display_name ||
+                userData.user.real_name ||
+                userData.user.name;
+              nameCache.set(channelId, name ? `DM: ${name}` : "DM");
+            } else {
+              nameCache.set(channelId, "DM");
+            }
+          } else {
+            // conversations.info succeeded but no user field (e.g., group DM)
+            nameCache.set(channelId, "DM");
+          }
+        } else {
+          // Regular channel
+          const response = await fetch(
+            `https://slack.com/api/conversations.info?channel=${channelId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const data = (await response.json()) as {
+            ok: boolean;
+            channel?: { name?: string };
+            error?: string;
+          };
+          if (data.ok && data.channel?.name) {
+            nameCache.set(channelId, data.channel.name);
+          } else {
+            logger.debug("conversations.info returned no name", {
+              channelId,
+              ok: data.ok,
+              error: data.error,
+            });
+          }
+        }
+      } catch (error) {
+        logger.debug("Failed to resolve channel name", {
+          channelId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Fallback: use "DM" for DM channels so raw IDs don't leak to the UI
+        if (channelId.startsWith("D")) {
+          nameCache.set(channelId, "DM");
+        }
+      }
+    })
+  );
+
+  return messages.map((msg) => {
+    if (!msg.channelName && nameCache.has(msg.channel)) {
+      return { ...msg, channelName: nameCache.get(msg.channel) };
+    }
+    // Final fallback: DM channels that weren't resolved at all
+    if (!msg.channelName && msg.channel.startsWith("D")) {
+      return { ...msg, channelName: "DM" };
+    }
+    return msg;
+  });
+}
+
+/**
  * Ensures all messages have permalinks by fetching missing ones
  */
 async function ensurePermalinks(
@@ -668,12 +771,15 @@ export async function fetchSlackMessages(
   const allMessages = deduplicateAndGroup(mentions, [], dms, saved, userId);
   const limitedMessages = allMessages.slice(0, maxMessages);
 
-  // Ensure all messages have permalinks (fetch missing ones)
-  const messagesWithPermalinks = await ensurePermalinks(accessToken, limitedMessages);
+  // Ensure all messages have permalinks and channel names
+  const [messagesWithPermalinks] = await Promise.all([
+    ensurePermalinks(accessToken, limitedMessages),
+  ]);
+  const enrichedMessages = await resolveChannelNames(accessToken, messagesWithPermalinks);
 
   // Filter out completed messages
   const filteredMessages: SlackMessageDetail[] = [];
-  for (const message of messagesWithPermalinks) {
+  for (const message of enrichedMessages) {
     const actionId = buildSlackId(message.channel, message.timestamp);
     const completed = await isActionCompleted("slack", actionId);
     if (!completed) {

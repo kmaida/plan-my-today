@@ -4,6 +4,9 @@ import { TaskCard } from './TaskCard'
 import { Chevron } from './Chevron'
 import './TaskGroup.css'
 
+const INITIAL_VISIBLE = 5
+const LOAD_MORE_INCREMENT = 10
+
 interface TaskGroupProps {
   label: string
   count: number
@@ -11,6 +14,8 @@ interface TaskGroupProps {
   defaultCollapsed?: boolean
   onMarkComplete?: (task: Task) => void
   onViewSource?: (task: Task) => void
+  completingTaskId?: string | null
+  completeError?: string | null
 }
 
 export function TaskGroup({
@@ -20,8 +25,14 @@ export function TaskGroup({
   defaultCollapsed = false,
   onMarkComplete,
   onViewSource,
+  completingTaskId,
+  completeError,
 }: TaskGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
+  const visibleTasks = tasks.slice(0, visibleCount)
+  const remaining = tasks.length - visibleCount
 
   return (
     <div className="task-group">
@@ -41,14 +52,26 @@ export function TaskGroup({
           {tasks.length === 0 ? (
             <p className="task-group__empty">No tasks in this group</p>
           ) : (
-            tasks.map((task, index) => (
-              <TaskCard
-                key={`${task.source}-${index}`}
-                task={task}
-                onMarkComplete={onMarkComplete}
-                onViewSource={onViewSource}
-              />
-            ))
+            <>
+              {visibleTasks.map((task, index) => (
+                <TaskCard
+                  key={task.taskId || `${task.source}-${index}`}
+                  task={task}
+                  onMarkComplete={onMarkComplete}
+                  onViewSource={onViewSource}
+                  isCompleting={completingTaskId === task.taskId}
+                  hasError={completeError === task.taskId}
+                />
+              ))}
+              {remaining > 0 && (
+                <button
+                  className="task-group__show-more"
+                  onClick={() => setVisibleCount(prev => prev + LOAD_MORE_INCREMENT)}
+                >
+                  Show more ({remaining} remaining)
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

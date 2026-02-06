@@ -91,8 +91,8 @@ export async function listAllTasks(): Promise<TasksResult> {
         tasks: transformServerResponse(response),
         fetchedAt: response.metadata?.fetched_at || null,
       }
-    } catch {
-      // No cached data yet — fall through to mock
+    } catch (err) {
+      console.warn('Failed to fetch live task data, falling back to mock:', err)
     }
   }
   return {
@@ -159,15 +159,17 @@ export async function markEmailComplete(emailId: string): Promise<MarkCompleteRe
 }
 
 /**
- * Mark an action as complete (stores in local completion tracking)
+ * Mark an action as complete (stores in local completion tracking).
+ * Calls a dedicated no-auth REST endpoint instead of the MCP tool layer.
  */
 export async function markActionComplete(
   source: string,
-  identifier: string
+  identifier: string,
+  taskId?: string
 ): Promise<MarkCompleteResponse> {
-  return await callTool<MarkCompleteResponse>('mark-action-complete', {
-    source,
-    identifier,
+  return await apiCall<MarkCompleteResponse>('/mark-action-complete', {
+    method: 'POST',
+    body: JSON.stringify({ source, identifier, complete: true, taskId }),
   })
 }
 

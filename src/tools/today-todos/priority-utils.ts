@@ -41,12 +41,17 @@ export function calculateRecencyBoost(ageHours: number): "very_recent" | "recent
 }
 
 /**
- * Calculates proximity label for calendar events based on minutes until start
+ * Calculates proximity label for calendar events
  *
  * @param minutesUntilStart - Minutes until event starts (negative if already started)
+ * @param minutesUntilEnd - Minutes until event ends (negative if already ended)
  * @returns Proximity label
  */
-export function calculateProximity(minutesUntilStart: number): "happening_now" | "very_soon" | "upcoming" | "future" {
+export function calculateProximity(
+  minutesUntilStart: number,
+  minutesUntilEnd?: number
+): "past" | "happening_now" | "very_soon" | "upcoming" | "future" {
+  if (minutesUntilEnd !== undefined && minutesUntilEnd <= 0) return "past";
   if (minutesUntilStart <= 5) return "happening_now";
   if (minutesUntilStart <= 30) return "very_soon";
   if (minutesUntilStart <= 120) return "upcoming";

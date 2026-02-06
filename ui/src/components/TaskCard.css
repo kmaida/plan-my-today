@@ -54,6 +54,13 @@
   flex: 1;
 }
 
+.task-card__inline-link {
+  color: var(--color-accent, #2563eb);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent, #2563eb);
+  text-underline-offset: 2px;
+}
+
 .task-card__meta {
   display: flex;
   align-items: center;
@@ -238,6 +245,19 @@
   color: var(--color-text-secondary);
   background: none;
   box-shadow: none;
+}
+
+.task-card__action--complete:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.task-card__action--error {
+  color: #b91c1c;
+}
+
+.task-card__action--error:hover {
+  color: #991b1b;
 }
 
 /* Mobile responsiveness */

@@ -66,6 +66,7 @@ export interface MeetingContextMetadata {
 
 export interface LinearTask {
   source: 'linear'
+  taskId: string
   identifier: string // e.g., "KIM-123"
   title: string
   priority?: number // Linear's own priority value
@@ -84,6 +85,7 @@ export interface LinearTask {
 
 export interface GmailTask {
   source: 'gmail'
+  taskId: string
   id: string
   subject: string
   from: string
@@ -100,6 +102,7 @@ export interface GmailTask {
 
 export interface GitHubTask {
   source: 'github' | 'github-issue'
+  taskId: string
   number: number
   title: string
   url: string
@@ -115,7 +118,9 @@ export interface GitHubTask {
 
 export interface SlackTask {
   source: 'slack'
+  taskId: string
   text: string
+  title?: string
   timestamp: string
   channel: string
   user: string
@@ -129,6 +134,7 @@ export interface SlackTask {
 
 export interface CalendarTask {
   source: 'calendar'
+  taskId: string
   summary: string
   start: string
   end: string
@@ -143,6 +149,7 @@ export interface CalendarTask {
 
 export interface DocsActionTask {
   source: 'docs'
+  taskId: string
   fileTitle: string
   actionType: string
   fileLink: string
@@ -155,6 +162,7 @@ export interface DocsActionTask {
 
 export interface MeetingNotesTask {
   source: 'meeting-notes'
+  taskId: string
   documentId: string
   actionItem: string
   assignee?: string
@@ -216,6 +224,7 @@ export interface ServerPriorityMetadata {
 }
 
 export interface ServerLinearIssue {
+  taskId?: string
   identifier: string
   title: string
   priority: number
@@ -233,6 +242,7 @@ export interface ServerLinearIssue {
 }
 
 export interface ServerGmailMessage {
+  taskId?: string
   id: string
   subject: string
   from: string
@@ -245,6 +255,7 @@ export interface ServerGmailMessage {
 }
 
 export interface ServerGitHubPR {
+  taskId?: string
   id: number
   number: number
   title: string
@@ -258,6 +269,7 @@ export interface ServerGitHubPR {
 }
 
 export interface ServerGitHubIssue {
+  taskId?: string
   id: number
   number: number
   title: string
@@ -270,7 +282,9 @@ export interface ServerGitHubIssue {
 }
 
 export interface ServerSlackMessage {
+  taskId?: string
   text: string
+  title?: string
   timestamp: string
   channel: string
   channelName?: string
@@ -284,6 +298,7 @@ export interface ServerSlackMessage {
 }
 
 export interface ServerCalendarEvent {
+  taskId?: string
   id?: string
   summary?: string
   start?: { dateTime?: string; date?: string }
@@ -297,6 +312,7 @@ export interface ServerCalendarEvent {
 }
 
 export interface ServerDocsAction {
+  taskId?: string
   fileTitle: string
   fileId?: string
   actionType: string
@@ -307,6 +323,7 @@ export interface ServerDocsAction {
 }
 
 export interface ServerMeetingNote {
+  taskId?: string
   documentId: string
   documentTitle: string
   documentLink: string

@@ -129,14 +129,21 @@ export function calculateCalendarPriority(
   const reasons: string[] = [];
 
   const startTime = event.start?.dateTime ? new Date(event.start.dateTime) : null;
+  const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
   const minutesUntilStart = startTime
     ? (startTime.getTime() - now.getTime()) / (1000 * 60)
     : 999;
+  const minutesUntilEnd = endTime
+    ? (endTime.getTime() - now.getTime()) / (1000 * 60)
+    : undefined;
 
-  const proximity = calculateProximity(minutesUntilStart);
+  const proximity = calculateProximity(minutesUntilStart, minutesUntilEnd);
 
-  // Boost for imminent meetings
-  if (proximity === "happening_now") {
+  // Boost for imminent meetings; past events get no boost
+  if (proximity === "past") {
+    score = 10;
+    reasons.push("Event ended");
+  } else if (proximity === "happening_now") {
     score += 150;
     reasons.push("Happening now");
   } else if (proximity === "very_soon") {

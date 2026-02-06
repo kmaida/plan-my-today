@@ -42,6 +42,7 @@ function transformPriority(server?: ServerPriorityMetadata): PriorityMetadata {
 function transformLinear(issue: ServerLinearIssue): LinearTask {
   return {
     source: 'linear',
+    taskId: issue.taskId || '',
     identifier: issue.identifier,
     title: issue.title,
     priority: issue.priority,
@@ -60,6 +61,7 @@ function transformLinear(issue: ServerLinearIssue): LinearTask {
 function transformGmail(msg: ServerGmailMessage): GmailTask {
   return {
     source: 'gmail',
+    taskId: msg.taskId || '',
     id: msg.id,
     subject: msg.subject,
     from: msg.from,
@@ -75,6 +77,7 @@ function transformGmail(msg: ServerGmailMessage): GmailTask {
 function transformGitHubPR(pr: ServerGitHubPR): GitHubTask {
   return {
     source: 'github',
+    taskId: pr.taskId || '',
     number: pr.number,
     title: pr.title,
     url: pr.url,
@@ -89,6 +92,7 @@ function transformGitHubPR(pr: ServerGitHubPR): GitHubTask {
 function transformGitHubIssue(issue: ServerGitHubIssue): GitHubTask {
   return {
     source: 'github-issue',
+    taskId: issue.taskId || '',
     number: issue.number,
     title: issue.title,
     url: issue.url,
@@ -103,7 +107,9 @@ function transformGitHubIssue(issue: ServerGitHubIssue): GitHubTask {
 function transformSlack(msg: ServerSlackMessage): SlackTask {
   return {
     source: 'slack',
+    taskId: msg.taskId || '',
     text: msg.text,
+    title: msg.title,
     timestamp: msg.timestamp,
     channel: msg.channelName || msg.channel,
     user: msg.userName || msg.user,
@@ -116,6 +122,7 @@ function transformSlack(msg: ServerSlackMessage): SlackTask {
 function transformCalendar(event: ServerCalendarEvent): CalendarTask {
   return {
     source: 'calendar',
+    taskId: event.taskId || '',
     summary: event.summary || '(No title)',
     start: event.start?.dateTime || event.start?.date || '',
     end: event.end?.dateTime || event.end?.date || '',
@@ -133,6 +140,7 @@ function transformCalendar(event: ServerCalendarEvent): CalendarTask {
 function transformDocs(action: ServerDocsAction): DocsActionTask {
   return {
     source: 'docs',
+    taskId: action.taskId || '',
     fileTitle: action.fileTitle,
     actionType: action.actionType,
     fileLink: action.fileLink || '',
@@ -144,6 +152,7 @@ function transformDocs(action: ServerDocsAction): DocsActionTask {
 function transformMeetingNote(note: ServerMeetingNote): MeetingNotesTask {
   return {
     source: 'meeting-notes',
+    taskId: note.taskId || '',
     documentId: note.documentId,
     actionItem: note.actionItem,
     assignee: note.assignee,

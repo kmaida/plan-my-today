@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Task } from '../types/tasks'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
 import { getPriorityLabel } from '../utils/priorityHelpers'
@@ -17,15 +17,49 @@ import {
 } from '../types/tasks'
 import './TaskCard.css'
 
-const COMPLETABLE_SOURCES: TaskSource[] = ['gmail', 'slack', 'meeting-notes', 'docs']
+// Sources that support mark-complete from the UI (no OAuth required).
+// Gmail is excluded because it needs a Gmail API token we can't provide from the UI.
+const COMPLETABLE_SOURCES: TaskSource[] = ['slack', 'meeting-notes', 'docs']
+
+/** Parse Slack link markup (<url|label> or <url>) into React nodes with clickable links */
+function parseSlackLinks(text: string): ReactNode[] {
+  const parts: ReactNode[] = []
+  const linkPattern = /<(https?:\/\/[^|>]+)(?:\|([^>]+))?>/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = linkPattern.exec(text)) !== null) {
+    // Text before the link
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index))
+    }
+    const url = match[1]
+    const label = match[2] || new URL(url).hostname
+    parts.push(
+      <a key={match.index} href={url} target="_blank" rel="noopener noreferrer" className="task-card__inline-link">
+        {label}
+      </a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  // Remaining text after last link
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : [text]
+}
 
 interface TaskCardProps {
   task: Task
   onMarkComplete?: (task: Task) => void
   onViewSource?: (task: Task) => void
+  isCompleting?: boolean
+  hasError?: boolean
 }
 
-export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) {
+export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, hasError }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Extract task-specific properties
@@ -33,7 +67,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
     if (isLinearTask(task)) return task.title
     if (isGmailTask(task)) return task.subject
     if (isGitHubTask(task)) return task.title
-    if (isSlackTask(task)) return task.text
+    if (isSlackTask(task)) return task.title || task.text
     if (isCalendarTask(task)) return task.summary
     if (isDocsActionTask(task)) return task.fileTitle
     if (isMeetingNotesTask(task)) return task.actionItem
@@ -70,12 +104,22 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
     }
 
     if (isSlackTask(task)) {
-      metadata.push(`${task.channel}`)
+      const channel = task.channel
+      // Skip raw channel IDs (all-caps alphanumeric like C08JF82CB1N)
+      const isRawId = channel && /^[A-Z0-9]+$/.test(channel)
+      if (channel && channel.startsWith('DM:')) {
+        metadata.push(channel)
+      } else if (channel && channel === 'DM') {
+        metadata.push(channel)
+      } else if (channel && !isRawId) {
+        metadata.push(`#${channel}`)
+      }
       metadata.push(isToday(task.timestamp) ? formatTime(task.timestamp) : formatDate(task.timestamp))
     }
 
     if (isCalendarTask(task)) {
-      metadata.push(formatTime(task.start))
+      const calendarDate = isToday(task.start) ? formatTime(task.start) : `${formatDate(task.start)} ${formatTime(task.start)}`
+      metadata.push(calendarDate)
       if (task.attendees) {
         metadata.push(`${task.attendees.length} attendees`)
       }
@@ -92,7 +136,10 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
   const url = getTaskUrl()
   const metadata = getTaskMetadata()
   const crossRefs = 'crossReferences' in task ? task.crossReferences : undefined
-  const hasCrossReferences = crossRefs && crossRefs.mentionedIn && crossRefs.mentionedIn.length > 0
+  // Only show the expand section when the item is mentioned in OTHER sources
+  // (not just its own source) or has actual related items
+  const otherSources = crossRefs?.mentionedIn?.filter((s: TaskSource) => s !== task.source) ?? []
+  const hasCrossReferences = otherSources.length > 0 || (crossRefs?.relatedItems && crossRefs.relatedItems.length > 0)
 
   const priorityLabel = getPriorityLabel(task.priorityMetadata.category)
 
@@ -107,7 +154,9 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
       <div className="task-card__header">
         <span className={`task-card__priority-tag task-card__priority-tag--${task.priorityMetadata.category}`}>{priorityLabel}</span>
         <div className="task-card__title-row">
-          <h3 className="task-card__title">{title}</h3>
+          <h3 className="task-card__title">
+            {isSlackTask(task) && title.includes('<http') ? parseSlackLinks(title) : title}
+          </h3>
         </div>
 
         <div className="task-card__meta">
@@ -166,7 +215,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
           >
             <Chevron direction={isExpanded ? 'down' : 'right'} size={12} className="task-card__expand-icon" />
             <span className="task-card__cross-refs-label">
-              Also mentioned in: {crossRefs!.mentionedIn!.map((source: TaskSource) => getSourceLabel(source)).join(', ')}
+              Also mentioned in: {otherSources.map((source: TaskSource) => getSourceLabel(source)).join(', ')}
             </span>
           </div>
 
@@ -210,10 +259,11 @@ export function TaskCard({ task, onMarkComplete, onViewSource }: TaskCardProps) 
         )}
         {onMarkComplete && COMPLETABLE_SOURCES.includes(task.source) && (
           <button
-            className="task-card__action task-card__action--complete"
+            className={`task-card__action task-card__action--complete${hasError ? ' task-card__action--error' : ''}`}
             onClick={() => onMarkComplete(task)}
+            disabled={isCompleting}
           >
-            Mark Complete
+            {isCompleting ? 'Completing...' : hasError ? 'Failed — Retry' : 'Mark Complete'}
           </button>
         )}
       </div>

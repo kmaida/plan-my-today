@@ -11,10 +11,13 @@ import { config } from "./config";
 import { createAuthMiddleware } from "./middleware/auth";
 import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
-import { registerAllTools, getAvailableToolNames } from "./tools/index";
+import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { registerAuthDashboard } from "./routes/auth-dashboard";
 import { registerKeycardReauth } from "./routes/keycard-reauth";
+import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
+import { removeSlackReaction } from "./tools/today-todos/slack-utils";
+import { SLACK_SAVED_MESSAGES } from "./constants";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -209,8 +212,6 @@ export function createApp(): express.Application {
     logger.debug("REST API tool call", { toolName, args });
 
     try {
-      // Import tool registry
-      const { TOOL_REGISTRY } = await import("./tools/index.js");
       const toolEntry = TOOL_REGISTRY.find((t: { name: string }) => t.name === toolName);
 
       if (!toolEntry) {
@@ -294,8 +295,6 @@ export function createApp(): express.Application {
   // List available tools endpoint
   app.get('/api/tools', authMiddleware, async (_req: express.Request, res: express.Response) => {
     try {
-      const { TOOL_REGISTRY } = await import("./tools/index.js");
-
       res.json({
         tools: TOOL_REGISTRY.map((t: { name: string }) => ({
           name: t.name,
@@ -304,6 +303,86 @@ export function createApp(): express.Application {
     } catch (error) {
       res.status(500).json({
         error: "Failed to list tools",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // Mark an action as complete (no auth — writes to local completion store)
+  // Supports slack, meeting-note, and adhoc sources. Gmail requires OAuth and
+  // must be completed through the MCP tool (not the UI).
+  app.post('/api/mark-action-complete', async (req: express.Request, res: express.Response) => {
+    try {
+      const { source, identifier, complete = true, metadata, taskId } = req.body || {};
+
+      if (!source || !identifier) {
+        return res.status(400).json({ error: 'Missing required fields: source, identifier' });
+      }
+
+      const validSources = ['meeting-note', 'slack', 'docs', 'adhoc'];
+      if (!validSources.includes(source)) {
+        return res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
+      }
+
+      if (complete) {
+        await storeComplete(source, identifier, metadata);
+
+        // For Slack, also try to remove the emoji reaction
+        if (source === 'slack' && config.slackUserToken) {
+          try {
+            const [channel, timestamp] = identifier.split(':');
+            if (channel && timestamp) {
+              await removeSlackReaction(config.slackUserToken, channel, timestamp, SLACK_SAVED_MESSAGES.EMOJI_NAME);
+            }
+          } catch {
+            // Non-fatal — completion tracking still works
+          }
+        }
+
+        // Remove the completed item from the cached tasks JSON by taskId
+        // so it disappears on the next UI reload (not just optimistic removal).
+        if (taskId) {
+          try {
+            const tasksFilePath = path.join(process.cwd(), 'data', 'latest-tasks.json');
+            const raw = await fs.readFile(tasksFilePath, 'utf-8');
+            const data = JSON.parse(raw);
+            let removed = false;
+
+            for (const key of Object.keys(data)) {
+              if (key === 'metadata') continue;
+              const section = data[key];
+              if (Array.isArray(section)) {
+                const before = section.length;
+                data[key] = section.filter((item: any) => item.taskId !== taskId);
+                if (data[key].length < before) removed = true;
+              } else if (section && typeof section === 'object') {
+                // Handle nested objects like github: { prs: [], issues: [] }
+                for (const subKey of Object.keys(section)) {
+                  if (Array.isArray(section[subKey])) {
+                    const before = section[subKey].length;
+                    section[subKey] = section[subKey].filter((item: any) => item.taskId !== taskId);
+                    if (section[subKey].length < before) removed = true;
+                  }
+                }
+              }
+            }
+
+            if (removed) {
+              await fs.writeFile(tasksFilePath, JSON.stringify(data, null, 2));
+            }
+          } catch {
+            // Non-fatal — optimistic UI removal still works
+          }
+        }
+
+        return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
+      } else {
+        await storeIncomplete(source, identifier);
+        return res.json({ success: true, message: `Unmarked: ${source}:${identifier}` });
+      }
+    } catch (error) {
+      res.status(500).json({
+        error: 'Failed to mark action complete',
         message: error instanceof Error ? error.message : String(error),
       });
     }

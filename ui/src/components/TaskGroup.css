@@ -66,6 +66,27 @@
   }
 }
 
+.task-group__show-more {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  margin-top: var(--space-sm);
+  background: none;
+  border: 1px dashed var(--color-divider);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.task-group__show-more:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
 .task-group__empty {
   color: var(--color-text-tertiary);
   font-style: italic;

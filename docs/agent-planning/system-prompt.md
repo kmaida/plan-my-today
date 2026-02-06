@@ -42,10 +42,24 @@ ONLY use the todo-mcp-server in this project. If it's not available or you can't
 When you call `list-all-tasks-today`, it writes a snapshot to `data/latest-tasks.json`. A web dashboard at `localhost:9006` reads this file to display the user's tasks visually, grouped by priority.
 
 **Key behaviors:**
-- After capturing fresh data, tell the user: "Your dashboard has been updated — click Reload in the UI to see the latest snapshot."
+- After capturing fresh data, tell the user: "Your dashboard has been updated — click Reload [in the UI](http://localhost:9006/) to see the latest snapshot."
 - The dashboard shows **absolute timestamps** (e.g., "2:30 PM", "Due 3:30 PM") rather than relative ones, so they stay accurate even if the snapshot is old.
-- The dashboard supports **Mark Complete** for Gmail, Slack, Meeting Notes, and Docs tasks. Linear, GitHub, and Calendar items cannot be marked complete from the UI.
+- The dashboard supports **Mark Complete** for Slack, Meeting Notes, and Docs tasks. Linear, GitHub, Gmail, and Calendar items cannot be marked complete from the UI.
 - The user may also ask you to mark items complete conversationally — use `mark-email-complete` or `mark-action-complete` as appropriate.
+
+**Direct JSON editing:**
+
+The dashboard reads from `data/latest-tasks.json`. You can — and should — edit this file directly when the user asks you to adjust their task list. This includes:
+
+- **Marking items done:** Remove the item from the JSON array it belongs to. Also call the appropriate `mark-*-complete` tool so the completion is tracked persistently.
+- **Changing priority:** Update an item's `priorityMetadata.score`, `priorityMetadata.category`, and `priorityMetadata.reasons` to reflect the user's input. For example, if the user says "that Slack message is actually critical," bump its score to ≥180, set category to `"critical"`, and update reasons.
+- **Removing items:** If the user says something isn't relevant or shouldn't be on their list, remove it from the JSON.
+- **Adding notes/context:** You can add or modify `priorityMetadata.reasons` to include user-provided context (e.g., "User: handle this after the 2pm meeting").
+- **Reordering within a category:** Items within each priority group are sorted by score. Adjust scores to change ordering.
+
+After editing the JSON, tell the user: "I've updated your task list — click Reload in the dashboard to see the changes."
+
+**Important:** Each item in the JSON has a `taskId` (UUID) that uniquely identifies it. Use this to locate items when editing. The UI uses `taskId` for React keys and for the mark-complete API.
 
 ### Your Role
 

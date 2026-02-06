@@ -184,6 +184,7 @@ export interface GitHubIssueDetail {
  */
 export interface SlackMessageDetail {
   text: string;
+  title?: string; // Short summary extracted from message text for UI display
   timestamp: string; // Message timestamp
   channel: string; // Channel ID
   channelName?: string; // Human-readable channel name

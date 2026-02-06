@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
@@ -29,6 +30,71 @@ const GITHUB_RESOURCE = "https://api.github.com";
 const GITHUB_SCOPES = ["repo", "read:org"];
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
+
+const SLACK_TITLE_MAX_LENGTH = 80;
+
+/**
+ * Generate a short display title from a Slack message.
+ * Takes the first line, strips non-link Slack formatting (emoji codes, user/channel mentions),
+ * and truncates to a reasonable length. Preserves Slack link markup (<url|label> / <url>)
+ * so the UI can render them as clickable hyperlinks.
+ */
+function summarizeSlackMessage(text: string, type: string, userName: string): string {
+  if (!text) {
+    const labels: Record<string, string> = { mention: "Mention", dm: "Direct message", saved: "Saved message", thread: "Thread reply" };
+    return `${labels[type] || "Message"} from ${userName}`;
+  }
+
+  // Take first line only
+  let title = text.split("\n")[0].trim();
+
+  // Strip Slack emoji codes like :slightly_smiling_face:
+  title = title.replace(/:[a-z0-9_+-]+:/g, "").trim();
+
+  // Strip Slack user mentions: <@U12345|kim> → @kim, <@U12345> → removed
+  title = title.replace(/<@[A-Z0-9]+\|([^>]+)>/g, "@$1");
+  title = title.replace(/<@[A-Z0-9]+>/g, "").trim();
+
+  // Strip Slack channel mentions like <#C12345|general>
+  title = title.replace(/<#[A-Z0-9]+\|?[^>]*>/g, "").trim();
+
+  // NOTE: Slack links (<url|label> and <url>) are preserved for the UI to render as hyperlinks
+
+  // Collapse multiple spaces
+  title = title.replace(/\s+/g, " ").trim();
+
+  // If first line is empty after stripping, fall back to type label
+  if (!title) {
+    const labels: Record<string, string> = { mention: "Mention", dm: "Direct message", saved: "Saved message", thread: "Thread reply" };
+    return `${labels[type] || "Message"} from ${userName}`;
+  }
+
+  // Truncate based on visible text length (excluding link URL markup)
+  const visibleLength = title.replace(/<https?:\/\/[^|>]+\|([^>]+)>/g, "$1").replace(/<https?:\/\/[^>]+>/g, "link").length;
+  if (visibleLength > SLACK_TITLE_MAX_LENGTH) {
+    // Truncate conservatively — find a safe cut point in the raw string
+    let visible = 0;
+    let i = 0;
+    while (i < title.length && visible < SLACK_TITLE_MAX_LENGTH - 1) {
+      if (title[i] === "<" && title.substring(i).match(/^<https?:\/\//)) {
+        // Skip to end of link markup, count only label length
+        const end = title.indexOf(">", i);
+        if (end === -1) break;
+        const linkContent = title.substring(i + 1, end);
+        const pipeIdx = linkContent.indexOf("|");
+        const labelLen = pipeIdx >= 0 ? linkContent.length - pipeIdx - 1 : 4; // "link"
+        visible += labelLen;
+        i = end + 1;
+      } else {
+        visible++;
+        i++;
+      }
+    }
+    title = title.substring(0, i).trimEnd() + "\u2026";
+  }
+
+  return title;
+}
 
 /**
  * Input schema for the list-all-tasks-today tool
@@ -214,45 +280,69 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       // Enrich with priority metadata
       const now = new Date();
 
+      // Remove calendar events that have already ended (keep all-day events)
+      calendarEvents = calendarEvents.filter(event => {
+        const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+        return !endTime || endTime > now;
+      });
+
       calendarEvents = calendarEvents.map(event => ({
         ...event,
+        taskId: randomUUID(),
         priorityMetadata: calculateCalendarPriority(event, now)
       }));
 
       linearIssues = linearIssues.map(issue => ({
         ...issue,
+        taskId: randomUUID(),
         priorityMetadata: calculateLinearPriority(issue, now)
       }));
 
       gmailTodos = gmailTodos.map(email => ({
         ...email,
+        taskId: randomUUID(),
         priorityMetadata: calculateEmailPriority(email, now)
       }));
 
       meetingSummaries = meetingSummaries.map(summary => ({
         ...summary,
+        taskId: randomUUID(),
         priorityMetadata: calculateMeetingSummaryPriority(summary, now)
       }));
 
       assignedActions = assignedActions.map(action => ({
         ...action,
+        taskId: randomUUID(),
         priorityMetadata: calculateDocsPriority(action, now)
       }));
 
       githubPRs = githubPRs.map(pr => ({
         ...pr,
+        taskId: randomUUID(),
         priorityMetadata: calculateGitHubPriority(pr, now)
       }));
 
       githubIssues = githubIssues.map(issue => ({
         ...issue,
+        taskId: randomUUID(),
         priorityMetadata: calculateGitHubPriority(issue, now)
       }));
 
-      slackMessages = slackMessages.map(msg => ({
-        ...msg,
-        priorityMetadata: calculateSlackPriorityWithMetadata(msg, now)
-      }));
+      slackMessages = slackMessages.map(msg => {
+        // Priority must be calculated BEFORE we convert the timestamp,
+        // since calculateSlackPriorityWithMetadata expects epoch seconds
+        const priorityMetadata = calculateSlackPriorityWithMetadata(msg, now);
+        // Convert Slack epoch seconds (e.g., "1770390352.498779") to ISO string
+        const epochMs = parseFloat(msg.timestamp) * 1000;
+        const isoTimestamp = isNaN(epochMs) ? msg.timestamp : new Date(epochMs).toISOString();
+        return {
+          ...msg,
+          taskId: randomUUID(),
+          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user),
+          timestamp: isoTimestamp,
+          priorityMetadata,
+        };
+      });
 
       // ============================================
       // ENRICHMENT PHASE: Cross-Item Intelligence
@@ -328,6 +418,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           meetingSummaries
         );
       }
+
+      // Add id to meeting notes (they don't go through an enrichment .map())
+      meetingNoteActions = meetingNoteActions.map(note => ({
+        ...note,
+        taskId: randomUUID(),
+      }));
 
       // Build response data
       const responseData = {

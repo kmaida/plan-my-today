@@ -17,10 +17,16 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: backendTarget,
           changeOrigin: true,
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
         },
         '/mcp': {
           target: backendTarget,
           changeOrigin: true,
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
         },
       },
     },

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TaskGroup } from './components/TaskGroup'
-import { listAllTasks, markEmailComplete, markActionComplete } from './api/client'
+import { listAllTasks, markActionComplete } from './api/client'
 import type { Task } from './types/tasks'
-import { isGmailTask, isSlackTask, isMeetingNotesTask, isDocsActionTask } from './types/tasks'
-import { formatTime } from './utils/dateHelpers'
+import { isSlackTask, isMeetingNotesTask, isDocsActionTask } from './types/tasks'
+import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import './App.css'
 
 function getTaskIdentifier(task: Task): string {
-  if (isGmailTask(task)) return task.id
   if (isSlackTask(task)) return task.link || task.timestamp
   if (isMeetingNotesTask(task)) return task.documentId
   if (isDocsActionTask(task)) return task.fileLink || task.fileTitle
@@ -19,6 +18,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
+  const [completeError, setCompleteError] = useState<string | null>(null)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -44,26 +45,23 @@ function App() {
   const lowTasks = tasks.filter(t => t.priorityMetadata.category === 'low')
 
   const handleMarkComplete = useCallback(async (task: Task) => {
-    // Optimistic: remove from state immediately
-    setTasks(prev => prev.filter(t => t !== task))
-
+    setCompletingTaskId(task.taskId)
+    setCompleteError(null)
     try {
-      if (isGmailTask(task)) {
-        await markEmailComplete(task.id)
-      } else {
-        // Slack, meeting-notes, docs all use mark-action-complete
-        const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
-        const identifier = getTaskIdentifier(task)
-        await markActionComplete(source as 'meeting-note' | 'slack' | 'adhoc', identifier)
-      }
-    } catch {
-      // Restore task on failure
-      setTasks(prev => [...prev, task].sort((a, b) => b.priorityMetadata.score - a.priorityMetadata.score))
+      const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
+      const identifier = getTaskIdentifier(task)
+      await markActionComplete(source, identifier, task.taskId)
+      setTasks(prev => prev.filter(t => t !== task))
+    } catch (err) {
+      console.error('Failed to mark complete:', err)
+      setCompleteError(task.taskId)
+    } finally {
+      setCompletingTaskId(null)
     }
   }, [])
 
   const snapshotLabel = fetchedAt
-    ? `Snapshot from ${formatTime(fetchedAt)}`
+    ? `Snapshot from ${isToday(fetchedAt) ? `today ${formatTime(fetchedAt)}` : `${formatDate(fetchedAt)} ${formatTime(fetchedAt)}`}`
     : 'Using sample data'
 
   return (
@@ -129,6 +127,8 @@ function App() {
                   tasks={criticalTasks}
                   defaultCollapsed={false}
                   onMarkComplete={handleMarkComplete}
+                  completingTaskId={completingTaskId}
+                  completeError={completeError}
                 />
               )}
 
@@ -139,6 +139,8 @@ function App() {
                   tasks={highTasks}
                   defaultCollapsed={false}
                   onMarkComplete={handleMarkComplete}
+                  completingTaskId={completingTaskId}
+                  completeError={completeError}
                 />
               )}
 
@@ -149,6 +151,8 @@ function App() {
                   tasks={mediumTasks}
                   defaultCollapsed={mediumTasks.length > 5}
                   onMarkComplete={handleMarkComplete}
+                  completingTaskId={completingTaskId}
+                  completeError={completeError}
                 />
               )}
 
@@ -159,6 +163,8 @@ function App() {
                   tasks={lowTasks}
                   defaultCollapsed={true}
                   onMarkComplete={handleMarkComplete}
+                  completingTaskId={completingTaskId}
+                  completeError={completeError}
                 />
               )}
             </>
