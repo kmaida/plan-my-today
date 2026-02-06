@@ -111,7 +111,13 @@ function App() {
             )}
           </p>
           {!loading && tasks.length > 0 && (
-            <ViewSwitcher activeView={viewMode} onViewChange={setViewMode} />
+            <FilterBar
+              filters={filterState}
+              onFiltersChange={setFilterState}
+              totalCount={tasks.length}
+              filteredCount={filteredTasks.length}
+              viewSwitcher={<ViewSwitcher activeView={viewMode} onViewChange={setViewMode} />}
+            />
           )}
         </div>
       </header>
@@ -145,13 +151,6 @@ function App() {
 
           {!loading && tasks.length > 0 && (
             <>
-              <FilterBar
-                filters={filterState}
-                onFiltersChange={setFilterState}
-                totalCount={tasks.length}
-                filteredCount={filteredTasks.length}
-              />
-
               {filteredTasks.length === 0 ? (
                 <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
                   No tasks match your filters.

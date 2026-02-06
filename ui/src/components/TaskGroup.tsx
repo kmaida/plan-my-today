@@ -34,8 +34,10 @@ export function TaskGroup({
   const visibleTasks = tasks.slice(0, visibleCount)
   const remaining = tasks.length - visibleCount
 
+  const groupSlug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
   return (
-    <div className="task-group">
+    <div className="task-group" data-group={groupSlug}>
       <button
         className="task-group__header"
         onClick={() => setIsCollapsed(!isCollapsed)}

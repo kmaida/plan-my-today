@@ -1,7 +1,6 @@
 .view-switcher {
   display: flex;
   gap: var(--space-xs);
-  margin-top: var(--space-sm);
 }
 
 .view-switcher__tab {

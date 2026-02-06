@@ -6,7 +6,7 @@
 }
 
 .app-header {
-  background-color: var(--color-surface);
+  background: linear-gradient(to bottom, #faf8f5, #f5f0eb);
   border-bottom: 1px solid var(--color-divider);
   box-shadow: var(--shadow-sm);
   position: sticky;
@@ -67,9 +67,13 @@
 
 .app-header__snapshot {
   font-size: var(--font-size-small);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-secondary);
   margin: var(--space-xs) 0 0 0;
   font-style: italic;
+}
+
+.app-header__controls {
+  margin-top: var(--space-sm);
 }
 
 .app-main {
