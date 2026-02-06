@@ -1,10 +1,22 @@
 import { useState, useEffect, useCallback } from 'react'
 import { TaskGroup } from './components/TaskGroup'
+import { ViewSwitcher } from './components/ViewSwitcher'
+import { FilterBar } from './components/FilterBar'
 import { listAllTasks, markActionComplete } from './api/client'
-import type { Task } from './types/tasks'
+import type { Task, ViewMode, FilterState } from './types/tasks'
 import { isSlackTask, isMeetingNotesTask, isDocsActionTask } from './types/tasks'
+import { applyFilters } from './utils/taskHelpers'
+import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import './App.css'
+
+const DEFAULT_FILTERS: FilterState = {
+  search: '',
+  sources: [],
+  priorities: [],
+  timeFilter: 'all',
+  showCompleted: false,
+}
 
 function getTaskIdentifier(task: Task): string {
   if (isSlackTask(task)) return task.link || task.timestamp
@@ -13,11 +25,23 @@ function getTaskIdentifier(task: Task): string {
   return ''
 }
 
+function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount: number, groupIndex: number): boolean {
+  if (viewMode === 'priority') {
+    if (groupLabel === 'Low') return true
+    if (groupLabel === 'Medium' && groupCount > 5) return true
+    return false
+  }
+  // Other views: collapse groups past index 2
+  return groupIndex > 2
+}
+
 function App() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('priority')
+  const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
   const [completeError, setCompleteError] = useState<string | null>(null)
 
@@ -39,10 +63,8 @@ function App() {
     fetchTasks()
   }, [fetchTasks])
 
-  const criticalTasks = tasks.filter(t => t.priorityMetadata.category === 'critical')
-  const highTasks = tasks.filter(t => t.priorityMetadata.category === 'high')
-  const mediumTasks = tasks.filter(t => t.priorityMetadata.category === 'medium')
-  const lowTasks = tasks.filter(t => t.priorityMetadata.category === 'low')
+  const filteredTasks = applyFilters(tasks, filterState)
+  const taskGroups = groupTasks(filteredTasks, viewMode)
 
   const handleMarkComplete = useCallback(async (task: Task) => {
     setCompletingTaskId(task.taskId)
@@ -88,6 +110,9 @@ function App() {
               <> — ask your agent what you have to do today to capture a fresh list</>
             )}
           </p>
+          {!loading && tasks.length > 0 && (
+            <ViewSwitcher activeView={viewMode} onViewChange={setViewMode} />
+          )}
         </div>
       </header>
 
@@ -120,52 +145,30 @@ function App() {
 
           {!loading && tasks.length > 0 && (
             <>
-              {criticalTasks.length > 0 && (
-                <TaskGroup
-                  label="Critical"
-                  count={criticalTasks.length}
-                  tasks={criticalTasks}
-                  defaultCollapsed={false}
-                  onMarkComplete={handleMarkComplete}
-                  completingTaskId={completingTaskId}
-                  completeError={completeError}
-                />
-              )}
+              <FilterBar
+                filters={filterState}
+                onFiltersChange={setFilterState}
+                totalCount={tasks.length}
+                filteredCount={filteredTasks.length}
+              />
 
-              {highTasks.length > 0 && (
-                <TaskGroup
-                  label="High"
-                  count={highTasks.length}
-                  tasks={highTasks}
-                  defaultCollapsed={false}
-                  onMarkComplete={handleMarkComplete}
-                  completingTaskId={completingTaskId}
-                  completeError={completeError}
-                />
-              )}
-
-              {mediumTasks.length > 0 && (
-                <TaskGroup
-                  label="Medium"
-                  count={mediumTasks.length}
-                  tasks={mediumTasks}
-                  defaultCollapsed={mediumTasks.length > 5}
-                  onMarkComplete={handleMarkComplete}
-                  completingTaskId={completingTaskId}
-                  completeError={completeError}
-                />
-              )}
-
-              {lowTasks.length > 0 && (
-                <TaskGroup
-                  label="Low"
-                  count={lowTasks.length}
-                  tasks={lowTasks}
-                  defaultCollapsed={true}
-                  onMarkComplete={handleMarkComplete}
-                  completingTaskId={completingTaskId}
-                  completeError={completeError}
-                />
+              {filteredTasks.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+                  No tasks match your filters.
+                </p>
+              ) : (
+                taskGroups.map((group, index) => (
+                  <TaskGroup
+                    key={`${viewMode}-${group.label}`}
+                    label={group.label}
+                    count={group.count}
+                    tasks={group.tasks}
+                    defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
+                    onMarkComplete={handleMarkComplete}
+                    completingTaskId={completingTaskId}
+                    completeError={completeError}
+                  />
+                ))
               )}
             </>
           )}
