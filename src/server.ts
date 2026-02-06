@@ -408,6 +408,14 @@ export function createApp(): express.Application {
   registerAuthDashboard(app);
   registerKeycardReauth(app);
 
+  // Serve the built UI in production (after all API/MCP routes)
+  const uiDistPath = path.join(__dirname, '..', 'ui', 'dist');
+  app.use(express.static(uiDistPath));
+  // SPA fallback: serve index.html for any unmatched GET request
+  app.use((_req: express.Request, res: express.Response) => {
+    res.sendFile(path.join(uiDistPath, 'index.html'));
+  });
+
   return app;
 }
 
