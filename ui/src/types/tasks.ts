@@ -145,6 +145,7 @@ export interface CalendarTask {
   // Enrichment
   priorityMetadata: PriorityMetadata
   meetingContext?: MeetingContextMetadata
+  crossReferences?: CrossReferenceMetadata
 }
 
 export interface DocsActionTask {
@@ -185,14 +186,6 @@ export type Task =
   | CalendarTask
   | DocsActionTask
   | MeetingNotesTask
-
-// ===== Completion Tracking =====
-
-export interface CompletedAction {
-  source: string
-  identifier: string
-  completedAt: string
-}
 
 // ===== Server Response Types (from list-all-tasks-today MCP tool) =====
 
@@ -337,16 +330,6 @@ export interface ServerMeetingNote {
 
 // ===== API Response Types =====
 
-export interface ListAllTasksResponse {
-  tasks: Task[]
-  timestamp: string
-}
-
-export interface MarkCompleteRequest {
-  source: TaskSource
-  identifier: string
-}
-
 export interface MarkCompleteResponse {
   success: boolean
   message?: string
@@ -373,15 +356,6 @@ export interface TaskGroup {
   count: number
   tasks: Task[]
   collapsed?: boolean
-}
-
-// ===== Related Group (for Related view) =====
-
-export interface RelatedGroup {
-  topic: string // Auto-detected topic name
-  primaryTask: Task // Main task in the group
-  relatedTasks: Task[] // Related tasks
-  relationshipType: 'cross-referenced' | 'dependencies' | 'meeting-context' | 'blocked' | 'urgent'
 }
 
 // ===== Helper Type Guards =====

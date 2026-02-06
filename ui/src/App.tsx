@@ -4,8 +4,7 @@ import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { listAllTasks, markActionComplete } from './api/client'
 import type { Task, ViewMode, FilterState } from './types/tasks'
-import { isSlackTask, isMeetingNotesTask, isDocsActionTask } from './types/tasks'
-import { applyFilters } from './utils/taskHelpers'
+import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import './App.css'
@@ -16,13 +15,6 @@ const DEFAULT_FILTERS: FilterState = {
   priorities: [],
   timeFilter: 'all',
   showCompleted: false,
-}
-
-function getTaskIdentifier(task: Task): string {
-  if (isSlackTask(task)) return task.link || task.timestamp
-  if (isMeetingNotesTask(task)) return task.documentId
-  if (isDocsActionTask(task)) return task.fileLink || task.fileTitle
-  return ''
 }
 
 function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount: number, groupIndex: number): boolean {

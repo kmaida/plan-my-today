@@ -1,7 +1,6 @@
 // Task grouping - organize tasks into groups for each view mode
 
-import type { Task, ViewMode, TaskSource } from '../types/tasks'
-import type { TaskGroup as TaskGroupType } from '../types/tasks'
+import type { Task, ViewMode, TaskSource, TaskGroup as TaskGroupData } from '../types/tasks'
 import { isLinearTask, isCalendarTask } from '../types/tasks'
 import { groupByPriority, sortByPriority } from './priorityHelpers'
 import { getTaskTimestamp, getTaskTitle, normalizeSource } from './taskHelpers'
@@ -10,7 +9,7 @@ import { getSourceLabel } from '../components/SourceIcon'
 
 // --- Priority View (existing behavior, formalized) ---
 
-function groupByPriorityView(tasks: Task[]): TaskGroupType[] {
+function groupByPriorityView(tasks: Task[]): TaskGroupData[] {
   const grouped = groupByPriority(tasks)
   const categories: Array<{ key: keyof typeof grouped; label: string }> = [
     { key: 'critical', label: 'Critical' },
@@ -33,7 +32,7 @@ const SOURCE_ORDER: TaskSource[] = [
   'linear', 'github', 'gmail', 'slack', 'calendar', 'docs', 'meeting-notes',
 ]
 
-function groupBySourceView(tasks: Task[]): TaskGroupType[] {
+function groupBySourceView(tasks: Task[]): TaskGroupData[] {
   const buckets = new Map<TaskSource, Task[]>()
   for (const task of tasks) {
     const key = normalizeSource(task.source)
@@ -77,7 +76,7 @@ const TIMELINE_ORDER: TimeBucket[] = [
   'Overdue', 'Now', 'Next Hour', 'Today', 'This Week', 'Later', 'No Date',
 ]
 
-function groupByTimelineView(tasks: Task[]): TaskGroupType[] {
+function groupByTimelineView(tasks: Task[]): TaskGroupData[] {
   const buckets = new Map<TimeBucket, Task[]>()
   for (const task of tasks) {
     const bucket = getTimeBucket(task)
@@ -95,15 +94,15 @@ function groupByTimelineView(tasks: Task[]): TaskGroupType[] {
 
 // --- Related View ---
 
-function groupByRelatedView(tasks: Task[]): TaskGroupType[] {
+function groupByRelatedView(tasks: Task[]): TaskGroupData[] {
   const used = new Set<number>()
-  const groups: TaskGroupType[] = []
+  const groups: TaskGroupData[] = []
 
   // Pass 1: cluster by cross-reference overlap
   for (let i = 0; i < tasks.length; i++) {
     if (used.has(i)) continue
     const task = tasks[i]
-    const refs = 'crossReferences' in task ? task.crossReferences : undefined
+    const refs = task.crossReferences
     if (!refs?.relatedItems?.length && !refs?.mentionedIn?.length) continue
 
     const cluster: number[] = [i]
@@ -112,7 +111,7 @@ function groupByRelatedView(tasks: Task[]): TaskGroupType[] {
     for (let j = i + 1; j < tasks.length; j++) {
       if (used.has(j)) continue
       const other = tasks[j]
-      const otherRefs = 'crossReferences' in other ? other.crossReferences : undefined
+      const otherRefs = other.crossReferences
       if (!otherRefs) continue
 
       const otherIds = otherRefs.relatedItems?.map(r => r.id) || []
@@ -184,7 +183,7 @@ function groupByRelatedView(tasks: Task[]): TaskGroupType[] {
 
 // --- Public entry point ---
 
-export function groupTasks(tasks: Task[], viewMode: ViewMode): TaskGroupType[] {
+export function groupTasks(tasks: Task[], viewMode: ViewMode): TaskGroupData[] {
   switch (viewMode) {
     case 'priority': return groupByPriorityView(tasks)
     case 'source': return groupBySourceView(tasks)

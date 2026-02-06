@@ -1,20 +1,14 @@
 import { useState, type ReactNode } from 'react'
-import type { Task } from '../types/tasks'
-import { SourceIcon, getSourceLabel } from './SourceIcon'
-import { getPriorityLabel } from '../utils/priorityHelpers'
-import { Chevron } from './Chevron'
-import { formatDueDate, formatTime, formatDate, isToday } from '../utils/dateHelpers'
+import type { Task, TaskSource, RelatedItem } from '../types/tasks'
 import {
-  isLinearTask,
-  isGmailTask,
-  isGitHubTask,
-  isSlackTask,
-  isCalendarTask,
-  isDocsActionTask,
-  isMeetingNotesTask,
-  type TaskSource,
-  type RelatedItem,
+  isLinearTask, isGmailTask, isGitHubTask, isSlackTask,
+  isCalendarTask, isDocsActionTask, isMeetingNotesTask,
 } from '../types/tasks'
+import { getTaskTitle, getTaskUrl } from '../utils/taskHelpers'
+import { getPriorityLabel } from '../utils/priorityHelpers'
+import { formatDueDate, formatTime, formatDate, isToday } from '../utils/dateHelpers'
+import { SourceIcon, getSourceLabel } from './SourceIcon'
+import { Chevron } from './Chevron'
 import './TaskCard.css'
 
 // Sources that support mark-complete from the UI (no OAuth required).
@@ -61,29 +55,6 @@ interface TaskCardProps {
 
 export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, hasError }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-
-  // Extract task-specific properties
-  const getTaskTitle = (): string => {
-    if (isLinearTask(task)) return task.title
-    if (isGmailTask(task)) return task.subject
-    if (isGitHubTask(task)) return task.title
-    if (isSlackTask(task)) return task.title || task.text
-    if (isCalendarTask(task)) return task.summary
-    if (isDocsActionTask(task)) return task.fileTitle
-    if (isMeetingNotesTask(task)) return task.actionItem
-    return 'Unknown task'
-  }
-
-  const getTaskUrl = (): string | undefined => {
-    if (isLinearTask(task)) return task.url
-    if (isGmailTask(task)) return task.link
-    if (isGitHubTask(task)) return task.url
-    if (isSlackTask(task)) return task.link
-    if (isCalendarTask(task)) return task.htmlLink
-    if (isDocsActionTask(task)) return task.fileLink
-    if (isMeetingNotesTask(task)) return task.documentLink
-    return undefined
-  }
 
   const getTaskMetadata = (): string[] => {
     const metadata: string[] = []
@@ -132,10 +103,10 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
     return metadata
   }
 
-  const title = getTaskTitle()
-  const url = getTaskUrl()
+  const title = getTaskTitle(task)
+  const url = getTaskUrl(task)
   const metadata = getTaskMetadata()
-  const crossRefs = 'crossReferences' in task ? task.crossReferences : undefined
+  const crossRefs = task.crossReferences
   // Only show the expand section when the item is mentioned in OTHER sources
   // (not just its own source) or has actual related items
   const otherSources = crossRefs?.mentionedIn?.filter((s: TaskSource) => s !== task.source) ?? []

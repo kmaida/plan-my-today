@@ -46,19 +46,39 @@ export function getTaskTimestamp(task: Task): string | null {
   return null
 }
 
-/**
- * Get the task title for display purposes.
- * Shared helper to avoid duplicating the switch-on-type logic.
- */
+/** Get the task title for display */
 export function getTaskTitle(task: Task): string {
   if (isLinearTask(task)) return task.title
   if (isGmailTask(task)) return task.subject
   if (isGitHubTask(task)) return task.title
-  if (isSlackTask(task)) return task.text
+  if (isSlackTask(task)) return task.title || task.text
   if (isCalendarTask(task)) return task.summary
   if (isDocsActionTask(task)) return task.fileTitle
   if (isMeetingNotesTask(task)) return task.actionItem
   return 'Unknown task'
+}
+
+/** Get the primary URL for a task (for "View in source" links) */
+export function getTaskUrl(task: Task): string | undefined {
+  if (isLinearTask(task)) return task.url
+  if (isGmailTask(task)) return task.link
+  if (isGitHubTask(task)) return task.url
+  if (isSlackTask(task)) return task.link
+  if (isCalendarTask(task)) return task.htmlLink
+  if (isDocsActionTask(task)) return task.fileLink
+  if (isMeetingNotesTask(task)) return task.documentLink
+  return undefined
+}
+
+/**
+ * Get the stable identifier used when marking a task complete.
+ * Only needed for completable sources (slack, meeting-notes, docs).
+ */
+export function getTaskIdentifier(task: Task): string {
+  if (isSlackTask(task)) return task.link || task.timestamp
+  if (isMeetingNotesTask(task)) return task.documentId
+  if (isDocsActionTask(task)) return task.fileLink || task.fileTitle
+  return ''
 }
 
 /**

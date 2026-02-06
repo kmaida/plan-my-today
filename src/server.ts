@@ -46,6 +46,43 @@ function createMcpServerForSession(): McpServer {
   return mcpServer;
 }
 
+const TASKS_CACHE_PATH = path.join(process.cwd(), 'data', 'latest-tasks.json');
+
+/** Remove a completed task from the cached tasks JSON file */
+async function removeTaskFromCache(taskId: string): Promise<void> {
+  try {
+    const raw = await fs.readFile(TASKS_CACHE_PATH, 'utf-8');
+    const data = JSON.parse(raw);
+    let removed = false;
+
+    for (const key of Object.keys(data)) {
+      if (key === 'metadata') continue;
+      const section = data[key];
+
+      if (Array.isArray(section)) {
+        const before = section.length;
+        data[key] = section.filter((item: { taskId?: string }) => item.taskId !== taskId);
+        if (data[key].length < before) removed = true;
+      } else if (section && typeof section === 'object') {
+        // Nested objects like github: { prs: [], issues: [] }
+        for (const subKey of Object.keys(section)) {
+          if (Array.isArray(section[subKey])) {
+            const before = section[subKey].length;
+            section[subKey] = section[subKey].filter((item: { taskId?: string }) => item.taskId !== taskId);
+            if (section[subKey].length < before) removed = true;
+          }
+        }
+      }
+    }
+
+    if (removed) {
+      await fs.writeFile(TASKS_CACHE_PATH, JSON.stringify(data, null, 2));
+    }
+  } catch {
+    // Non-fatal — optimistic UI removal still works
+  }
+}
+
 /**
  * Creates and configures the Express application
  *
@@ -241,11 +278,11 @@ export function createApp(): express.Application {
       };
 
       // Create a response collector
-      let responseData: any = null;
+      let responseData: Record<string, unknown> | null = null;
       let responseStatus = 200;
 
       const mockRes = {
-        json: (data: any) => {
+        json: (data: Record<string, unknown>) => {
           responseData = data;
           if (data.error) {
             responseStatus = 500;
@@ -254,7 +291,7 @@ export function createApp(): express.Application {
         status: (code: number) => {
           responseStatus = code;
           return {
-            json: (data: any) => {
+            json: (data: Record<string, unknown>) => {
               responseData = data;
             },
           };
@@ -308,9 +345,8 @@ export function createApp(): express.Application {
     }
   });
 
-  // Mark an action as complete (no auth — writes to local completion store)
-  // Supports slack, meeting-note, and adhoc sources. Gmail requires OAuth and
-  // must be completed through the MCP tool (not the UI).
+  // Mark an action as complete (no auth — writes to local completion store).
+  // Supports slack, meeting-note, docs, and adhoc sources.
   app.post('/api/mark-action-complete', async (req: express.Request, res: express.Response) => {
     try {
       const { source, identifier, complete = true, metadata, taskId } = req.body || {};
@@ -324,62 +360,31 @@ export function createApp(): express.Application {
         return res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
       }
 
-      if (complete) {
-        await storeComplete(source, identifier, metadata);
-
-        // For Slack, also try to remove the emoji reaction
-        if (source === 'slack' && config.slackUserToken) {
-          try {
-            const [channel, timestamp] = identifier.split(':');
-            if (channel && timestamp) {
-              await removeSlackReaction(config.slackUserToken, channel, timestamp, SLACK_SAVED_MESSAGES.EMOJI_NAME);
-            }
-          } catch {
-            // Non-fatal — completion tracking still works
-          }
-        }
-
-        // Remove the completed item from the cached tasks JSON by taskId
-        // so it disappears on the next UI reload (not just optimistic removal).
-        if (taskId) {
-          try {
-            const tasksFilePath = path.join(process.cwd(), 'data', 'latest-tasks.json');
-            const raw = await fs.readFile(tasksFilePath, 'utf-8');
-            const data = JSON.parse(raw);
-            let removed = false;
-
-            for (const key of Object.keys(data)) {
-              if (key === 'metadata') continue;
-              const section = data[key];
-              if (Array.isArray(section)) {
-                const before = section.length;
-                data[key] = section.filter((item: any) => item.taskId !== taskId);
-                if (data[key].length < before) removed = true;
-              } else if (section && typeof section === 'object') {
-                // Handle nested objects like github: { prs: [], issues: [] }
-                for (const subKey of Object.keys(section)) {
-                  if (Array.isArray(section[subKey])) {
-                    const before = section[subKey].length;
-                    section[subKey] = section[subKey].filter((item: any) => item.taskId !== taskId);
-                    if (section[subKey].length < before) removed = true;
-                  }
-                }
-              }
-            }
-
-            if (removed) {
-              await fs.writeFile(tasksFilePath, JSON.stringify(data, null, 2));
-            }
-          } catch {
-            // Non-fatal — optimistic UI removal still works
-          }
-        }
-
-        return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
-      } else {
+      if (!complete) {
         await storeIncomplete(source, identifier);
         return res.json({ success: true, message: `Unmarked: ${source}:${identifier}` });
       }
+
+      await storeComplete(source, identifier, metadata);
+
+      // For Slack saved messages, also remove the emoji reaction
+      if (source === 'slack' && config.slackUserToken) {
+        try {
+          const [channel, timestamp] = identifier.split(':');
+          if (channel && timestamp) {
+            await removeSlackReaction(config.slackUserToken, channel, timestamp, SLACK_SAVED_MESSAGES.EMOJI_NAME);
+          }
+        } catch {
+          // Non-fatal — completion tracking still works
+        }
+      }
+
+      // Remove from cached tasks JSON so it disappears on next UI reload
+      if (taskId) {
+        await removeTaskFromCache(taskId);
+      }
+
+      return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
     } catch (error) {
       res.status(500).json({
         error: 'Failed to mark action complete',
@@ -391,8 +396,7 @@ export function createApp(): express.Application {
   // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today)
   app.get('/api/tasks', async (_req: express.Request, res: express.Response) => {
     try {
-      const filePath = path.join(process.cwd(), 'data', 'latest-tasks.json');
-      const content = await fs.readFile(filePath, 'utf-8');
+      const content = await fs.readFile(TASKS_CACHE_PATH, 'utf-8');
       res.setHeader('Content-Type', 'application/json');
       res.send(content);
     } catch {

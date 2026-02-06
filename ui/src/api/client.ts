@@ -174,19 +174,6 @@ export async function markActionComplete(
 }
 
 /**
- * Unmark an action as complete
- */
-export async function unmarkActionComplete(
-  source: string,
-  identifier: string
-): Promise<MarkCompleteResponse> {
-  return await callTool<MarkCompleteResponse>('unmark-action-complete', {
-    source,
-    identifier,
-  })
-}
-
-/**
  * Get authenticated user info
  */
 export async function whoami(): Promise<{ user?: string; authenticated: boolean }> {
@@ -212,7 +199,6 @@ export const api = {
   listAssignedActions,
   markEmailComplete,
   markActionComplete,
-  unmarkActionComplete,
   whoami,
   checkAuth,
 }
