@@ -35,6 +35,27 @@
   margin: 0 0 var(--space-xs) 0;
 }
 
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.app-header__logout {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  background: none;
+  border: none;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.app-header__logout:hover {
+  color: var(--color-text-secondary);
+}
+
 .app-header__reload {
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);

@@ -28,6 +28,13 @@ export default defineConfig(({ mode }) => {
             'ngrok-skip-browser-warning': 'true',
           },
         },
+        '/.well-known': {
+          target: backendTarget,
+          changeOrigin: true,
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
+        },
       },
     },
   }

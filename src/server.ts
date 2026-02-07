@@ -404,6 +404,40 @@ export function createApp(): express.Application {
     }
   });
 
+  // Proxy token exchange for the UI (adds client_secret server-side so the
+  // browser never sees it — Keycard app is a confidential client).
+  app.post('/api/auth/token', async (req: express.Request, res: express.Response) => {
+    try {
+      const { code, code_verifier, redirect_uri } = req.body;
+      if (!code || !code_verifier || !redirect_uri) {
+        res.status(400).json({ error: 'Missing required parameters: code, code_verifier, redirect_uri' });
+        return;
+      }
+
+      const tokenUrl = `${config.keycardStsIssuerUrl}/oauth/2/token`;
+      const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri,
+        client_id: config.keycardClientId,
+        client_secret: config.keycardClientSecret,
+        code_verifier,
+      });
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      });
+
+      const tokenData = await tokenRes.text();
+      res.status(tokenRes.status).setHeader('Content-Type', 'application/json').send(tokenData);
+    } catch (err) {
+      console.error('Token exchange proxy failed:', err);
+      res.status(500).json({ error: 'Token exchange proxy failed' });
+    }
+  });
+
   // Register auth dashboard and Keycard reauth
   registerAuthDashboard(app);
   registerKeycardReauth(app);

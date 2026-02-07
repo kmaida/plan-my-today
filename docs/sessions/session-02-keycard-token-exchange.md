@@ -81,13 +81,24 @@ All exchanges succeeded. Drive, Calendar, and GitHub show API validation because
 
 ---
 
-## Next: Session 3
+## Next: Session 3 — UI Auth + Standalone App
 
-### Branch Todo MCP Server + keycard-connect Integration
-- Branch todo-mcp-server, add `@keycardlabs/connect` dependency
-- Replace per-service OAuth flows with Keycard login + token exchange
-- Key integration points:
-  - `KeycardMCPAuth` for login/session management
-  - Direct RFC 8693 calls to `{zone}/oauth/2/token` for provider tokens
-- Get basic flow working: Keycard login → token exchange for each service → API calls succeed
-- Token refresh is a known gap (no `offline_access`) — document but don't block on it
+**Pivoted from the original plan.** The todo-mcp-server already has full Keycard integration (`STSClient`, `requireBearerAuth`, etc.) — no need to add `@keycardlabs/connect`. Instead, the focus shifted to building a standalone app that doesn't need Cursor or Claude Desktop.
+
+### What We're Building
+1. **PKCE OAuth auth module in the UI** (done) — browser-side login via Keycard
+2. **Token-mediating backend** (done) — `POST /api/auth/token` proxies the code-for-token exchange, adding `client_secret` server-side
+3. **Lightweight MCP client** (next) — so the app can call MCP tools directly
+4. **Chatbot integration** (future) — chatbot + dashboard in one standalone app
+
+### Architecture Decision: Token-Mediating Backend vs Full BFF
+
+**Current:** Token-mediating backend. The UI gets the access token and attaches it as a Bearer header. The backend only proxies the initial token exchange (to inject `client_secret`).
+
+**Why not full BFF?** A full BFF would use httpOnly cookies, server-side sessions, and proxy every API call. That's the right pattern for multi-user production apps, but overkill for a single-user dev tool right now.
+
+**Future upgrade path:** If this becomes multi-user or publicly deployed, upgrade to full BFF:
+- Replace `sessionStorage` token with httpOnly session cookie
+- Add server-side session store (in-memory or Redis)
+- Proxy all API calls through the backend (no token in browser)
+- Add CSRF protection

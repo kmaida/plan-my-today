@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { AuthGate, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
@@ -28,6 +29,7 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 }
 
 function App() {
+  const { logout } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,19 +81,29 @@ function App() {
     : 'Using sample data'
 
   return (
+    <AuthGate>
     <div className="app">
       <header className="app-header">
         <div className="app-header__content">
           <div className="app-header__top">
             <h1>Your Tasks</h1>
-            <button
-              className="app-header__reload"
-              onClick={fetchTasks}
-              disabled={loading}
-              title="Reload from latest snapshot"
-            >
-              {loading ? 'Reloading...' : 'Reload'}
-            </button>
+            <div className="app-header__actions">
+              <button
+                className="app-header__reload"
+                onClick={fetchTasks}
+                disabled={loading}
+                title="Reload from latest snapshot"
+              >
+                {loading ? 'Reloading...' : 'Reload'}
+              </button>
+              <button
+                className="app-header__logout"
+                onClick={logout}
+                title="Sign out"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
           <p className="app-header__subtitle">
             {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
@@ -166,6 +178,7 @@ function App() {
         </div>
       </main>
     </div>
+    </AuthGate>
   )
 }
 

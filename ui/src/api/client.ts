@@ -13,6 +13,15 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
+// ── Bearer token injection ─────────────────────────────────────────────────────
+
+let _authToken: string | null = null
+
+/** Set the Bearer token used for all subsequent API calls. */
+export function setAuthToken(token: string | null): void {
+  _authToken = token
+}
+
 /**
  * Generic API call wrapper with error handling
  */
@@ -22,13 +31,19 @@ async function apiCall<T>(
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     })
 
     if (!response.ok) {
