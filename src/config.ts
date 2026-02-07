@@ -14,6 +14,7 @@ export interface ServerConfig {
   keycardClientSecret: string;
   slackUserToken: string;
   slackEmojiName: string;
+  userDisplayNames: string[];
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -57,6 +58,10 @@ export function getConfig(): ServerConfig {
   // Slack configuration (optional - single-user deployment only)
   const SLACK_USER_TOKEN = process.env.SLACK_USER_TOKEN;
   const SLACK_EMOJI_NAME = process.env.SLACK_EMOJI_NAME;
+
+  // User identity for filtering meeting notes action items (optional)
+  // Comma-separated name variants, e.g. "Kim,Kim Maida,kimmaida"
+  const USER_DISPLAY_NAME = process.env.USER_DISPLAY_NAME || '';
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -116,6 +121,9 @@ export function getConfig(): ServerConfig {
     keycardClientSecret: KEYCARD_CLIENT_SECRET || '',
     slackUserToken: SLACK_USER_TOKEN || '',
     slackEmojiName: SLACK_EMOJI_NAME || 'mcp-todo-reminder',
+    userDisplayNames: USER_DISPLAY_NAME
+      ? USER_DISPLAY_NAME.split(',').map(n => n.trim().toLowerCase())
+      : [],
     observability: {
       serviceName: SERVICE_NAME,
       serviceVersion: SERVICE_VERSION,

@@ -4,6 +4,7 @@ import { PRIORITY_THRESHOLDS, TIME_WINDOWS, FETCH_LIMITS } from "../../constants
 import { isActionCompleted } from "../../services/action-completion-store";
 import { buildMeetingNoteId } from "../../utils/action-identifiers";
 import { parseDateFromFilename, isWithinBusinessDays } from "../../utils/date-utils";
+import { config } from "../../config";
 
 /**
  * Google Drive API types
@@ -379,7 +380,20 @@ export async function fetchMeetingNoteActions(
             ? new Date(doc.modifiedTime).getTime()
             : now.getTime();
 
-          return extractedItems.map((item) => {
+          // Filter to items relevant to the current user (if configured)
+          const userNames = config.userDisplayNames;
+          const relevantItems = userNames.length > 0
+            ? extractedItems.filter(item => {
+                if (!item.assignee) return true; // Keep unassigned items
+                const assigneeLower = item.assignee.toLowerCase();
+                const textLower = item.text.toLowerCase();
+                return userNames.some(name =>
+                  assigneeLower.includes(name) || textLower.includes(name)
+                );
+              })
+            : extractedItems;
+
+          return relevantItems.map((item) => {
             const actionDetail: MeetingNoteActionDetail = {
               documentId: doc.id!,
               documentTitle: doc.name!,
