@@ -1,5 +1,5 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchGitHubTodos } from "./today-todos/github-utils";
 import type { GitHubPRDetail, GitHubIssueDetail } from "./today-todos/types";

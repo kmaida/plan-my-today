@@ -1,5 +1,5 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchCalendarEvents } from "./today-todos/calendar-utils";
 

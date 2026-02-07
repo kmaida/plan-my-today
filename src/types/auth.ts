@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
 // Re-export AuthInfo for use in other modules

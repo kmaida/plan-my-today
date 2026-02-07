@@ -1,5 +1,5 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { GmailMessageDetail } from "./today-todos/types";

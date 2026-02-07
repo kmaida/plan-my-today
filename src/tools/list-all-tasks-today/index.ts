@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { stsClient } from "../../services/sts-client";
 import { fetchTodayCalendarEvents, calculateCalendarPriority } from "../today-todos/calendar-utils";
 import { fetchLinearIssues, calculateLinearPriority } from "../today-todos/linear-utils";

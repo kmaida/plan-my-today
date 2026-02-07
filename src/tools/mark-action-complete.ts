@@ -1,5 +1,5 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import {
   markActionComplete as storeMarkComplete,
   markActionIncomplete as storeMarkIncomplete,

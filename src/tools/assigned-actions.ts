@@ -1,5 +1,5 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchAssignedActions } from "./today-todos/docs-utils";
 import type { AssignedActionDetail } from "./today-todos/types";
