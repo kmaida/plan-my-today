@@ -29,8 +29,8 @@ export interface AuthenticatedToolHandlerNoArgs {
  * Tool handler for tools with arguments
  * @template Args - The Zod schema shape for the tool arguments
  */
-export type AuthenticatedToolHandlerWithArgs<Args extends import("zod").ZodRawShape> = (
-  args: import("zod").z.objectOutputType<Args, import("zod").ZodTypeAny>,
+export type AuthenticatedToolHandlerWithArgs<Args extends import("zod/v3").ZodRawShape> = (
+  args: import("zod/v3").z.objectOutputType<Args, import("zod/v3").ZodTypeAny>,
   extra: { authInfo?: AuthInfo }
 ) => import("@modelcontextprotocol/sdk/types.js").CallToolResult | Promise<import("@modelcontextprotocol/sdk/types.js").CallToolResult>;
 
