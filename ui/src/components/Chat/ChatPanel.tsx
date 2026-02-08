@@ -55,7 +55,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
 
   if (!isOpen) {
     return (
-      <button className="chat-toggle" onClick={onToggle} title="Open chat">
+      <button className="chat-toggle btn--inverted" onClick={onToggle} title="Open chat">
         Chat
       </button>
     )
@@ -119,7 +119,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
           disabled={!isConnected || isLoading}
         />
         <button
-          className="chat-panel__send"
+          className="chat-panel__send btn--inverted"
           type="submit"
           disabled={!isConnected || isLoading || !input.trim()}
         >

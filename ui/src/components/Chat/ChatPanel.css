@@ -4,22 +4,14 @@
   position: fixed;
   bottom: var(--space-lg);
   right: var(--space-lg);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-text-primary);
-  color: var(--color-bg);
-  border: none;
   border-radius: var(--radius-full);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
   box-shadow: var(--shadow-lg);
-  transition: transform var(--transition-fast);
   z-index: var(--z-modal);
 }
 
 .chat-toggle:hover {
   transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ── Chat Panel ─────────────────────────────────────────────────────────────── */
@@ -150,26 +142,9 @@
   cursor: not-allowed;
 }
 
-.chat-panel__send {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-text-primary);
-  color: var(--color-bg);
-  border: none;
-  border-radius: var(--radius-md);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
 .chat-panel__send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.chat-panel__send:not(:disabled):hover {
-  opacity: 0.85;
 }
 
 /* ── Chat Messages ──────────────────────────────────────────────────────────── */

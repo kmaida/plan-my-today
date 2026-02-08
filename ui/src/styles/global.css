@@ -117,6 +117,23 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Inverted buttons: light text on dark background */
+button.btn--inverted {
+  background: var(--color-text-primary);
+  color: var(--color-surface);
+  box-shadow: none;
+}
+
+button.btn--inverted:hover {
+  background: #4A3D34;
+  box-shadow: none;
+}
+
+button.btn--inverted:active {
+  background: #3D332C;
+  box-shadow: none;
+}
+
 /* ===== Input Fields ===== */
 
 input[type="text"],

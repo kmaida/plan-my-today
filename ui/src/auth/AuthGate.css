@@ -48,18 +48,6 @@
 }
 
 .auth-gate__button {
-  font-family: var(--font-sans);
   font-size: var(--font-size-task);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-surface);
-  background: var(--color-text-primary);
-  border: none;
-  border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-lg);
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-.auth-gate__button:hover {
-  opacity: 0.85;
 }
