@@ -62,11 +62,15 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Notify parent when tasks may have been updated (after tool calls complete)
+  // Notify parent when tasks may have been updated (after tool calls complete).
+  // Check all messages (not just the last) because the tool call may be in an
+  // intermediate agentic-loop round while the final message is a text response.
+  const prevLoadingRef = useRef(false)
   useEffect(() => {
-    if (!isLoading && messages.length > 0 && onTasksUpdated) {
-      const lastMsg = messages[messages.length - 1]
-      if (lastMsg.toolCalls?.some((tc) => tc.name === 'list-all-tasks-today')) {
+    const wasLoading = prevLoadingRef.current
+    prevLoadingRef.current = isLoading
+    if (wasLoading && !isLoading && messages.length > 0 && onTasksUpdated) {
+      if (messages.some((m) => m.toolCalls?.some((tc) => tc.name === 'list-all-tasks-today'))) {
         onTasksUpdated()
       }
     }

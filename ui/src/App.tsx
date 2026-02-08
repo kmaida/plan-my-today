@@ -75,11 +75,13 @@ function App() {
     fetchTasks()
   }, [fetchTasks])
 
-  // When MCP connects (e.g. after reauth), auto-refresh to replace stale cached data
+  // When MCP connects (e.g. after reauth), auto-refresh to replace stale cached data.
+  // Dismiss the banner immediately so it doesn't flash while the refresh is in-flight.
   const hasAutoRefreshed = useRef(false)
   useEffect(() => {
     if (isConnected && !hasAutoRefreshed.current && authErrors.length > 0) {
       hasAutoRefreshed.current = true
+      setAuthErrorsDismissed(true)
       handleRefresh()
     }
   }, [isConnected, authErrors, handleRefresh])

@@ -547,15 +547,18 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         }
       };
 
-      // Write full data to local file so the UI can read it without auth
-      // Fire-and-forget: don't block the response on disk I/O
-      const dataDir = path.join(process.cwd(), "data");
-      fs.mkdir(dataDir, { recursive: true })
-        .then(() => fs.writeFile(
+      // Write full data to local file so the UI can read it without auth.
+      // Awaited so the cache is fresh when the UI re-fetches after a chat tool call.
+      try {
+        const dataDir = path.join(process.cwd(), "data");
+        await fs.mkdir(dataDir, { recursive: true });
+        await fs.writeFile(
           path.join(dataDir, "latest-tasks.json"),
           JSON.stringify(responseData, null, 2)
-        ))
-        .catch(() => {}); // Non-fatal: UI cache write failed
+        );
+      } catch {
+        // Non-fatal: UI cache write failed
+      }
 
       // In compact mode, strip verbose enrichment to reduce token usage for chat agents
       const outputData = compact ? compactifyResponse(responseData) : responseData;
