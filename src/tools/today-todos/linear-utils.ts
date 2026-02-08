@@ -130,15 +130,19 @@ export async function fetchLinearIssues(
   }
 
   // Filter: include issues that are actionable today
-  // 1. Due within the date window (or overdue)
-  // 2. High or Urgent priority (priority ≤ 2), even without a due date
-  // 3. Recently completed (already filtered by date above)
+  // 1. In-progress states (started, blocked, in review, etc.)
+  // 2. Due within the date window (or overdue)
+  // 3. High or Urgent priority (priority ≤ 2), even without a due date
+  // 4. Recently completed (already filtered by date above)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   return issues.filter(issue => {
     // If completed, always include (already filtered by date above)
     if (issue.state?.type === "completed") return true;
+
+    // In-progress issues always included (started, blocked, in review, etc.)
+    if (issue.state?.type === "started") return true;
 
     // High or Urgent priority always included (priority: 0=No, 1=Urgent, 2=High, 3=Medium, 4=Low)
     if (issue.priority >= 1 && issue.priority <= 2) return true;
@@ -150,7 +154,7 @@ export async function fetchLinearIssues(
       return dueDate <= dueByDate;
     }
 
-    // No due date and not high/urgent — skip
+    // Unstarted/backlog with no due date and not high/urgent — skip
     return false;
   });
 }
@@ -310,6 +314,15 @@ export function calculateLinearPriority(
     temporalUrgency = "no_due_date";
   }
 
+  // In-progress state boost — small tiebreaker only.
+  // Must stay below priority (30/50) and due-date (40/80/100) boosts
+  // so that in-progress items without signals don't outrank items that
+  // have a real priority or approaching deadline.
+  if (issue.state?.type === "started") {
+    score += 10;
+    reasons.push("In progress");
+  }
+
   // Priority level boost
   if (issue.priority <= 1) {
     score += 50;
@@ -319,22 +332,26 @@ export function calculateLinearPriority(
     reasons.push("High priority");
   }
 
-  // Recent activity boost - issues actively being worked on
+  // Recent activity boost — only applies to issues that have priority
+  // or a due date. Prevents bare in-progress items from stacking
+  // activity + state boosts to leapfrog issues with real urgency signals.
+  const hasPriorityOrDueDate = issue.priority >= 1 || !!issue.dueDate;
   let ageHours: number | null = null;
   if (issue.updatedAt) {
     const updatedDate = new Date(issue.updatedAt);
     ageHours = (now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60);
 
-    // Boost for recently updated issues (shows active work)
-    if (ageHours <= 24) {
-      score += 30;
-      reasons.push("Updated in last 24 hours");
-    } else if (ageHours <= 72) { // 3 days
-      score += 20;
-      reasons.push("Updated recently");
-    } else if (ageHours <= 168) { // 7 days
-      score += 10;
-      reasons.push("Updated this week");
+    if (hasPriorityOrDueDate) {
+      if (ageHours <= 24) {
+        score += 30;
+        reasons.push("Updated in last 24 hours");
+      } else if (ageHours <= 72) { // 3 days
+        score += 20;
+        reasons.push("Updated recently");
+      } else if (ageHours <= 168) { // 7 days
+        score += 10;
+        reasons.push("Updated this week");
+      }
     }
   }
 
