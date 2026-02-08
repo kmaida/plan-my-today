@@ -46,8 +46,8 @@ All exchanges succeeded. Drive, Calendar, and GitHub show API validation because
 - **Zone:** `https://chzabf1qgzjia0wfd17eietx70.keycard.cloud`
 - **Sign-in Provider:** Google OAuth
 - **Application:** ToDo Agent
-  - Identifier: `https://unpreferable-cropless-dede.ngrok-free.dev/mcp`
-  - Redirect URLs: ngrok callback, Cursor MCP callback, `http://localhost:8081/callback` (for `kat`)
+  - Identifier: `http://localhost:9005/mcp` (was ngrok URL, switched to localhost)
+  - Redirect URLs: `http://localhost:9006/auth/callback`, Cursor MCP callback, `http://localhost:8081/callback` (for `kat`)
   - Dependencies: all 6 resources below
 
 ### Resources Configured

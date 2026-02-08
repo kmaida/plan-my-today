@@ -91,7 +91,7 @@ async function removeTaskFromCache(taskId: string): Promise<void> {
 export function createApp(): express.Application {
   const app = express();
 
-  // Trust proxy for correct protocol detection behind reverse proxies (ngrok)
+  // Trust proxy for correct protocol detection behind reverse proxies
   app.set('trust proxy', true);
 
   // Parse JSON requests (increased limit for chat payloads with tool results)

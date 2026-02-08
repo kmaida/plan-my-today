@@ -48,8 +48,8 @@ export function getConfig(): ServerConfig {
   }
 
   const HOST = process.env.HOST || "localhost";
-  // Use LOCAL_TUNNEL if available (for ngrok), otherwise fall back to local dev URL
-  const BASE_URL = process.env.LOCAL_TUNNEL || `http://${HOST}:${PORT}`;
+  // Base URL for the server (used in startup logs and metadata)
+  const BASE_URL = `http://${HOST}:${PORT}`;
   const KEYCARD_STS_ISSUER_URL = process.env.KEYCARD_STS_ISSUER_URL;
   const ISSUER_BASE_DOMAIN = process.env.ISSUER_BASE_DOMAIN;
   const MCP_BASE_DOMAIN = process.env.MCP_BASE_DOMAIN;

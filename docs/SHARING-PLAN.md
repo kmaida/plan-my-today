@@ -23,7 +23,7 @@
 | **Setup Time** | 2-3 hours | 15-30 minutes | stdio |
 | **Setup Steps** | 10+ steps (Keycard, tunnel, OAuth apps) | 3 steps (install, config, restart) | stdio |
 | **Multi-User Support** | ✅ Multi-tenant capable | ❌ Single-user only | HTTP |
-| **Tunnel Required** | ✅ Yes (ngrok/cloudflare) | ❌ No | stdio |
+| **Tunnel Required** | ❌ No (localhost for dev) | ❌ No | Tie |
 | **OAuth Management** | Keycard STS (centralized) | Claude Desktop (native) | Depends on use case |
 | **MCP Client Support** | Any (Cursor, Claude Desktop, etc.) | Claude Desktop only | HTTP |
 | **Maintenance** | Server to run, public endpoint | Local process | stdio |
@@ -272,8 +272,7 @@ Extract user ID from JWT and scope all completion operations.
 **Steps:**
 1. Create Keycard account and zone
 2. Configure OAuth apps for all services
-3. Set up public tunnel (ngrok/cloudflare)
-4. Configure `.env` with Keycard credentials
+3. Configure `.env` with Keycard credentials
 5. Start server: `npm run build:http && npm run start:http`
 6. Configure MCP client (Cursor/Claude Desktop)
 

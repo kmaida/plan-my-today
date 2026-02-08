@@ -4,7 +4,7 @@ export const AUTH_CONFIG = {
   redirectUri: `${window.location.origin}/auth/callback`,
   resource:
     import.meta.env.VITE_MCP_RESOURCE ||
-    'https://unpreferable-cropless-dede.ngrok-free.dev/mcp',
+    'http://localhost:9005/mcp',
   scope: 'openid profile',
   /** Base URL for OAuth discovery (empty = same origin, proxied by Vite in dev). */
   discoveryBaseUrl: import.meta.env.VITE_API_BASE || '',

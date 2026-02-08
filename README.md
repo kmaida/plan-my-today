@@ -108,7 +108,7 @@ Add to your Cursor MCP settings:
 {
   "mcpServers": {
     "todo-mcp-server": {
-      "url": "<https://unpreferable-cropless-dede.ngrok-free.dev>/mcp"
+      "url": "http://localhost:9005/mcp"
     }
   }
 }

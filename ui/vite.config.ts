@@ -4,35 +4,26 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load .env from the parent (server) directory to get LOCAL_TUNNEL
+  // Load .env from the parent (server) directory to get PORT
   const parentEnv = loadEnv(mode, path.resolve(__dirname, '..'), '')
-  const tunnelTarget = parentEnv.LOCAL_TUNNEL || `http://localhost:${parentEnv.PORT || '9005'}`
-  const localTarget = `http://localhost:${parentEnv.PORT || '9005'}`
+  const target = `http://localhost:${parentEnv.PORT || '9005'}`
 
   return {
     plugins: [react()],
     server: {
       port: 9006,
       proxy: {
-        // API requests go directly to localhost (no auth required, avoids ngrok latency)
         '/api': {
-          target: localTarget,
+          target,
           changeOrigin: true,
         },
-        // MCP and OAuth discovery must go through ngrok for correct redirect URLs
         '/mcp': {
-          target: tunnelTarget,
+          target,
           changeOrigin: true,
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
         },
         '/.well-known': {
-          target: tunnelTarget,
+          target,
           changeOrigin: true,
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
         },
       },
     },
