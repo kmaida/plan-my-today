@@ -1,6 +1,5 @@
 import type { McpServer } from "../types/index";
 import { getLogger } from "../observability/logger";
-import { registerWhoamiTool } from "./whoami";
 import { registerCalendarTool } from "./calendar";
 import { registerLinearTool } from "./linear";
 import { registerAssignedActionsTool } from "./assigned-actions";
@@ -9,7 +8,6 @@ import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerSlackListTool } from "./slack-list";
-import { registerCheckAuthTool } from "./check-auth";
 import { registerMarkEmailCompleteTool } from "./mark-email-complete";
 import { registerMarkActionCompleteTool } from "./mark-action-complete";
 import { registerMeetingNotesTool } from "./meeting-notes";
@@ -18,8 +16,6 @@ import { registerMeetingNotesTool } from "./meeting-notes";
  * Tool registry - maps tool names to their registration functions
  */
 export const TOOL_REGISTRY = [
-  { name: "whoami", register: registerWhoamiTool },
-  { name: "check-auth", register: registerCheckAuthTool },
   { name: "list-calendar-events", register: registerCalendarTool },
   { name: "list-linear-issues", register: registerLinearTool },
   { name: "list-assigned-actions", register: registerAssignedActionsTool },

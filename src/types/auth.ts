@@ -19,7 +19,7 @@ export const SessionIdHeaderSchema = z.string().min(1);
 export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
 /**
- * Tool handler for tools without arguments (like whoami)
+ * Tool handler for tools without arguments
  */
 export interface AuthenticatedToolHandlerNoArgs {
   authInfo?: AuthInfo;
