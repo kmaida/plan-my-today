@@ -16,13 +16,13 @@ export function Chevron({ direction, size = 12, className }: ChevronProps) {
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
-      style={{ flexShrink: 0 }}
+      style={{
+        flexShrink: 0,
+        transform: direction === 'down' ? 'rotate(90deg)' : 'rotate(0deg)',
+        transition: 'transform var(--transition-fast)',
+      }}
     >
-      {direction === 'right' ? (
-        <path d="M6 4 L10 8 L6 12" />
-      ) : (
-        <path d="M4 6 L8 10 L12 6" />
-      )}
+      <path d="M6 4 L10 8 L6 12" />
     </svg>
   )
 }

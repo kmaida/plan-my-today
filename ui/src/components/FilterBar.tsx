@@ -94,7 +94,7 @@ export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount,
         </button>
       </div>
 
-      {isOpen && (
+      <div className={`filter-bar__collapse${isOpen ? ' filter-bar__collapse--open' : ''}`}>
         <div className="filter-bar__panel">
           <div className="filter-bar__search">
             <input
@@ -164,7 +164,7 @@ export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount,
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

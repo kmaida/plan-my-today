@@ -17,11 +17,6 @@
   flex-shrink: 0;
 }
 
-/* When chat is closed, dashboard takes full width (toggle button is fixed-positioned) */
-.app-layout:not(.app-layout--chat-open) > .app {
-  flex: 1;
-}
-
 .app {
   min-height: 100vh;
   display: flex;

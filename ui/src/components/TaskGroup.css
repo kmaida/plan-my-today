@@ -47,23 +47,30 @@
   color: var(--color-text-primary);
 }
 
+.task-group__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-normal);
+}
+
+.task-group__collapse--open {
+  grid-template-rows: 1fr;
+}
+
 .task-group__content {
+  overflow: hidden;
+  min-height: 0;
+  padding: 0 var(--space-md);
+  transition: padding var(--transition-normal);
+}
+
+.task-group__collapse--open > .task-group__content {
   padding: var(--space-md);
-  animation: fadeIn var(--transition-normal);
 }
 
 /* Remove bottom margin on last card inside group */
 .task-group__content > :last-child {
   margin-bottom: 0;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .task-group__show-more {

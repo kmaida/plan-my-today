@@ -56,11 +56,29 @@
   margin-left: var(--space-xs);
 }
 
+/* Collapsible wrapper (grid trick for smooth height) */
+.filter-bar__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-normal);
+}
+
+.filter-bar__collapse--open {
+  grid-template-rows: 1fr;
+}
+
 /* Collapsible panel */
 .filter-bar__panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  overflow: hidden;
+  min-height: 0;
+  padding-top: 0;
+  transition: padding-top var(--transition-normal);
+}
+
+.filter-bar__collapse--open > .filter-bar__panel {
   padding-top: var(--space-md);
 }
 

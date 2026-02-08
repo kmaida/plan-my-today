@@ -52,7 +52,7 @@ export const TaskGroup = memo(function TaskGroup({
         <Chevron direction={isCollapsed ? 'right' : 'down'} size={14} className="task-group__toggle" />
       </button>
 
-      {!isCollapsed && (
+      <div className={`task-group__collapse ${isCollapsed ? '' : 'task-group__collapse--open'}`}>
         <div className="task-group__content">
           {tasks.length === 0 ? (
             <p className="task-group__empty">No tasks in this group</p>
@@ -79,7 +79,7 @@ export const TaskGroup = memo(function TaskGroup({
             </>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 })
