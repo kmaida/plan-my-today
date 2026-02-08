@@ -5,7 +5,7 @@ Step-by-step instructions for setting up agent-based daily planning with Claude 
 ## Prerequisites
 
 1. **todo-mcp-server is running**
-   - Server should be accessible (e.g., `http://localhost:3000` or your deployed URL)
+   - Server should be accessible (e.g., `http://localhost:9005` or your deployed URL)
    - You have valid authentication credentials
 
 2. **Claude Desktop is installed**
@@ -34,7 +34,7 @@ Add your todo-mcp-server to the Claude Desktop config file:
       "command": "node",
       "args": ["/path/to/todo-mcp-server/dist/index.js"],
       "env": {
-        "PORT": "3000"
+        "PORT": "9005"
       }
     }
   }
@@ -49,14 +49,14 @@ If your server uses OAuth authentication (recommended), use the HTTP transport:
 {
   "mcpServers": {
     "todo-mcp-server": {
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:9005/mcp",
       "description": "Aggregates tasks from Calendar, Linear, Gmail, GitHub, Slack, etc."
     }
   }
 }
 ```
 
-Replace `http://localhost:3000` with your actual server URL (could be `https://your-domain.com` if deployed).
+Replace `http://localhost:9005` with your actual server URL (could be `https://your-domain.com` if deployed).
 
 **Save the file** and restart Claude Desktop for changes to take effect.
 
@@ -256,7 +256,7 @@ Customize for your workflow:
 **Problem:** Error: "Failed to connect to MCP server"
 
 **Check:**
-1. Server is running (`curl http://localhost:3000/api/tools` should return data)
+1. Server is running (`curl http://localhost:9005/api/tools` should return data)
 2. Config file path is correct
 3. URL in config matches your server
 4. Restart Claude Desktop after config changes
@@ -267,7 +267,7 @@ Customize for your workflow:
 **Problem:** `metadata.errors` includes auth failures
 
 **Solutions:**
-1. Visit your server's `/auth` dashboard (e.g., `http://localhost:3000/auth`)
+1. Visit your server's `/auth` dashboard (e.g., `http://localhost:9005/auth`)
 2. Reconnect any failing sources (Gmail, Slack, Linear, GitHub, etc.)
 3. Check that OAuth tokens haven't expired
 

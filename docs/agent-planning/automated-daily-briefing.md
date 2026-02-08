@@ -38,7 +38,7 @@ const CONFIG = {
   mcpCommand: "node",
   mcpArgs: ["/path/to/todo-mcp-server/dist/index.js"],
   // OR use HTTP transport if server is remote:
-  // mcpUrl: "http://localhost:3000/mcp",
+  // mcpUrl: "http://localhost:9005/mcp",
 
   // Email delivery (optional)
   email: {

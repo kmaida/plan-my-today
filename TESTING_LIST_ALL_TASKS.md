@@ -7,10 +7,11 @@ The `list-all-tasks-today` tool is a simple data aggregation MCP tool that retur
 
 ### 1. Start the Server
 ```bash
-npm start
+npm run build:all
+npm run start:prod
 ```
 
-The server will start on `http://localhost:3000` (or your configured port).
+The server will start on `http://localhost:9005` (or your configured `PORT` in `.env`).
 
 ### 2. Call the Tool
 
@@ -21,7 +22,7 @@ Call the list-all-tasks-today tool
 
 **Option B: Via REST API**
 ```bash
-curl -X POST http://localhost:3000/api/tools/list-all-tasks-today \
+curl -X POST http://localhost:9005/api/tools/list-all-tasks-today \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
@@ -29,7 +30,7 @@ curl -X POST http://localhost:3000/api/tools/list-all-tasks-today \
 
 **Option C: With includeGithub parameter**
 ```bash
-curl -X POST http://localhost:3000/api/tools/list-all-tasks-today \
+curl -X POST http://localhost:9005/api/tools/list-all-tasks-today \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"includeGithub": true}'
@@ -130,30 +131,20 @@ curl -X POST http://localhost:3000/api/tools/list-all-tasks-today \
 }
 ```
 
-## What It Does NOT Do
-
-- ❌ No workblock suggestions
-- ❌ No priority scoring/ranking
-- ❌ No timeline building
-- ❌ No insights or recommendations
-- ❌ No formatting or markdown
-
-## What It DOES Do
+## What This Tool Does
 
 - ✅ Fetches data from all sources in parallel
 - ✅ Returns raw JSON grouped by source
 - ✅ Includes metadata (timestamp, errors)
+- ✅ Includes priority scoring metadata per task
 - ✅ Simple, fast, predictable
-- ✅ Perfect for agents to analyze
+- ✅ Powers both the dashboard UI and the Todaygent chat agent
 
-## Next Steps (Phase 2)
+## What This Tool Does NOT Do
 
-Once you've verified the tool returns data correctly:
-
-1. **Create an agent prompt** that uses this data
-2. **Test interactively** by asking Claude to plan your day
-3. **Refine the planning strategy** through conversation
-4. **Eventually automate** with a scheduled script
+- ❌ No workblock suggestions (the Todaygent agent handles this)
+- ❌ No timeline building (the Todaygent agent handles this)
+- ❌ No formatting or markdown (raw JSON only)
 
 ## Migration from list-today-todos (DEPRECATED)
 

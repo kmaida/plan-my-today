@@ -1,92 +1,93 @@
-# Todo MCP UI - Demo
+# Plan My Today — UI
 
-## Quick Start
+The browser-based dashboard and AI chat agent for Plan My Today.
 
-To see the UI in action:
+## Running
 
+**Development** (hot reload via Vite):
 ```bash
 cd ui
 npm run dev
+# → http://localhost:9006 (proxies /api and /mcp to localhost:9005)
 ```
 
-This will start the Vite dev server at [http://localhost:9006](http://localhost:9006)
+**Production** (served by Express from `ui/dist/`):
+```bash
+# From project root:
+npm run build:all
+npm run start:prod
+# → http://localhost:9005
+```
 
-## What's Built So Far
+In production, the Express server serves the built UI as static files and handles all API/MCP/chat routes on the same port.
 
-### ✅ Design System
-- **"Paper Over Coffee" Aesthetic**: Warm colors, serif fonts, subtle shadows
-- **Color Palettes**: Light and dark mode support (dark mode toggle not yet implemented)
-- **Typography**: Lora (serif) for headers, Inter (sans-serif) for body text
-- **Design tokens**: All CSS variables defined in `src/styles/design-tokens.css`
+## Design System
 
-### ✅ Components
+**"Paper Over Coffee" aesthetic** — warm earth tones, serif headers, subtle shadows, muted priority colors.
 
-**PriorityBadge** (`src/components/PriorityBadge.tsx`)
-- Displays priority with muted color-coded pills
-- Shows priority score and reasoning on hover
-- Supports: critical (red), high (orange), medium (teal), low (gray)
+- **Typography**: Lora (serif) for headings, Inter (sans-serif) for body
+- **Design tokens**: `src/styles/design-tokens.css` — colors, spacing, typography, shadows, z-indices, transitions
+- **Animations**: CSS grid collapse for expand/collapse, CSS transitions for chevron rotation, fade-in for chat panel
+- **Reduced motion**: All animations respect `prefers-reduced-motion: reduce`
 
-**SourceIcon** (`src/components/SourceIcon.tsx`)
-- Emoji-based icons for each task source
-- Tooltips with source names
-- Supports: Linear, Gmail, GitHub, Slack, Calendar, Docs, Meeting Notes
+## Architecture
 
-**TaskCard** (`src/components/TaskCard.tsx`)
-- Compact by default with title, source, priority, metadata
-- Expandable to show:
-  - Cross-references ("Also mentioned in: Slack, Email")
-  - Dependencies (for Linear tasks)
-  - Priority reasoning
-- Hover actions: "View in [Source]", "Mark Complete"
-- Smooth animations
+```
+src/
+├── App.tsx                    # Main layout: header, task groups, sidebar chat
+├── App.css                    # Layout, banner, responsive styles
+├── auth/                      # OAuth 2.0 with Keycard
+│   ├── AuthContext.tsx         # Auth state provider (tokens, login/logout)
+│   ├── AuthGate.tsx           # Sign-in gate (wraps app)
+│   ├── AuthHint.tsx           # Tooltip explaining multi-grant flow
+│   ├── config.ts              # OAuth config (client ID, redirect URI, resource)
+│   ├── discovery.ts           # OIDC discovery endpoint fetcher
+│   └── pkce.ts                # PKCE code challenge/verifier
+├── mcp/                       # MCP client (SSE transport)
+│   └── MCPClientContext.tsx    # React context providing MCP connection
+├── chat/                      # Todaygent AI chat
+│   ├── useChat.ts             # Chat hook (agentic loop, tool calls, streaming)
+│   ├── system-prompt.ts       # Builds system prompt with current task context
+│   └── types.ts               # Chat message types
+├── api/                       # REST API client
+│   ├── client.ts              # Fetch wrappers (listAllTasks, markComplete, etc.)
+│   └── transformers.ts        # Raw API → typed Task objects
+├── components/
+│   ├── Chat/
+│   │   ├── ChatPanel.tsx      # Sidebar chat panel with input, messages, tool calls
+│   │   ├── ChatMessage.tsx    # User/assistant message bubbles with markdown
+│   │   ├── ToolCallCard.tsx   # Expandable tool call display
+│   │   └── ThinkingIndicator  # Loading dots animation
+│   ├── TaskCard.tsx           # Task display with priority, source, metadata, actions
+│   ├── TaskGroup.tsx          # Collapsible group with smooth grid animation
+│   ├── FilterBar.tsx          # Search + source/priority/time filter chips
+│   ├── ViewSwitcher.tsx       # Priority / Source view toggle
+│   ├── Chevron.tsx            # Animated rotate-on-toggle SVG chevron
+│   └── SourceIcon.tsx         # Emoji icons per data source
+├── styles/
+│   ├── design-tokens.css      # All CSS custom properties
+│   └── global.css             # Base styles, resets, button defaults
+├── types/
+│   └── tasks.ts               # Task, FilterState, ViewMode, PriorityCategory types
+└── utils/
+    ├── dateHelpers.ts         # Relative time, due date formatting
+    ├── priorityHelpers.ts     # Score → category, color mapping
+    ├── taskGrouping.ts        # Group tasks by priority or source
+    └── taskHelpers.ts         # Filter logic, task identifiers
+```
 
-**TaskGroup** (`src/components/TaskGroup.tsx`)
-- Collapsible sections with task counts
-- Elegant header with expand/collapse toggle
-- Used for grouping by priority, source, etc.
+## Key Patterns
 
-### ✅ Type System
-- Comprehensive TypeScript interfaces for all 8 task sources
-- Type guards for task discrimination
-- Rich metadata types (priority, dependencies, cross-references)
+**OAuth flow**: `AuthGate` wraps the app. On first visit, shows a sign-in screen. After OAuth redirect, tokens are stored in `AuthContext` and passed to both the REST client and MCP transport.
 
-### ✅ API Client
-- REST endpoint wrappers for all MCP tools
-- Ready to connect to backend at `/api/tools/:toolName`
+**Data flow**: On sign-in, `App.tsx` calls `listAllTasks()` via REST, which hits `/api/tools/list-all-tasks-today`. The response is transformed into typed `Task[]` objects and rendered in `TaskGroup` components.
 
-### ✅ Utilities
-- Priority helpers (sorting, grouping, color mapping)
-- Date helpers (relative time, due date formatting)
+**Chat agent**: `ChatPanel` uses the `useChat` hook, which runs an agentic loop — sends messages to `/api/chat` (proxied to Claude API), handles tool calls by invoking MCP tools, and streams responses back.
 
-## Current Demo
+**Animations**: TaskGroup and FilterBar use the CSS `grid-template-rows: 0fr → 1fr` technique for smooth height collapse/expand. Chevron rotates via CSS `transform`. Chat panel fades in on mount.
 
-The current `App.tsx` shows:
-- Mock data with 4 tasks (2 critical, 1 high, 1 medium)
-- Tasks grouped by priority
-- All components working together
-- Design system in action (sidebar shows component samples)
+## Dev Notes
 
-## What's NOT Built Yet
-
-- [ ] ViewSwitcher (Priority, Source, Timeline, Related views)
-- [ ] FilterPanel (search, filters)
-- [ ] ThemeToggle (dark mode switcher)
-- [ ] Intelligent grouping algorithm for "Related" view
-- [ ] Data fetching hooks (useTasks, useCompletion)
-- [ ] TaskList component (uses TaskGroup internally)
-- [ ] Real API integration (currently using mock data)
-- [ ] Server integration (serving UI from Express)
-
-## Next Steps
-
-1. **Review the design**: Does the "paper over coffee" aesthetic match your vision?
-2. **Test interactions**: Click on task cards, expand cross-references, hover on badges
-3. **Check responsiveness**: Resize the browser to see mobile layout
-4. **Decide on next steps**: Continue building remaining features, or adjust design first?
-
-## Notes
-
-- The dev server proxies `/api` and `/mcp` requests to `localhost:9005` (see `vite.config.ts`)
-- Mock data is in `App.tsx` - this will be replaced with real API calls
-- All components use CSS modules for styling (not Tailwind)
-- Design follows the plan's specifications for elegance and information density
+- Vite config (`vite.config.ts`) proxies `/api` and `/mcp` to `localhost:9005`
+- All components use plain CSS files (BEM-style class names), not CSS modules or Tailwind
+- The MCP resource identifier is always `http://localhost:9005/mcp` (registered with Keycard) — see `auth/config.ts`

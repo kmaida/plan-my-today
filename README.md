@@ -1,49 +1,47 @@
-# 🔐 Todo MCP Server
+# Plan My Today
 
-A **production-ready MCP server** demonstrating OAuth 2.0 authentication with Keycard's Security Token Service (STS). This project showcases best practices for building secure, type-safe, and modular MCP servers with enterprise-grade observability.
+A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggregates tasks from Google Calendar, Linear, Gmail, GitHub, Slack, Google Docs, and meeting notes into a single prioritized view with an embedded AI agent ("Todaygent") that helps you plan your day.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)](https://typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green)](https://nodejs.org/)
-[![MCP Protocol](https://img.shields.io/badge/MCP-2024--11--05-purple)](https://modelcontextprotocol.io/)
-[![OAuth 2.0](https://img.shields.io/badge/OAuth-2.0-orange)](https://oauth.net/2/)
-
-## 🎯 What This Demonstrates
-
-- **🔒 OAuth 2.0 Authentication** - Secure authentication via Keycard STS
-- **✨ Type Safety** - Full TypeScript with Zod runtime validation
-- **🏗️ Modular Architecture** - Clean separation of concerns for easy extension
-- **🚀 Production Ready** - Error handling, validation, and comprehensive logging
-- **📚 Educational** - Well-documented code showing MCP best practices
-- **🧪 Testing Framework** - Jest with coverage, integration tests, and watch modes
-- **📊 Observability** - OpenTelemetry integration with traces and metrics
-
-## 🚀 Quick Start
-
-## 🏗️ Architecture
+## How It Works
 
 ```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│   Cursor    │───▶│  MCP Server  │───▶│ Keycard STS │
-│    IDE      │    │ (localhost:  │    │             │
-│             │    │     9005)    │    │             │
-└─────────────┘    └──────────────┘    └─────────────┘
-       │                   │                   │
-   OAuth Flow          JWT Validation      Token Issuance
+┌──────────────────────────────────────────────────────────┐
+│  Browser (localhost:9005)                                │
+│  ┌────────────────────────┐  ┌────────────────────────┐  │
+│  │   Task Dashboard       │  │   Todaygent Chat       │  │
+│  │   (priority/source     │  │   (AI planning agent   │  │
+│  │    grouped tasks)      │  │    via Claude API)     │  │
+│  └──────────┬─────────────┘  └──────────┬─────────────┘  │
+│             │   OAuth + REST / MCP       │               │
+└─────────────┼────────────────────────────┼───────────────┘
+              │                            │
+┌─────────────▼────────────────────────────▼───────────────┐
+│  Express Server (port 9005)                              │
+│  ├── MCP endpoint (/mcp)                                 │
+│  ├── REST API (/api/tools/:toolName)                     │
+│  ├── Chat proxy (/api/chat → Claude API)                 │
+│  └── Static UI (ui/dist/)                                │
+│             │                                            │
+│             ▼                                            │
+│  ┌─ Keycard STS ─────────────────────────┐               │
+│  │  OAuth 2.0 + Token Exchange           │               │
+│  │  ├── Google (Calendar, Gmail, Docs)   │               │
+│  │  ├── Linear                           │               │
+│  │  └── GitHub                           │               │
+│  └───────────────────────────────────────┘               │
+│             + direct API tokens:                         │
+│             ├── Slack (user OAuth token)                  │
+│             └── Granola (meeting notes)                   │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### 🔄 Authentication Flow
-
-1. **Cursor** discovers OAuth endpoints from MCP server
-2. **User** authenticates via Keycard STS (redirected to identity provider)
-3. **Keycard STS** issues JWT access tokens
-4. **MCP Server** validates tokens and grants access to tools
+## Quick Start
 
 ### Prerequisites
 
 - **Node.js 18+** and **npm**
-- **Cursor IDE** (or any MCP-compatible client)
-- **Keycard account** with access to the Console
-- **Configured Keycard zone** (for authentication)
+- **Keycard account** with a configured zone (for OAuth)
+- **Anthropic API key** (for the Todaygent chat agent)
 
 ### 1. Clone & Install
 
@@ -51,58 +49,130 @@ A **production-ready MCP server** demonstrating OAuth 2.0 authentication with Ke
 git clone https://github.com/kmaida/todo-mcp-server.git
 cd todo-mcp-server
 npm install
+cd ui && npm install && cd ..
 ```
 
 ### 2. Configure Environment
 
-Create a `.env` file:
+Create a `.env` file in the project root:
 
 ```bash
-# Required: Your Keycard STS issuer URL
+# ── Required: Keycard OAuth ───────────────────
 KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud
-
-# Required for token exchange (e.g., calendar tool)
 KEYCARD_CLIENT_ID=your-client-id
 KEYCARD_CLIENT_SECRET=your-client-secret
 
-# Optional: Server configuration
+# ── Required: Todaygent chat agent ────────────
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# ── Optional: Server ──────────────────────────
 PORT=9005
 HOST=localhost
+
+# ── Optional: Slack (direct token, not via Keycard) ──
+SLACK_USER_TOKEN=xoxp-your-user-token
+SLACK_EMOJI_NAME=my-todo-reminder
+
+# ── Optional: Granola meeting notes ───────────
+GRANOLA_API_KEY=your-granola-api-key
 ```
 
-💡 **Finding your Zone ID**: 
-1. Log into the [Keycard Console](https://console.keycard.ai)
-2. Navigate to **Zone Settings** 
-3. Copy the **Zone ID** (e.g., `j434uokph8th1ia1npxiaykh7p`)
-4. Replace `your-zone-id` in your STS URL
+### 3. Run
 
-> **Note**: Use the zone ID, not the zone name or label.
-
-### 3. Start the Server
-
+**Production (recommended for daily use):**
 ```bash
-# Development mode with auto-reload
+npm run build:all
+npm run start:prod
+# Opens at http://localhost:9005
+```
+
+**Development (with hot reload):**
+```bash
+# Terminal 1: MCP server
 npm run dev
 
-# Production mode
-npm run build && npm start
+# Terminal 2: UI dev server
+cd ui && npm run dev
+# Opens at http://localhost:9006 (proxies API to 9005)
 ```
 
-You should see:
+**One-click launch (macOS):**
+Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the prod server, and opens the browser.
+
+### 4. Sign In
+
+1. Open `http://localhost:9005` (prod) or `http://localhost:9006` (dev)
+2. Click **Sign in with Google** — you'll authenticate through Keycard
+3. Grant access to each service (Calendar, Gmail, Docs, etc.)
+4. Your tasks load automatically
+
+### 5. Tunnel for OAuth (Local Dev)
+
+Keycard needs a public URL for token exchange with Google. Use ngrok or similar:
+
+```bash
+ngrok http 9005
 ```
-🚀 Todo MCP Server started!
-🔗 MCP Endpoint: http://localhost:9005/mcp
-🔐 STS Issuer: https://your-zone-id.keycard.cloud
-🛠️  Available Tools: whoami, list-all-tasks-today, ...
+
+Update Keycard settings with the tunnel URL. Try to reuse the same URL to avoid reconfiguring.
+
+## Features
+
+### Task Dashboard
+- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Docs, Granola meeting notes
+- Priority scoring and grouping (critical, high, medium, low)
+- Source-based grouping with filter/search
+- Mark tasks complete from the dashboard
+- Smooth expand/collapse animations
+
+### Todaygent Chat Agent
+- Built-in AI chat panel powered by Claude
+- Ask it to plan your day, prioritize tasks, analyze dependencies
+- Has access to all MCP tools — can fetch and reason about your real data
+- Streaming responses with tool call visibility
+
+### OAuth & Auth
+- OAuth 2.0 via Keycard STS with PKCE
+- Token exchange for Google, Linear, and GitHub APIs
+- Auth error banner with reauthorization flow
+- Session persistence
+
+## Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list-all-tasks-today` | Aggregates tasks from all sources into prioritized JSON |
+| `list-calendar-events` | Google Calendar events |
+| `list-linear-issues` | Linear issues assigned to you |
+| `list-gmail-todos` | Gmail emails needing action |
+| `list-github-todos` | GitHub PRs and issues assigned to you |
+| `list-slack-todos` | Slack mentions, DMs, and saved messages |
+| `list-assigned-actions` | Google Docs action items assigned to you |
+| `list-drive-activity` | Recent Google Drive activity |
+| `list-meeting-notes-actions` | Action items from Granola meeting notes |
+| `mark-action-complete` | Mark a task complete (Linear, Slack, etc.) |
+| `mark-email-complete` | Archive/mark an email as handled |
+| `whoami` | Current user info and token details |
+
+## REST API
+
+The server exposes REST endpoints alongside MCP:
+
+```bash
+# List available tools
+curl -H "Authorization: Bearer TOKEN" http://localhost:9005/api/tools
+
+# Call a tool
+curl -X POST \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"maxResults": 10}' \
+  http://localhost:9005/api/tools/list-calendar-events
 ```
 
-### 4. Use tunnel for local dev
+## Using with MCP Clients (Cursor, Claude Desktop)
 
-In order for Keycard to complete the token exchange with Google, the MCP server must be publicly accessible. Use Ngrok, Cloudflared, or another tunneling service. Try to use the same tunnel URL, otherwise settings will need to be updated in Keycard and in project files every time the tunnel changes.
-
-### 5. Configure Cursor IDE
-
-Add to your Cursor MCP settings:
+Add to your MCP client configuration:
 
 ```json
 {
@@ -114,338 +184,125 @@ Add to your Cursor MCP settings:
 }
 ```
 
-### 6. Test Authentication
+See [docs/agent-planning/claude-desktop-setup.md](./docs/agent-planning/claude-desktop-setup.md) for Claude Desktop setup.
 
-1. **Restart Cursor** to pick up the new MCP server
-2. **Cursor will show "needs login"** for the server
-3. **Click to authenticate** → complete OAuth flow
-4. **Use the tools**: `whoami`, `list-all-tasks-today`, `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`
-
-### 7. REST API Endpoints (Optional)
-
-The server also provides REST API endpoints for easier tool access:
-
-- **List tools**: `GET /api/tools` - Returns list of available tools
-- **Call tool**: `POST /api/tools/:toolName` - Execute a tool with JSON body as arguments
-
-Example:
-```bash
-# List available tools
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:9005/api/tools
-
-# Call a tool
-curl -X POST \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"maxResults": 10}' \
-  http://localhost:9005/api/tools/list-calendar-events
-```
-
-These endpoints use the same authentication as the MCP protocol endpoint.
-
-## 🛠️ Available Tools
-
-### `whoami`
-Provides detailed information about the authenticated user including:
-- Client ID and authentication scopes
-- JWT payload with user information
-- Token expiration and timing details
-- Custom claims and metadata
-
-### `list-calendar-events`
-Lists upcoming events from the user's Google Calendar within a time range.
-
-### `list-linear-issues`
-Fetches issues assigned to you from Linear, grouped by status (In Progress, To Do, Backlog, etc.). Includes priority indicators, due dates with urgency warnings, and project/team info.
-
-## 🔧 Configuration
-
-### Environment Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `KEYCARD_STS_ISSUER_URL` | Keycard STS issuer URL (single-tenant mode) | - | ✅* |
-| `ISSUER_BASE_DOMAIN` | Base domain for STS (multi-tenant mode) | - | ✅* |
-| `MCP_BASE_DOMAIN` | Base domain for MCP server (multi-tenant mode) | - | ✅* |
-| `KEYCARD_CLIENT_ID` | Keycard client ID (token exchange) | - | ✅ for token exchange |
-| `KEYCARD_CLIENT_SECRET` | Keycard client secret (token exchange) | - | ✅ for token exchange |
-| `PORT` | Server port | `9005` | |
-| `HOST` | Server host | `localhost` | |
-| `LOG_LEVEL` | Logging level | `INFO` | |
-| `ENABLE_OTEL` | Enable OpenTelemetry | `true` | |
-| `OTEL_SERVICE_NAME` | Service name for telemetry | `hello-mcp-server` | |
-| `OTEL_ENVIRONMENT` | Environment for telemetry | `development` | |
-
-*Either `KEYCARD_STS_ISSUER_URL` (single-tenant) OR `ISSUER_BASE_DOMAIN` + `MCP_BASE_DOMAIN` (multi-tenant) is required.
-
-### Calendar Tool Setup
-
-The `list-calendar-events` tool uses Keycard STS token exchange to mint a
-Google Calendar access token. Make sure the Keycard client you configured:
-
-- Has token exchange enabled.
-- Is allowed to exchange for the resource `https://www.googleapis.com/calendar/v3`.
-- Has access to the scope `https://www.googleapis.com/auth/calendar.readonly`.
-
-If you see `invalid_grant` or "Client is not allowed to exchange token for this resource",
-recheck the client permissions in the Keycard Console and confirm your issuer/zone.
-
-### Linear Tool Setup
-
-The `list-linear-issues` tool uses Keycard STS token exchange to mint a
-Linear access token. Make sure:
-
-1. **Linear OAuth App**: Create an OAuth app in Linear (Settings → API → OAuth Applications)
-2. **Keycard Credential Provider**: Add Linear as a credential provider in your Keycard zone
-3. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
-   - Resource: `https://api.linear.app`
-   - Scope: `read`
-
-If you see token exchange errors, verify the Linear credential provider is properly connected in Keycard.
-
-If you receive token exchange errors and are running the MCP server on localhost, use a tunnel to expose a public URL for the MCP server.
-
-### Gmail Tool Setup
-
-The `list-gmail-todos` tool uses Keycard STS token exchange to mint a Gmail access token. Make sure:
-
-1. **Gmail Credential Provider**: Add Gmail as a credential provider in your Keycard zone
-2. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
-   - Resource: `https://www.googleapis.com/gmail/v1`
-   - Scope: `https://www.googleapis.com/auth/gmail.readonly`
-
-The tool finds:
-- **Potential Todos**: Emails containing keywords like "todo", "action", "follow up", "please", etc.
-- **Needs Reply**: Unread or important emails sent to you (not from you)
-- **Unread Emails**: All unread emails
-- **Important Emails**: Emails marked as important
-
-You can customize the search with:
-- `daysBack`: How many days to look back (default: 7)
-- `maxResults`: Maximum emails to return (default: 20)
-- `includeUnread`, `includeImportant`, `includeNeedsReply`: Filter options
-- `searchQuery`: Custom Gmail search query (e.g., `is:unread from:example@email.com`)
-
-If you see token exchange errors, verify the Gmail credential provider is properly connected in Keycard.
-
-### GitHub Tool Setup
-
-The `list-github-todos` tool uses Keycard STS token exchange to mint a GitHub access token. Make sure:
-
-1. **GitHub OAuth App**: Create an OAuth app in GitHub (Settings → Developer settings → OAuth Apps)
-2. **Keycard Credential Provider**: Add GitHub as a credential provider in your Keycard zone
-3. **Token Exchange Permission**: Configure your Keycard client to exchange tokens for:
-   - Resource: `https://api.github.com`
-   - Scopes: `repo`, `read:org`
-
-The tool fetches:
-- **Pull Requests**: PRs assigned to you or requesting your review
-- **Issues**: Open issues assigned to you
-
-You can customize the results with:
-- `includePRs`: Include pull requests (default: true)
-- `includeIssues`: Include issues (default: true)
-- `limit`: Maximum items per category (default: 10)
-
-If you see `invalid_target` or "unknown resource" errors, the GitHub resource is not registered in your Keycard zone. Follow the setup steps above to register GitHub as a credential provider and configure token exchange permissions.
-
-### Slack Integration
-
-The Slack integration tracks messages that need your attention: @mentions, DMs, and messages you've saved with a custom emoji. Use the `list-slack-todos` tool for a formatted view or `list-all-tasks-today` to include Slack messages with all your other tasks.
-
-**Features:**
-- **@mentions**: Messages where someone directly mentioned you
-- **DMs**: Direct messages
-- **Saved messages**: Messages you've marked with your custom emoji (configurable)
-- **Priority scoring**: Automatic prioritization based on urgency keywords, questions, and recency
-- **Completion tracking**: Mark messages complete with `mark-action-complete` (automatically removes the emoji)
-
-**Setup (Single-User Deployment):**
-
-1. **Create Slack App**: Visit [api.slack.com/apps](https://api.slack.com/apps)
-   - Create new app "From scratch"
-   - Name: "Todo MCP Server"
-   - Choose your workspace
-
-2. **Configure OAuth & Permissions**:
-   - Go to "OAuth & Permissions"
-   - Under "User Token Scopes", add:
-     - `search:read` - For @mentions and DM search
-     - `reactions:read` - For emoji-saved message tracking
-     - `reactions:write` - For removing emoji when marking messages complete
-
-3. **Install App & Get Token**:
-   - Click "Install to Workspace"
-   - Copy the "User OAuth Token" (starts with `xoxp-`)
-
-4. **Create Custom Emoji** (Optional but Recommended):
-   - In Slack: Click workspace name → Customize Slack → Add Custom Emoji
-   - Upload an image or use an existing emoji
-   - Name it (e.g., "my-todo-reminder")
-   - This emoji will be used to mark messages as saved/todo items
-
-5. **Set Environment Variables**:
-   ```bash
-   SLACK_USER_TOKEN=xoxp-your-user-token-here
-   SLACK_EMOJI_NAME=my-todo-reminder  # Optional, defaults to "mcp-todo-reminder"
-   ```
-
-**Tools:**
-
-- `list-slack-todos` - View recent Slack messages with priority analysis
-- `list-all-tasks-today` - Includes Slack messages with all your tasks
-- `mark-action-complete` - Mark a Slack message complete (removes emoji)
-
-**Troubleshooting:**
-
-- **"Slack not configured" error**: Set `SLACK_USER_TOKEN` in your `.env` file
-- **No saved messages appearing**:
-  - Create your custom emoji in Slack if you haven't already
-  - Add the emoji to messages in Slack (e.g., `:my-todo-reminder:`)
-  - Set `SLACK_EMOJI_NAME` in your `.env` file to match your emoji name (without colons)
-  - Wait a moment, then fetch again
-- **Missing scopes**: Ensure your user token has all three required scopes (`search:read`, `reactions:read`, `reactions:write`)
-
-## Migration Notice: list-today-todos Deprecated
-
-> **Important:** The `list-today-todos` tool has been removed as of version 0.2.0. Use `list-all-tasks-today` with agent-based planning instead.
-
-### Why the Change?
-
-The old tool provided pre-formatted markdown with built-in intelligence. The new `list-all-tasks-today` tool returns raw JSON with priority metadata, designed for LLM agents. This enables:
-
-- **Contextual Planning:** Agents adapt to your working style
-- **Natural Interaction:** Refine plans through conversation
-- **Flexibility:** No rigid formatting
-- **Intelligence:** Priority metadata guides smart recommendations
-
-### How to Migrate
-
-Instead of calling `list-today-todos`:
-
-1. **Fetch raw data:** Use `list-all-tasks-today`
-2. **Let the agent plan:** LLM analyzes priorities and creates personalized plans
-3. **Iterate naturally:** Conversation-based refinement
-
-See [TESTING_LIST_ALL_TASKS.md](./TESTING_LIST_ALL_TASKS.md) for detailed guidance.
-
-### Multi-Tenant Configuration
-
-For multi-tenant deployments (serving multiple organizations/zones), use these environment variables instead:
-
-```bash
-# Multi-tenant mode
-ISSUER_BASE_DOMAIN=keycard.cloud
-MCP_BASE_DOMAIN=mcp.example.com
-
-# Other configuration
-PORT=9005
-ENABLE_OTEL=true
-```
-
-This enables dynamic issuer discovery based on subdomain routing, allowing one deployment to serve multiple Keycard zones.
-
-### Observability
-
-The server includes comprehensive observability features:
-
-- **Structured Logging**: Environment-aware logging with trace correlation
-- **Request Tracing**: Full distributed tracing with OpenTelemetry
-- **Metrics Collection**: Performance and usage metrics
-- **Health Checks**: Available at `/health`
-
-In development, logs are formatted for console readability. In production, logs are sent to configured OTLP endpoints.
-
-## 🏗️ Architecture
+## Project Structure
 
 ```
 src/
-├── config.ts              # Configuration management
-├── index.ts               # Application entry point
-├── server.ts              # Express server setup
-├── middleware/            # Express middlewares
-│   ├── auth.ts           # Authentication middleware
-│   └── logging.ts        # Request logging and tracing
-├── observability/         # Telemetry and logging
-│   ├── logger.ts         # Structured logger
-│   └── telemetry.ts      # OpenTelemetry setup
-├── tools/                 # MCP tools
-│   ├── index.ts          # Tool registration
-│   └── whoami.ts         # User information tool
-└── types/                 # Type definitions
-    ├── auth.ts           # Authentication types
-    └── index.ts          # Exported types
+├── index.ts                  # Entry point
+├── server.ts                 # Express server, MCP, chat proxy, static UI
+├── config.ts                 # Environment config
+├── constants.ts              # App constants
+├── middleware/                # Auth & logging middleware
+├── services/                 # STS client, Gmail labels, completion store
+├── tools/                    # MCP tool implementations
+│   ├── calendar.ts           # Google Calendar
+│   ├── linear.ts             # Linear issues
+│   ├── gmail.ts              # Gmail todos
+│   ├── github.ts             # GitHub PRs & issues
+│   ├── slack-list.ts         # Slack messages
+│   ├── assigned-actions.ts   # Google Docs actions
+│   ├── drive-activity.ts     # Google Drive activity
+│   ├── meeting-notes.ts      # Granola meeting notes
+│   ├── mark-action-complete.ts
+│   ├── mark-email-complete.ts
+│   └── list-all-tasks-today/ # Aggregation tool
+├── utils/                    # Shared utilities
+├── types/                    # TypeScript types
+└── observability/            # OpenTelemetry, structured logging
+
+ui/
+├── src/
+│   ├── App.tsx               # Main dashboard layout
+│   ├── auth/                 # OAuth (PKCE, Keycard discovery, AuthGate)
+│   ├── mcp/                  # MCP client context (SSE transport)
+│   ├── chat/                 # Todaygent chat (useChat hook, system prompt)
+│   ├── api/                  # REST client & data transformers
+│   ├── components/
+│   │   ├── Chat/             # ChatPanel, ChatMessage, ToolCallCard
+│   │   ├── TaskCard.tsx      # Individual task display
+│   │   ├── TaskGroup.tsx     # Collapsible task groups
+│   │   ├── FilterBar.tsx     # Search & filter panel
+│   │   ├── ViewSwitcher.tsx  # Priority / Source view toggle
+│   │   ├── Chevron.tsx       # Animated expand/collapse icon
+│   │   └── SourceIcon.tsx    # Per-source emoji icons
+│   ├── styles/               # Design tokens & global styles
+│   ├── types/                # Task type definitions
+│   └── utils/                # Date, priority, grouping helpers
+└── dist/                     # Production build (served by Express)
 ```
 
-## 🧪 Testing
+## Service Setup
 
-```bash
-# Run all tests
-npm test
+Each data source requires configuration in Keycard (or direct API tokens for Slack/Granola).
 
-# Run tests with coverage
-npm run test:coverage
+### Google Services (Calendar, Gmail, Docs, Drive)
 
-# Run integration tests
-npm run test:integration
+Configure in Keycard Console:
+- Enable token exchange for each Google API resource
+- Required scopes: `calendar.readonly`, `gmail.readonly`, `drive.readonly`, `documents.readonly`
 
-# Watch mode for development
-npm run test:watch
-```
+### Linear
 
-## 📊 Code Quality
+1. Create an OAuth app in Linear (Settings > API > OAuth Applications)
+2. Add Linear as a credential provider in Keycard
+3. Token exchange resource: `https://api.linear.app`, scope: `read`
 
-```bash
-# Lint code
-npm run lint
+### GitHub
 
-# Fix linting issues
-npm run lint:fix
+1. Create an OAuth app in GitHub (Settings > Developer settings > OAuth Apps)
+2. Add GitHub as a credential provider in Keycard
+3. Token exchange resource: `https://api.github.com`, scopes: `repo`, `read:org`
 
-# Format code
-npm run format
+### Slack
 
-# Check all (lint + format)
-npm run check
+Direct token (not via Keycard):
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Add user token scopes: `search:read`, `reactions:read`, `reactions:write`
+3. Set `SLACK_USER_TOKEN` and optionally `SLACK_EMOJI_NAME` in `.env`
 
-# Fix all issues
-npm run check:fix
-```
+### Granola (Meeting Notes)
 
-## 🔗 MCP Integration
+Set `GRANOLA_API_KEY` in `.env`.
 
-### Cursor IDE
+## Environment Variables
 
-1. Start the server: `npm run dev`
-2. In Cursor, go to Settings > MCP Servers
-3. Add server: `http://localhost:9005/mcp`
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KEYCARD_STS_ISSUER_URL` | Keycard STS issuer URL | — (required) |
+| `KEYCARD_CLIENT_ID` | Keycard client ID | — (required) |
+| `KEYCARD_CLIENT_SECRET` | Keycard client secret | — (required) |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Todaygent | — (required for chat) |
+| `PORT` | Server port | `9005` |
+| `HOST` | Server host | `localhost` |
+| `SLACK_USER_TOKEN` | Slack user OAuth token | — |
+| `SLACK_EMOJI_NAME` | Custom emoji for saved messages | `mcp-todo-reminder` |
+| `GRANOLA_API_KEY` | Granola API key | — |
+| `LOG_LEVEL` | Logging level | `INFO` |
+| `ENABLE_OTEL` | Enable OpenTelemetry | `true` |
 
-## 🚦 Health Checks
+## npm Scripts
 
-The server provides a health check endpoint at `/health`:
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start server in dev mode (nodemon + ts-node) |
+| `npm run build` | Compile server TypeScript |
+| `npm run build:all` | Build server + UI |
+| `npm run start:prod` | Start production server |
+| `npm run dashboard` | Build (if needed), start server, open browser |
+| `npm test` | Run tests |
+| `npm run check` | Lint + format check |
 
-```bash
-curl http://localhost:9005/health
-```
+## Documentation
 
-Response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "service": "todo-mcp-server",
-  "version": "0.1.0"
-}
-```
+- [Agent Planning Guide](./docs/agent-planning/README.md) — how the AI planning system works
+- [System Prompt](./docs/agent-planning/system-prompt.md) — the Todaygent system prompt
+- [Metadata Guide](./docs/agent-planning/metadata-guide.md) — priority scoring, dependencies, cross-references
+- [Example Prompts](./docs/agent-planning/example-prompts.md) — pre-written prompts for common workflows
+- [Claude Desktop Setup](./docs/agent-planning/claude-desktop-setup.md) — using with Claude Desktop
+- [Data Reference](./docs/agent-planning/data-reference.md) — data structures and constants
 
-## 🤝 Contributing
+## License
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and quality checks
-5. Submit a pull request
-
-## 📄 License
-
-Apache-2.0 License - see LICENSE file for details.
+Apache-2.0 License — see LICENSE file for details.
