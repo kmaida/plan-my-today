@@ -72,9 +72,11 @@ export function getTaskUrl(task: Task): string | undefined {
 
 /**
  * Get the stable identifier used when marking a task complete.
- * Only needed for completable sources (slack, meeting-notes, docs).
+ * Gmail returns emailId (for mark-email-complete MCP tool).
+ * Slack, meeting-notes, docs return source-specific identifiers.
  */
 export function getTaskIdentifier(task: Task): string {
+  if (isGmailTask(task)) return task.id
   if (isSlackTask(task)) return task.link || task.timestamp
   if (isMeetingNotesTask(task)) return task.documentId
   if (isDocsActionTask(task)) return task.fileLink || task.fileTitle

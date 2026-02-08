@@ -11,9 +11,10 @@ import { SourceIcon, getSourceLabel } from './SourceIcon'
 import { Chevron } from './Chevron'
 import './TaskCard.css'
 
-// Sources that support mark-complete from the UI (no OAuth required).
-// Gmail is excluded because it needs a Gmail API token we can't provide from the UI.
-const COMPLETABLE_SOURCES: TaskSource[] = ['slack', 'meeting-notes', 'docs']
+// Sources that support mark-complete from the UI.
+// Gmail uses the MCP mark-email-complete tool (OAuth token exchange).
+// Slack, meeting-notes, docs use the no-auth REST endpoint.
+const COMPLETABLE_SOURCES: TaskSource[] = ['gmail', 'slack', 'meeting-notes', 'docs']
 
 /** Parse Slack link markup (<url|label> or <url>) into React nodes with clickable links */
 function parseSlackLinks(text: string): ReactNode[] {

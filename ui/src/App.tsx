@@ -4,7 +4,8 @@ import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { ChatPanel } from './components/Chat/ChatPanel'
-import { listAllTasks, markActionComplete } from './api/client'
+import { listAllTasks, refreshAllTasks, markActionComplete, markEmailComplete } from './api/client'
+import { useMCP } from './mcp'
 import type { Task, ViewMode, FilterState } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
@@ -31,8 +32,10 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 
 function App() {
   const { logout } = useAuth()
+  const { isConnected } = useMCP()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('priority')
@@ -55,6 +58,20 @@ function App() {
     }
   }, [])
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true)
+      setError(null)
+      const result = await refreshAllTasks()
+      setTasks(result.tasks)
+      setFetchedAt(result.fetchedAt)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
+    } finally {
+      setRefreshing(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchTasks()
   }, [fetchTasks])
@@ -66,9 +83,16 @@ function App() {
     setCompletingTaskId(task.taskId)
     setCompleteError(null)
     try {
-      const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
-      const identifier = getTaskIdentifier(task)
-      await markActionComplete(source, identifier, task.taskId)
+      if (task.source === 'gmail') {
+        // Gmail needs OAuth token exchange — route through MCP tool
+        const emailId = getTaskIdentifier(task)
+        await markEmailComplete(emailId)
+      } else {
+        // Slack, meeting-notes, docs — use no-auth REST endpoint
+        const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
+        const identifier = getTaskIdentifier(task)
+        await markActionComplete(source, identifier, task.taskId)
+      }
       setTasks(prev => prev.filter(t => t !== task))
     } catch (err) {
       console.error('Failed to mark complete:', err)
@@ -93,11 +117,11 @@ function App() {
               <div className="app-header__actions">
                 <button
                   className="app-header__reload"
-                  onClick={fetchTasks}
-                  disabled={loading}
-                  title="Reload from latest snapshot"
+                  onClick={isConnected ? handleRefresh : fetchTasks}
+                  disabled={loading || refreshing}
+                  title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
                 >
-                  {loading ? 'Reloading...' : 'Reload'}
+                  {refreshing ? 'Fetching fresh data...' : loading ? 'Loading...' : 'Refresh'}
                 </button>
                 <button
                   className="app-header__logout"
@@ -114,8 +138,8 @@ function App() {
             {snapshotLabel && (
               <p className="app-header__snapshot">
                 {snapshotLabel}
-                {!loading && !chatOpen && (
-                  <> — ask your agent what you have to do today to capture a fresh list</>
+                {!loading && !refreshing && (
+                  <> — {isConnected ? 'click Refresh to fetch latest data' : 'ask your agent to capture a fresh list'}</>
                 )}
               </p>
             )}
