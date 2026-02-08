@@ -13,12 +13,49 @@ interface ChatPanelProps {
   onTasksUpdated?: () => void
 }
 
+const BUTTON_LABELS = [
+  // Practical
+  'Ask Todaygent',
+  'Plan my day',
+  'Need a plan?',
+  'Talk to Todaygent',
+  'Get organized',
+  // Personality (sprinkled in)
+  'Summon Todaygent',
+  'Deploy Todaygent',
+]
+
+const PLACEHOLDERS = [
+  // Practical / planner
+  'What do I have today?',
+  'Plan my day',
+  'What should I tackle first?',
+  'What\'s urgent?',
+  'Help me prioritize',
+  'Where should I start?',
+  'Summarize my tasks',
+  'What\'s on my plate?',
+  // Personality (sprinkled in)
+  'What\'s on fire today?',
+  'How bad is it today?',
+  'Give me the damage report',
+  'Brief me, Todaygent',
+]
+
 export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
   const { messages, isLoading, error, sendMessage, clearMessages } = useChat(buildSystemPrompt)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [placeholder, setPlaceholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
+  const [buttonLabel, setButtonLabel] = useState(() => BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
+
+  // Re-randomize labels each time the chat is toggled
+  useEffect(() => {
+    setPlaceholder(PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
+    setButtonLabel(BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
+  }, [isOpen])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -46,7 +83,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
   if (!isOpen) {
     return (
       <button className="chat-toggle btn--inverted" onClick={onToggle} title="Open chat">
-        Chat
+        {buttonLabel}
       </button>
     )
   }
@@ -54,7 +91,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
   return (
     <div className="chat-panel">
       <div className="chat-panel__header">
-        <h2 className="chat-panel__title">Todaygent</h2>
+        <h2 className="chat-panel__title"><img src="/logo-sm.svg" alt="" className="chat-panel__logo" /><span><span className="app-brand__to">Tod</span><strong>a</strong><span className="app-brand__to">y</span><strong>gent</strong></span></h2>
         <div className="chat-panel__actions">
           {messages.length > 0 && (
             <button
@@ -111,7 +148,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={isConnected ? 'What do I have today?' : 'Sign in to chat'}
+          placeholder={isConnected ? placeholder : 'Sign in to chat'}
           disabled={!isConnected || isLoading}
         />
         <button

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <filter id="sparkle-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Clipboard board (solid dark brown, visible behind paper) -->
+  <rect x="64" y="40" width="352" height="432" rx="24" ry="24" fill="#3D2E1F"/>
+
+  <!-- Paper (slightly inset, sitting on top of clipboard) -->
+  <rect x="88" y="72" width="304" height="380" rx="12" ry="12" fill="#FAF8F5"/>
+
+  <!-- Clipboard top clip (silver metal) -->
+  <rect x="162" y="14" width="156" height="62" rx="16" ry="16" fill="#8C8C8C"/>
+  <rect x="186" y="28" width="108" height="34" rx="10" ry="10" fill="#B8B8B8"/>
+
+  <!-- Checkbox 1 - checked -->
+  <rect x="120" y="112" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
+  <polyline points="127,132 136,143 153,121" fill="none" stroke="#4A8B4A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Line 1 -->
+  <rect x="176" y="122" width="184" height="16" rx="8" ry="8" fill="#D4C9BC"/>
+
+  <!-- Checkbox 2 - checked -->
+  <rect x="120" y="180" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
+  <polyline points="127,200 136,211 153,189" fill="none" stroke="#4A8B4A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Line 2 -->
+  <rect x="176" y="190" width="148" height="16" rx="8" ry="8" fill="#D4C9BC"/>
+
+  <!-- Checkbox 3 - unchecked -->
+  <rect x="120" y="248" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
+  <!-- Line 3 -->
+  <rect x="176" y="258" width="168" height="16" rx="8" ry="8" fill="#D4C9BC"/>
+
+  <!-- Checkbox 4 - unchecked -->
+  <rect x="120" y="316" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
+  <!-- Line 4 -->
+  <rect x="176" y="326" width="128" height="16" rx="8" ry="8" fill="#D4C9BC"/>
+
+  <!-- Checkbox 5 - unchecked -->
+  <rect x="120" y="384" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
+  <!-- Line 5 -->
+  <rect x="176" y="394" width="156" height="16" rx="8" ry="8" fill="#D4C9BC"/>
+
+  <!-- AI badge — dark rounded square offset from bottom-right corner -->
+  <g filter="url(#sparkle-shadow)">
+    <rect x="310" y="280" width="150" height="150" rx="42" ry="42" fill="#3D2E1F"/>
+  </g>
+
+  <!-- Sparkles on dark badge -->
+  <g transform="translate(20,15)">
+    <!-- Large sparkle -->
+    <path d="M353,360 L360,387 L367,360 L394,353 L367,346 L360,319 L353,346 L326,353 Z" fill="#FFBF2E"/>
+    <!-- Medium sparkle -->
+    <path d="M401,330 L407,348 L413,330 L431,324 L413,318 L407,300 L401,318 L383,324 Z" fill="#FFBF2E"/>
+    <!-- Small sparkle -->
+    <path d="M320,325 L325,337 L330,325 L342,321 L330,317 L325,305 L320,317 L308,321 Z" fill="#FFBF2E"/>
+  </g>
+</svg>

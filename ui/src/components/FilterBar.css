@@ -1,7 +1,7 @@
 .filter-bar {
   display: flex;
   flex-direction: column;
-  margin-top: var(--space-sm);
+  margin-top: var(--space-lg);
 }
 
 /* Header row: view tabs left, toggle right */

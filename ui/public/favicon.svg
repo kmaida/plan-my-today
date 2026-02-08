@@ -5,9 +5,9 @@
   <!-- Paper (slightly inset, sitting on top of clipboard) -->
   <rect x="88" y="72" width="304" height="380" rx="12" ry="12" fill="#FAF8F5"/>
 
-  <!-- Clipboard top clip -->
-  <rect x="162" y="14" width="156" height="62" rx="16" ry="16" fill="#3D2E1F"/>
-  <rect x="186" y="28" width="108" height="34" rx="10" ry="10" fill="#FAF8F5"/>
+  <!-- Clipboard top clip (silver metal) -->
+  <rect x="162" y="14" width="156" height="62" rx="16" ry="16" fill="#8C8C8C"/>
+  <rect x="186" y="28" width="108" height="34" rx="10" ry="10" fill="#B8B8B8"/>
 
   <!-- Single 4-point sparkle — centered on paper -->
   <!-- Dark outline layer for contrast -->

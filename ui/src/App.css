@@ -44,6 +44,27 @@
   padding: var(--space-lg) var(--space-xl);
 }
 
+.app-header__banner {
+  display: flex;
+  align-items: start;
+  gap: var(--space-md);
+}
+
+.app-header__logo {
+  width: 90px;
+  height: auto;
+  flex-shrink: 0;
+  /* The SVG has ~7.8% dead space above the clipboard board (the metal clip).
+     Positive margin nudges the board down so its top aligns with the title
+     cap-height and its bottom reaches the snapshot baseline. */
+  margin-top: 0;
+}
+
+.app-header__text {
+  flex: 1;
+  min-width: 0;
+}
+
 .app-header__top {
   display: flex;
   align-items: baseline;
@@ -131,7 +152,7 @@
 }
 
 .app-header__controls {
-  margin-top: var(--space-sm);
+  margin-top: var(--space-lg);
 }
 
 .app-main {

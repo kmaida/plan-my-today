@@ -16,6 +16,13 @@
   box-shadow: var(--shadow-md);
 }
 
+.auth-gate__logo {
+  width: 88px;
+  height: auto;
+  margin: 0 auto var(--space-md) auto;
+  display: block;
+}
+
 .auth-gate__title {
   font-family: var(--font-serif);
   font-size: var(--font-size-title);

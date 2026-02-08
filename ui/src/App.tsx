@@ -112,37 +112,42 @@ function App() {
       <div className="app">
         <header className="app-header">
           <div className="app-header__content">
-            <div className="app-header__top">
-              <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
-              <div className="app-header__actions">
-                <button
-                  className="app-header__reload"
-                  onClick={isConnected ? handleRefresh : fetchTasks}
-                  disabled={loading || refreshing}
-                  title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
-                >
-                  {refreshing ? 'Fetching fresh data...' : loading ? 'Loading...' : 'Refresh'}
-                </button>
-                <button
-                  className="app-header__logout"
-                  onClick={logout}
-                  title="Sign out"
-                >
-                  Sign out
-                </button>
+            <div className="app-header__banner">
+              <img src="/logo.svg" alt="" className="app-header__logo" />
+              <div className="app-header__text">
+                <div className="app-header__top">
+                  <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
+                  <div className="app-header__actions">
+                    <button
+                      className="app-header__reload"
+                      onClick={isConnected ? handleRefresh : fetchTasks}
+                      disabled={loading || refreshing}
+                      title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
+                    >
+                      {refreshing ? 'Fetching fresh data...' : loading ? 'Loading...' : 'Refresh'}
+                    </button>
+                    <button
+                      className="app-header__logout"
+                      onClick={logout}
+                      title="Sign out"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+                <p className="app-header__subtitle">
+                  {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
+                </p>
+                {snapshotLabel && (
+                  <p className="app-header__snapshot">
+                    {snapshotLabel}
+                    {!loading && !refreshing && (
+                      <> — {isConnected ? 'click Refresh to fetch latest data' : 'ask your agent to capture a fresh list'}</>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
-            <p className="app-header__subtitle">
-              {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
-            </p>
-            {snapshotLabel && (
-              <p className="app-header__snapshot">
-                {snapshotLabel}
-                {!loading && !refreshing && (
-                  <> — {isConnected ? 'click Refresh to fetch latest data' : 'ask your agent to capture a fresh list'}</>
-                )}
-              </p>
-            )}
             {!loading && tasks.length > 0 && (
               <FilterBar
                 filters={filterState}

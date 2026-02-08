@@ -19,13 +19,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
+          <img src="/logo.svg" alt="" className="auth-gate__logo" />
           <h1 className="auth-gate__title app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
-          <p className="auth-gate__subtitle">Sign in to view your tasks</p>
+          <p className="auth-gate__subtitle">Your <span className="app-brand__to">Tod</span><strong>a</strong><span className="app-brand__to">y</span><strong>gent</strong> is waiting.</p>
 
           {error && <p className="auth-gate__error">{error}</p>}
 
           <button className="auth-gate__button btn--inverted" onClick={login}>
-            Sign in with Keycard
+            Sign in
           </button>
         </div>
       </div>
