@@ -453,10 +453,24 @@ export function createApp(): express.Application {
       const body: Record<string, unknown> = {
         model: model || config.anthropicModel,
         max_tokens: 4096,
+        stream: true,
         messages,
       };
-      if (system) body.system = system;
-      if (tools) body.tools = tools;
+      // Wrap system prompt as cacheable content block for Anthropic prompt caching
+      if (system) {
+        body.system = [
+          { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
+        ];
+      }
+      // Mark last tool definition as cacheable so the entire tool list is cached
+      if (tools && tools.length > 0) {
+        const cachedTools = tools.map((tool: Record<string, unknown>, i: number) =>
+          i === tools.length - 1
+            ? { ...tool, cache_control: { type: 'ephemeral' } }
+            : tool
+        );
+        body.tools = cachedTools;
+      }
 
       const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -464,12 +478,33 @@ export function createApp(): express.Application {
           'Content-Type': 'application/json',
           'x-api-key': config.anthropicApiKey,
           'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'prompt-caching-2024-07-31',
         },
         body: JSON.stringify(body),
       });
 
-      const data = await anthropicRes.text();
-      res.status(anthropicRes.status).setHeader('Content-Type', 'application/json').send(data);
+      if (!anthropicRes.ok || !anthropicRes.body) {
+        const data = await anthropicRes.text();
+        res.status(anthropicRes.status).setHeader('Content-Type', 'application/json').send(data);
+        return;
+      }
+
+      // Pipe the SSE stream from Anthropic directly to the client
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const reader = (anthropicRes.body as ReadableStream<Uint8Array>).getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(decoder.decode(value, { stream: true }));
+        }
+      } finally {
+        res.end();
+      }
     } catch (err) {
       console.error('Chat proxy failed:', err);
       res.status(500).json({ error: 'Chat proxy failed' });

@@ -30,6 +30,40 @@ export interface AnthropicResponse {
   usage: { input_tokens: number; output_tokens: number }
 }
 
+// ── Anthropic streaming event types ──────────────────────────────────────────
+
+export interface StreamContentBlockStart {
+  type: 'content_block_start'
+  index: number
+  content_block: { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+}
+
+export interface StreamContentBlockDelta {
+  type: 'content_block_delta'
+  index: number
+  delta: { type: 'text_delta'; text: string } | { type: 'input_json_delta'; partial_json: string }
+}
+
+export interface StreamMessageDelta {
+  type: 'message_delta'
+  delta: { stop_reason: AnthropicResponse['stop_reason'] }
+  usage: { output_tokens: number }
+}
+
+export interface StreamMessageStart {
+  type: 'message_start'
+  message: { id: string; model: string; usage: { input_tokens: number; output_tokens: number } }
+}
+
+export type StreamEvent =
+  | StreamMessageStart
+  | StreamContentBlockStart
+  | StreamContentBlockDelta
+  | { type: 'content_block_stop'; index: number }
+  | StreamMessageDelta
+  | { type: 'message_stop' }
+  | { type: 'ping' }
+
 // ── UI-level chat types ──────────────────────────────────────────────────────
 
 /** A tool call that was executed during an assistant turn. */
