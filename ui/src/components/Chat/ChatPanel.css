@@ -92,14 +92,6 @@
   padding: var(--space-xl) var(--space-md);
 }
 
-.chat-panel__thinking {
-  color: var(--color-text-tertiary);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-meta);
-  font-style: italic;
-  padding: var(--space-sm) 0;
-}
-
 .chat-panel__error {
   color: var(--color-critical);
   font-family: var(--font-sans);

@@ -3,6 +3,7 @@ import { useChat } from '../../chat/useChat'
 import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
+import { ThinkingIndicator } from './ThinkingIndicator'
 import { buildSystemPrompt } from '../../chat/system-prompt'
 import './ChatPanel.css'
 
@@ -95,9 +96,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
           <ChatMessage key={msg.id} message={msg} />
         ))}
 
-        {isLoading && (
-          <div className="chat-panel__thinking">Thinking...</div>
-        )}
+        {isLoading && <ThinkingIndicator />}
 
         {error && (
           <div className="chat-panel__error">{error}</div>
