@@ -349,6 +349,14 @@ export interface FilterState {
   showCompleted: boolean
 }
 
+export const DEFAULT_FILTERS: FilterState = {
+  search: '',
+  sources: [],
+  priorities: [],
+  timeFilter: 'all',
+  showCompleted: false,
+}
+
 // ===== Grouped Tasks =====
 
 export interface TaskGroup {

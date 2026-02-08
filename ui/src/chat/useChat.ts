@@ -8,8 +8,7 @@ import type {
   ToolDefinition,
   AnthropicResponse,
 } from './types'
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api'
+import { API_BASE } from '../config'
 const MAX_TOOL_ROUNDS = 10 // Safety limit to prevent infinite loops
 
 /** Convert MCP tool schemas to Anthropic tool format. */

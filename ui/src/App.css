@@ -270,3 +270,22 @@
 .auth-error-banner__dismiss:hover {
   color: var(--color-text-primary);
 }
+
+/* ── Empty / loading states ─────────────────────────────────── */
+
+.app-status-message {
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: var(--space-xl);
+}
+
+.app-empty-state {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--color-text-secondary);
+}
+
+.app-empty-state p + p,
+.app-empty-state p + button {
+  margin-top: var(--space-sm);
+}

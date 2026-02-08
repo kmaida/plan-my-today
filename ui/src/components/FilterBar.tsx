@@ -1,5 +1,6 @@
 import { useState, useRef, type ReactNode } from 'react'
 import type { FilterState, TaskSource, PriorityCategory } from '../types/tasks'
+import { DEFAULT_FILTERS } from '../types/tasks'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
 import { Chevron } from './Chevron'
 import './FilterBar.css'
@@ -26,14 +27,6 @@ const TIME_OPTIONS: Array<{ value: FilterState['timeFilter']; label: string }> =
   { value: 'overdue', label: 'Overdue' },
   { value: 'no-due', label: 'No Date' },
 ]
-
-const DEFAULT_FILTERS: FilterState = {
-  search: '',
-  sources: [],
-  priorities: [],
-  timeFilter: 'all',
-  showCompleted: false,
-}
 
 export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount, viewSwitcher }: FilterBarProps) {
   const [isOpen, setIsOpen] = useState(false)

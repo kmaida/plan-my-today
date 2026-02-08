@@ -115,42 +115,6 @@
   border-bottom: 2px solid rgba(159, 163, 168, 0.20);
 }
 
-/* Timeline group header tints */
-.task-group[data-group="overdue"] .task-group__header {
-  background-color: rgba(196, 91, 91, 0.10);
-  border-bottom: 2px solid rgba(196, 91, 91, 0.20);
-}
-
-.task-group[data-group="now"] .task-group__header {
-  background-color: rgba(216, 155, 90, 0.14);
-  border-bottom: 2px solid rgba(216, 155, 90, 0.28);
-}
-
-.task-group[data-group="next-hour"] .task-group__header {
-  background-color: rgba(216, 155, 90, 0.10);
-  border-bottom: 2px solid rgba(216, 155, 90, 0.20);
-}
-
-.task-group[data-group="today"] .task-group__header {
-  background-color: rgba(122, 156, 159, 0.10);
-  border-bottom: 2px solid rgba(122, 156, 159, 0.20);
-}
-
-.task-group[data-group="this-week"] .task-group__header {
-  background-color: rgba(122, 156, 159, 0.07);
-  border-bottom: 2px solid rgba(122, 156, 159, 0.14);
-}
-
-.task-group[data-group="later"] .task-group__header {
-  background-color: rgba(216, 155, 90, 0.06);
-  border-bottom: 2px solid rgba(216, 155, 90, 0.12);
-}
-
-.task-group[data-group="no-date"] .task-group__header {
-  background-color: rgba(159, 163, 168, 0.06);
-  border-bottom: 2px solid rgba(159, 163, 168, 0.12);
-}
-
 /* Mobile responsiveness */
 
 @media (max-width: 768px) {

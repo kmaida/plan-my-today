@@ -7,18 +7,11 @@ import { ChatPanel } from './components/Chat/ChatPanel'
 import { listAllTasks, refreshAllTasks, markActionComplete, markEmailComplete } from './api/client'
 import { useMCP } from './mcp'
 import type { Task, ViewMode, FilterState } from './types/tasks'
+import { DEFAULT_FILTERS } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import './App.css'
-
-const DEFAULT_FILTERS: FilterState = {
-  search: '',
-  sources: [],
-  priorities: [],
-  timeFilter: 'all',
-  showCompleted: false,
-}
 
 function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount: number, groupIndex: number): boolean {
   if (viewMode === 'priority') {
@@ -208,30 +201,26 @@ function App() {
         <main className="app-main">
           <div className="app-content">
             {loading && (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+              <p className="app-status-message">
                 Fetching tasks from all sources...
               </p>
             )}
 
             {!loading && (error || tasks.length === 0) && (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--space-xl)',
-                color: 'var(--color-text-secondary)',
-              }}>
+              <div className="app-empty-state">
                 {authErrors.length > 0 ? (
                   <>
-                    <p style={{ marginBottom: 'var(--space-sm)' }}>
+                    <p>
                       <strong>Couldn't reach some sources.</strong>
                     </p>
                     <p>Your grants may have expired. Reauthorize to refresh them, then try again.</p>
-                    <button className="auth-error-banner__reauth btn--inverted" onClick={login} style={{ marginTop: 'var(--space-sm)' }}>
+                    <button className="auth-error-banner__reauth btn--inverted" onClick={login}>
                       Reauthorize
                     </button>
                   </>
                 ) : (
                   <>
-                    <p style={{ marginBottom: 'var(--space-sm)' }}>
+                    <p>
                       <strong>No task data available.</strong>
                     </p>
                     <p>Open the chat and ask your agent to plan your day. The dashboard will populate once tasks are fetched.</p>
@@ -243,7 +232,7 @@ function App() {
             {!loading && tasks.length > 0 && (
               <>
                 {filteredTasks.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+                  <p className="app-status-message">
                     No tasks match your filters.
                   </p>
                 ) : (
