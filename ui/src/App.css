@@ -71,6 +71,7 @@
   color: var(--color-text-tertiary);
   background: none;
   border: none;
+  box-shadow: none;
   padding: var(--space-xs) var(--space-sm);
   cursor: pointer;
   transition: color var(--transition-fast);
@@ -78,6 +79,8 @@
 
 .app-header__logout:hover {
   color: var(--color-text-secondary);
+  background: none;
+  box-shadow: none;
 }
 
 .app-header__reload {
