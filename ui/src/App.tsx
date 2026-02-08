@@ -113,7 +113,7 @@ function App() {
   }, [])
 
   const snapshotLabel = fetchedAt
-    ? `Snapshot from ${isToday(fetchedAt) ? `today ${formatTime(fetchedAt)}` : `${formatDate(fetchedAt)} ${formatTime(fetchedAt)}`}`
+    ? `Last updated ${isToday(fetchedAt) ? 'today' : formatDate(fetchedAt)} at ${formatTime(fetchedAt)}`
     : null
 
   return (
@@ -134,7 +134,7 @@ function App() {
                       disabled={loading || refreshing}
                       title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
                     >
-                      {refreshing ? 'Fetching fresh data...' : loading ? 'Loading...' : 'Refresh'}
+                      {refreshing ? 'Updating...' : loading ? 'Loading...' : 'Update tasks'}
                     </button>
                     <button
                       className="app-header__logout"
@@ -149,12 +149,7 @@ function App() {
                   {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
                 </p>
                 {snapshotLabel && (
-                  <p className="app-header__snapshot">
-                    {snapshotLabel}
-                    {!loading && !refreshing && (
-                      <> — {isConnected ? 'click Refresh to fetch latest data' : 'ask your agent to capture a fresh list'}</>
-                    )}
-                  </p>
+                  <p className="app-header__snapshot">{snapshotLabel}</p>
                 )}
               </div>
             </div>
