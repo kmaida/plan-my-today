@@ -91,7 +91,7 @@ async function removeTaskFromCache(taskId: string): Promise<void> {
 export function createApp(): express.Application {
   const app = express();
 
-  // Trust proxy for correct protocol detection behind reverse proxies
+  // Trust proxy for correct protocol detection behind reverse proxies (ngrok)
   app.set('trust proxy', true);
 
   // Parse JSON requests
@@ -243,7 +243,6 @@ export function createApp(): express.Application {
   app.post('/api/tools/:toolName', authMiddleware, async (req: express.Request, res: express.Response) => {
     const { toolName } = req.params;
     const { logger } = req.context;
-    const authInfo = req.auth;
     const args = req.body || {};
 
     logger.debug("REST API tool call", { toolName, args });
