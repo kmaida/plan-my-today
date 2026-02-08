@@ -4,7 +4,7 @@ export const AUTH_CONFIG = {
   redirectUri: `${window.location.origin}/auth/callback`,
   resource:
     import.meta.env.VITE_MCP_RESOURCE ||
-    'http://localhost:9005/mcp',
+    `${window.location.origin}/mcp`,
   scope: 'openid profile',
   /** Base URL for OAuth discovery (empty = same origin, proxied by Vite in dev). */
   discoveryBaseUrl: import.meta.env.VITE_API_BASE || '',

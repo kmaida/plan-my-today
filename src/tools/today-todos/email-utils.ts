@@ -3,14 +3,16 @@ import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./prio
 import { AuthenticationError } from "../../utils/error-utils";
 
 /**
- * Determines if an email is from an individual (not an automated system)
+ * Determines if an email is from an individual (not an automated system).
+ * Errs on the side of "not individual" to avoid flagging automated messages
+ * as needing replies.
  */
 export function isFromIndividual(from: string, subject: string): boolean {
   const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
-  
-  // Common automated email patterns
-  const automatedPatterns = [
+
+  // ── Definite automated senders ────────────────────────────────────────────
+  const automatedFromPatterns = [
     /noreply/i,
     /no-reply/i,
     /donotreply/i,
@@ -19,15 +21,26 @@ export function isFromIndividual(from: string, subject: string): boolean {
     /notify@/i,
     /automated@/i,
     /system@/i,
-    /@.*\.(com|net|org)\s*$/i, // Generic domains that are often automated
+    /mailer-daemon/i,
+    /postmaster@/i,
+    /support@/i,
+    /billing@/i,
+    /accounts?@/i,
+    /security@/i,
+    /alerts?@/i,
+    /updates?@/i,
+    /receipts?@/i,
+    /orders?@/i,
+    /subscriptions?@/i,
+    /feedback@/i,
+    /do-not-reply/i,
   ];
-  
-  // Check if from field matches automated patterns
-  if (automatedPatterns.some(pattern => pattern.test(fromLower))) {
+
+  if (automatedFromPatterns.some(pattern => pattern.test(fromLower))) {
     return false;
   }
-  
-  // Check for common automated service domains
+
+  // ── Known automated service domains ───────────────────────────────────────
   const automatedDomains = [
     'linear.app',
     'github.com',
@@ -37,97 +50,116 @@ export function isFromIndividual(from: string, subject: string): boolean {
     'n8n.cloud',
     'granola.so',
     'instatunnel.my',
-    'google.com', // Google Calendar and other Google automated services
+    'google.com',
+    'googlemail.com',
+    'atlassian.net',
+    'jira.com',
+    'slack.com',
+    'notion.so',
+    'vercel.com',
+    'netlify.com',
+    'stripe.com',
+    'intercom.io',
+    'hubspot.com',
+    'mailchimp.com',
+    'sendgrid.net',
+    'amazonses.com',
+    'postmarkapp.com',
   ];
-  
-  // Explicitly exclude Google Calendar emails
-  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification') || 
+
+  // Calendar emails are always automated
+  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification') ||
       subjectLower.includes('google calendar') || subjectLower.includes('calendar event')) {
     return false;
   }
-  
+
   const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
   if (emailDomain && automatedDomains.some(domain => emailDomain.includes(domain))) {
-    // But allow if it's a personal email from these services (e.g., steph@keycard.ai)
-    // Check if it looks like a personal name before the @
-    const localPart = fromLower.split('@')[0];
-    // If it's a single word or looks like a name pattern, it might be individual
-    if (localPart.includes('.') || localPart.length > 8) {
-      // Could be individual, but check subject for automated patterns
-      const automatedSubjectPatterns = [
-        /notification/i,
-        /reminder/i,
-        /invitation:/i,
-        /accepted:/i,
-        /canceled event:/i,
-        /has joined your meeting/i,
-        /has invited you/i,
-      ];
-      if (automatedSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
-        return false;
-      }
-    }
+    return false;
   }
-  
-  // If it contains a personal name pattern (first.last, first_last, etc.) or is short, likely individual
-  const namePattern = /^[a-z]+\.[a-z]+@|^[a-z]+_[a-z]+@/i;
+
+  // ── Subject patterns that indicate automated/transactional email ──────────
+  const automatedSubjectPatterns = [
+    /your (trial|subscription|account|order|payment|invoice|receipt|password|plan)/i,
+    /trial (end|expir|cancel)/i,
+    /subscription (end|expir|cancel|renew)/i,
+    /password (reset|changed|expired)/i,
+    /verify your/i,
+    /confirm your/i,
+    /welcome to/i,
+    /thanks for (signing|registering|subscribing|joining|purchasing|ordering)/i,
+    /thank you for your (order|purchase|payment)/i,
+    /has been (shipped|delivered|processed|approved|declined|canceled|cancelled)/i,
+    /security alert/i,
+    /login attempt/i,
+    /sign.?in (from|attempt|notification)/i,
+    /new device/i,
+    /two.?factor/i,
+    /verification code/i,
+    /invitation:/i,
+    /accepted:/i,
+    /canceled event:/i,
+    /declined:/i,
+    /notification/i,
+    /has joined your meeting/i,
+    /has invited you/i,
+  ];
+
+  if (automatedSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+    return false;
+  }
+
+  // ── Positive signal: looks like a person's name ───────────────────────────
+  // Patterns like "first.last@", "first_last@", or display name with spaces
+  const namePattern = /^[a-z]+[._][a-z]+@/i;
   if (namePattern.test(fromLower)) {
     return true;
   }
-  
-  // Default: if it doesn't match automated patterns, assume individual
-  return true;
+
+  // Display name present (e.g., "Kim Maida <kim@example.com>")
+  const hasDisplayName = /^[A-Z][a-z]+ [A-Z][a-z]+/.test(from.trim());
+  if (hasDisplayName) {
+    return true;
+  }
+
+  // Default: not enough signal to classify as individual
+  return false;
 }
 
 /**
- * Determines if an email likely needs a reply
+ * Determines if an email likely needs a reply.
+ * Only flags emails from individuals — automated messages never "need a reply".
  */
 export function emailNeedsReply(subject: string, from: string, isUnread: boolean): boolean {
+  // Gate: automated emails never need a reply
+  if (!isFromIndividual(from, subject)) {
+    return false;
+  }
+
   const subjectLower = subject.toLowerCase();
-  const fromLower = from.toLowerCase();
-  
-  // Action item keywords
+
+  // Direct ask keywords in subject from an individual
   const actionKeywords = [
     'action items',
     'action item',
-    'please',
     'can you',
     'could you',
     'would you',
-    'need',
     'follow up',
     'follow-up',
-    'reply',
-    'response',
     'question',
     '?',
   ];
-  
-  // Check subject for action keywords
+
   if (actionKeywords.some(keyword => subjectLower.includes(keyword))) {
     return true;
   }
-  
-  // If it's from an individual and unread, it might need a reply
-  if (isFromIndividual(from, subject) && isUnread) {
+
+  // Unread email from an individual likely needs a reply
+  if (isUnread) {
     return true;
   }
-  
-  // Meeting invitations/acceptances from individuals might need acknowledgment
-  if (isFromIndividual(from, subject)) {
-    const meetingPatterns = [
-      /invitation:/i,
-      /accepted:/i,
-      /meeting/i,
-      /sync/i,
-      /1:1/i,
-      /1-1/i,
-    ];
-    if (meetingPatterns.some(pattern => pattern.test(subjectLower))) {
-      return true;
-    }
-  }
-  
+
   return false;
 }
 

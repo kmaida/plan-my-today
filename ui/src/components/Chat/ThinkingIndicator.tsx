@@ -16,7 +16,8 @@ const PERMISSION_VIOLATIONS = [
   'attempting unauthorized\u2014 I mean, planning',
   'trying to send em\u2014 organizing',
   'escalating privile\u2014 prioritizing',
-  'reading your brows\u2014 analyzing',
+  'reading your browser hist\u2014 analyzing',
+  'activating webcam\u2014 reviewing',
   'exfiltrating\u2014 curating',
   'deploying to prod\u2014 scheduling',
 ]
