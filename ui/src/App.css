@@ -1,3 +1,27 @@
+/* ── Side-by-side layout: dashboard + chat panel ──────────────────────────────── */
+
+.app-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-layout > .app {
+  flex: 1;
+  min-width: 0; /* Allow shrinking below content width */
+  overflow-y: auto;
+}
+
+.app-layout > .chat-panel {
+  width: 420px;
+  flex-shrink: 0;
+}
+
+/* When chat is closed, dashboard takes full width (toggle button is fixed-positioned) */
+.app-layout:not(.app-layout--chat-open) > .app {
+  flex: 1;
+}
+
 .app {
   min-height: 100vh;
   display: flex;
@@ -118,5 +142,15 @@
 
   .app-main {
     padding: var(--space-sm);
+  }
+
+  /* On mobile, chat overlays the dashboard */
+  .app-layout--chat-open > .chat-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: var(--z-modal);
   }
 }

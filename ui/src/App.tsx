@@ -3,6 +3,7 @@ import { AuthGate, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
+import { ChatPanel } from './components/Chat/ChatPanel'
 import { listAllTasks, markActionComplete } from './api/client'
 import type { Task, ViewMode, FilterState } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
@@ -38,6 +39,7 @@ function App() {
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
   const [completeError, setCompleteError] = useState<string | null>(null)
+  const [chatOpen, setChatOpen] = useState(false)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -82,101 +84,109 @@ function App() {
 
   return (
     <AuthGate>
-    <div className="app">
-      <header className="app-header">
-        <div className="app-header__content">
-          <div className="app-header__top">
-            <h1>Your Tasks</h1>
-            <div className="app-header__actions">
-              <button
-                className="app-header__reload"
-                onClick={fetchTasks}
-                disabled={loading}
-                title="Reload from latest snapshot"
-              >
-                {loading ? 'Reloading...' : 'Reload'}
-              </button>
-              <button
-                className="app-header__logout"
-                onClick={logout}
-                title="Sign out"
-              >
-                Sign out
-              </button>
+    <div className={`app-layout ${chatOpen ? 'app-layout--chat-open' : ''}`}>
+      <div className="app">
+        <header className="app-header">
+          <div className="app-header__content">
+            <div className="app-header__top">
+              <h1>Your Tasks</h1>
+              <div className="app-header__actions">
+                <button
+                  className="app-header__reload"
+                  onClick={fetchTasks}
+                  disabled={loading}
+                  title="Reload from latest snapshot"
+                >
+                  {loading ? 'Reloading...' : 'Reload'}
+                </button>
+                <button
+                  className="app-header__logout"
+                  onClick={logout}
+                  title="Sign out"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
-          </div>
-          <p className="app-header__subtitle">
-            {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
-          </p>
-          <p className="app-header__snapshot">
-            {snapshotLabel}
-            {!loading && (
-              <> — ask your agent what you have to do today to capture a fresh list</>
-            )}
-          </p>
-          {!loading && tasks.length > 0 && (
-            <FilterBar
-              filters={filterState}
-              onFiltersChange={setFilterState}
-              totalCount={tasks.length}
-              filteredCount={filteredTasks.length}
-              viewSwitcher={<ViewSwitcher activeView={viewMode} onViewChange={setViewMode} />}
-            />
-          )}
-        </div>
-      </header>
-
-      <main className="app-main">
-        <div className="app-content">
-          {loading && (
-            <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
-              Fetching tasks from all sources...
+            <p className="app-header__subtitle">
+              {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
             </p>
-          )}
-
-          {error && (
-            <div style={{
-              padding: 'var(--space-md)',
-              margin: 'var(--space-md) 0',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: 'var(--radius-md)',
-              color: '#991b1b',
-            }}>
-              <strong>Error:</strong> {error}
-            </div>
-          )}
-
-          {!loading && !error && tasks.length === 0 && (
-            <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
-              No tasks found. All clear!
-            </p>
-          )}
-
-          {!loading && tasks.length > 0 && (
-            <>
-              {filteredTasks.length === 0 ? (
-                <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
-                  No tasks match your filters.
-                </p>
-              ) : (
-                taskGroups.map((group, index) => (
-                  <TaskGroup
-                    key={`${viewMode}-${group.label}`}
-                    label={group.label}
-                    count={group.count}
-                    tasks={group.tasks}
-                    defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
-                    onMarkComplete={handleMarkComplete}
-                    completingTaskId={completingTaskId}
-                    completeError={completeError}
-                  />
-                ))
+            <p className="app-header__snapshot">
+              {snapshotLabel}
+              {!loading && !chatOpen && (
+                <> — ask your agent what you have to do today to capture a fresh list</>
               )}
-            </>
-          )}
-        </div>
-      </main>
+            </p>
+            {!loading && tasks.length > 0 && (
+              <FilterBar
+                filters={filterState}
+                onFiltersChange={setFilterState}
+                totalCount={tasks.length}
+                filteredCount={filteredTasks.length}
+                viewSwitcher={<ViewSwitcher activeView={viewMode} onViewChange={setViewMode} />}
+              />
+            )}
+          </div>
+        </header>
+
+        <main className="app-main">
+          <div className="app-content">
+            {loading && (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+                Fetching tasks from all sources...
+              </p>
+            )}
+
+            {error && (
+              <div style={{
+                padding: 'var(--space-md)',
+                margin: 'var(--space-md) 0',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 'var(--radius-md)',
+                color: '#991b1b',
+              }}>
+                <strong>Error:</strong> {error}
+              </div>
+            )}
+
+            {!loading && !error && tasks.length === 0 && (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+                No tasks found. All clear!
+              </p>
+            )}
+
+            {!loading && tasks.length > 0 && (
+              <>
+                {filteredTasks.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
+                    No tasks match your filters.
+                  </p>
+                ) : (
+                  taskGroups.map((group, index) => (
+                    <TaskGroup
+                      key={`${viewMode}-${group.label}`}
+                      label={group.label}
+                      count={group.count}
+                      tasks={group.tasks}
+                      defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
+                      onMarkComplete={handleMarkComplete}
+                      completingTaskId={completingTaskId}
+                      completeError={completeError}
+                    />
+                  ))
+                )}
+              </>
+            )}
+          </div>
+        </main>
+      </div>
+
+      <ChatPanel
+        isOpen={chatOpen}
+        onToggle={() => setChatOpen((o) => !o)}
+        onTasksUpdated={fetchTasks}
+      />
     </div>
     </AuthGate>
   )

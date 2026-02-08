@@ -15,6 +15,8 @@ export interface ServerConfig {
   slackUserToken: string;
   slackEmojiName: string;
   userDisplayNames: string[];
+  anthropicApiKey: string;
+  anthropicModel: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -62,6 +64,10 @@ export function getConfig(): ServerConfig {
   // User identity for filtering meeting notes action items (optional)
   // Comma-separated name variants, e.g. "Kim,Kim Maida,kimmaida"
   const USER_DISPLAY_NAME = process.env.USER_DISPLAY_NAME || '';
+
+  // Anthropic API for chatbot (optional — only needed if the UI chatbot is used)
+  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -121,6 +127,8 @@ export function getConfig(): ServerConfig {
     keycardClientSecret: KEYCARD_CLIENT_SECRET || '',
     slackUserToken: SLACK_USER_TOKEN || '',
     slackEmojiName: SLACK_EMOJI_NAME || 'mcp-todo-reminder',
+    anthropicApiKey: ANTHROPIC_API_KEY,
+    anthropicModel: ANTHROPIC_MODEL,
     userDisplayNames: USER_DISPLAY_NAME
       ? USER_DISPLAY_NAME.split(',').map(n => n.trim().toLowerCase())
       : [],

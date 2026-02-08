@@ -438,6 +438,47 @@ export function createApp(): express.Application {
     }
   });
 
+  // Proxy chat messages to Anthropic Messages API (adds API key server-side).
+  // The UI sends { messages, system?, tools? } and gets back Claude's response.
+  app.post('/api/chat', async (req: express.Request, res: express.Response) => {
+    try {
+      if (!config.anthropicApiKey) {
+        res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' });
+        return;
+      }
+
+      const { messages, system, tools, model } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        res.status(400).json({ error: 'Missing required field: messages (array)' });
+        return;
+      }
+
+      const body: Record<string, unknown> = {
+        model: model || config.anthropicModel,
+        max_tokens: 4096,
+        messages,
+      };
+      if (system) body.system = system;
+      if (tools) body.tools = tools;
+
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': config.anthropicApiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await anthropicRes.text();
+      res.status(anthropicRes.status).setHeader('Content-Type', 'application/json').send(data);
+    } catch (err) {
+      console.error('Chat proxy failed:', err);
+      res.status(500).json({ error: 'Chat proxy failed' });
+    }
+  });
+
   // Register auth dashboard and Keycard reauth
   registerAuthDashboard(app);
   registerKeycardReauth(app);

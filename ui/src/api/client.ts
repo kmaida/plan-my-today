@@ -1,4 +1,6 @@
 // API Client for Todo MCP Server
+// Uses the MCP protocol client (set via setMCPCallTool) when available,
+// falls back to REST API for non-auth endpoints (/api/tasks, /api/mark-action-complete).
 
 import type {
   Task,
@@ -7,23 +9,34 @@ import type {
 } from '../types/tasks'
 import { transformServerResponse } from './transformers'
 import { mockServerResponse } from './mockData'
-
 // Set VITE_USE_MOCK=true in .env to force mock data during UI-only development
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
-// ── Bearer token injection ─────────────────────────────────────────────────────
+// ── MCP client integration ────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MCPCallToolFn = (name: string, args?: Record<string, unknown>) => Promise<any>
+
+let _mcpCallTool: MCPCallToolFn | null = null
+
+/** Set the MCP callTool function (called by MCPClientContext on connect/disconnect). */
+export function setMCPCallTool(fn: MCPCallToolFn | null): void {
+  _mcpCallTool = fn
+}
+
+// ── Bearer token injection (kept for REST endpoints that don't use MCP) ───────
 
 let _authToken: string | null = null
 
-/** Set the Bearer token used for all subsequent API calls. */
+/** Set the Bearer token used for REST API calls. */
 export function setAuthToken(token: string | null): void {
   _authToken = token
 }
 
 /**
- * Generic API call wrapper with error handling
+ * Generic REST API call wrapper (for non-MCP endpoints)
  */
 async function apiCall<T>(
   endpoint: string,
@@ -60,29 +73,30 @@ async function apiCall<T>(
 }
 
 /**
- * Call an MCP tool via the REST API
+ * Call an MCP tool via the MCP protocol client.
+ * Extracts text content from the MCP response and parses it as JSON.
  */
 async function callTool<T>(toolName: string, params: Record<string, unknown> = {}): Promise<T> {
-  const response = await apiCall<{ content: Array<{ type: string; text?: string }> }>(
-    `/tools/${toolName}`,
-    {
-      method: 'POST',
-      body: JSON.stringify(params),
-    }
-  )
+  if (!_mcpCallTool) {
+    throw new Error('MCP client not connected — cannot call tools')
+  }
 
-  // Extract text content from MCP response
-  const textContent = response.content?.find((c) => c.type === 'text')?.text
+  const result = await _mcpCallTool(toolName, params)
 
-  if (!textContent) {
+  // Extract text content from MCP response (content array from CallToolResult)
+  const content = result.content as Array<{ type: string; text?: string }> | undefined
+  const textItem = content?.find((c) => c.type === 'text')
+  const text = textItem?.text
+
+  if (!text) {
     throw new Error(`No text content in response from ${toolName}`)
   }
 
   try {
-    return JSON.parse(textContent) as T
+    return JSON.parse(text) as T
   } catch {
     // If not JSON, return as-is
-    return textContent as T
+    return text as T
   }
 }
 
