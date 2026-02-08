@@ -36,7 +36,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
             <div className="tool-call-card__section">
               <span className="tool-call-card__label">Result</span>
               <pre className="tool-call-card__code">
-                {truncate(toolCall.result, 500)}
+                {formatResult(toolCall.result)}
               </pre>
             </div>
           )}
@@ -44,6 +44,17 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       )}
     </div>
   )
+}
+
+function formatResult(str: string): string {
+  // Try to parse as JSON and pretty-print
+  try {
+    const parsed = JSON.parse(str)
+    const formatted = JSON.stringify(parsed, null, 2)
+    return truncate(formatted, 2000)
+  } catch {
+    return truncate(str, 500)
+  }
 }
 
 function truncate(str: string, max: number): string {

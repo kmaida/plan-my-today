@@ -60,7 +60,7 @@ export function ThinkingIndicator() {
   }, [])
 
   useEffect(() => {
-    const interval = setInterval(cycleWord, 1800)
+    const interval = setInterval(cycleWord, 2300)
     return () => clearInterval(interval)
   }, [cycleWord])
 
@@ -72,7 +72,7 @@ export function ThinkingIndicator() {
         <div className="thinking-indicator__note thinking-indicator__note--3" />
       </div>
       <span className={`thinking-indicator__word${fading ? ' thinking-indicator__word--fading' : ''}`}>
-        {word}...
+        {word.charAt(0).toUpperCase() + word.slice(1)}...
       </span>
     </div>
   )

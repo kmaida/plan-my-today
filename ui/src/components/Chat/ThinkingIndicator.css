@@ -37,7 +37,7 @@
   position: absolute;
   inset: 0;
   border-radius: 2px;
-  background: var(--color-high);
+  background: var(--color-divider);
 }
 
 /* Bottom note — static base */
