@@ -192,41 +192,69 @@
 /* ── Auth error banner ─────────────────────────────────────────────────────── */
 
 .auth-error-banner {
-  background-color: color-mix(in srgb, var(--color-high) 15%, var(--color-bg));
-  border-bottom: 1px solid color-mix(in srgb, var(--color-high) 40%, transparent);
+  background-color: color-mix(in srgb, var(--color-high) 12%, var(--color-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-high) 30%, transparent);
   padding: var(--space-sm) var(--space-lg);
 }
 
 .auth-error-banner__content {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  max-width: var(--content-max-width, 1200px);
+  align-items: center;
+  gap: var(--space-md);
+  max-width: 800px;
   margin: 0 auto;
+  padding: 0 var(--space-xl);
 }
 
-.auth-error-banner__icon {
-  color: var(--color-high);
-  font-size: 1.2em;
-  flex-shrink: 0;
-  line-height: 1.4;
-}
-
-.auth-error-banner__text {
+.auth-error-banner__message {
   flex: 1;
   font-size: var(--font-sm);
   color: var(--color-text-primary);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
-.auth-error-banner__list {
-  margin: var(--space-xs) 0 0;
-  padding-left: var(--space-md);
+.auth-error-banner__details {
+  margin-top: var(--space-xs);
+}
+
+.auth-error-banner__details summary {
   color: var(--color-text-secondary);
+  font-size: var(--font-xs, 0.75rem);
+  cursor: pointer;
+  user-select: none;
 }
 
-.auth-error-banner__list li {
-  margin-bottom: 2px;
+.auth-error-banner__details summary:hover {
+  color: var(--color-text-primary);
+}
+
+.auth-error-banner__pre {
+  margin: var(--space-xs) 0 0;
+  padding: var(--space-sm);
+  background: color-mix(in srgb, var(--color-high) 8%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-high) 20%, transparent);
+  border-radius: var(--radius-sm, 4px);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-xs, 0.75rem);
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.auth-error-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.auth-error-banner__reauth {
+  white-space: nowrap;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-sm);
 }
 
 .auth-error-banner__dismiss {
@@ -237,7 +265,6 @@
   cursor: pointer;
   padding: 0 var(--space-xs);
   line-height: 1;
-  flex-shrink: 0;
 }
 
 .auth-error-banner__dismiss:hover {

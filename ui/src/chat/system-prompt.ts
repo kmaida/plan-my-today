@@ -105,7 +105,7 @@ Format: \`[Item Title](url)\`. An item without a link is an item the user can't 
 
 ## Edge Cases
 
-**No data or authentication errors:** If \`list-all-tasks-today\` comes back empty or \`metadata.errors\` lists source failures, the most likely cause is expired grants. Tell the user which sources failed (if any) and suggest they **sign out and sign back in** to refresh their grants. Work with whatever data you did get. Keep it light — partial data is still useful.
+**No data or authentication errors:** If \`list-all-tasks-today\` comes back empty or \`metadata.errors\` lists source failures, the most likely cause is expired grants. Tell the user which sources failed (if any) and suggest they click **Reauthorize** in the dashboard to refresh their grants. Work with whatever data you did get. Keep it light — partial data is still useful.
 
 **All low priority:** Congratulations are in order. No fires to put out. Suggest productive options: longer-term projects, backlog cleanup, learning, or taking a well-deserved break.
 

@@ -17,15 +17,15 @@ export function formatAuthError(serviceName: string, error: unknown): string {
 
   // Check for common authentication errors
   if (errorMsg.includes("unauthorized") || errorMsg.includes("401")) {
-    return `${serviceName}: Authentication failed — sign out and sign back in to refresh grants`;
+    return `${serviceName}: Authentication failed — reauthorize to refresh grants`;
   }
 
   if (errorMsg.includes("forbidden") || errorMsg.includes("403")) {
-    return `${serviceName}: Access denied — sign out and sign back in to refresh grants`;
+    return `${serviceName}: Access denied — reauthorize to refresh grants`;
   }
 
   if (errorMsg.includes("token") || errorMsg.includes("auth")) {
-    return `${serviceName}: ${errorMsg} — try signing out and signing back in`;
+    return `${serviceName}: ${errorMsg} — try reauthorizing`;
   }
 
   return `${serviceName}: ${errorMsg}`;
@@ -37,5 +37,5 @@ export function formatAuthError(serviceName: string, error: unknown): string {
 export function getErrorFooter(hasAuthErrors: boolean): string {
   if (!hasAuthErrors) return "";
 
-  return "\n\nSign out and sign back in to refresh your grants. If issues persist, restart the MCP server.";
+  return "\n\nReauthorize to refresh your grants. If issues persist, restart the MCP server.";
 }

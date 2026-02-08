@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AuthGate, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
@@ -31,7 +31,7 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 }
 
 function App() {
-  const { logout } = useAuth()
+  const { login, logout } = useAuth()
   const { isConnected } = useMCP()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -81,6 +81,15 @@ function App() {
   useEffect(() => {
     fetchTasks()
   }, [fetchTasks])
+
+  // When MCP connects (e.g. after reauth), auto-refresh to replace stale cached data
+  const hasAutoRefreshed = useRef(false)
+  useEffect(() => {
+    if (isConnected && !hasAutoRefreshed.current && authErrors.length > 0) {
+      hasAutoRefreshed.current = true
+      handleRefresh()
+    }
+  }, [isConnected, authErrors, handleRefresh])
 
   const filteredTasks = applyFilters(tasks, filterState)
   const taskGroups = groupTasks(filteredTasks, viewMode)
@@ -169,21 +178,29 @@ function App() {
         {authErrors.length > 0 && !authErrorsDismissed && (
           <div className="auth-error-banner">
             <div className="auth-error-banner__content">
-              <span className="auth-error-banner__icon">&#9888;</span>
-              <div className="auth-error-banner__text">
+              <div className="auth-error-banner__message">
                 <strong>Some sources couldn't be reached.</strong>
-                {' '}Sign out and sign back in to refresh your grants.
-                <ul className="auth-error-banner__list">
-                  {authErrors.map((err, i) => <li key={i}>{err}</li>)}
-                </ul>
+                {' '}Your authorization grants may have expired or been revoked.
+                <details className="auth-error-banner__details">
+                  <summary>{authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}</summary>
+                  <pre className="auth-error-banner__pre">{authErrors.join('\n\n')}</pre>
+                </details>
               </div>
-              <button
-                className="auth-error-banner__dismiss"
-                onClick={() => setAuthErrorsDismissed(true)}
-                aria-label="Dismiss"
-              >
-                &times;
-              </button>
+              <div className="auth-error-banner__actions">
+                <button
+                  className="auth-error-banner__reauth btn--inverted"
+                  onClick={login}
+                >
+                  Reauthorize
+                </button>
+                <button
+                  className="auth-error-banner__dismiss"
+                  onClick={() => setAuthErrorsDismissed(true)}
+                  aria-label="Dismiss"
+                >
+                  &times;
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -207,7 +224,10 @@ function App() {
                     <p style={{ marginBottom: 'var(--space-sm)' }}>
                       <strong>Couldn't reach some sources.</strong>
                     </p>
-                    <p>Your grants may have expired. Sign out and sign back in to refresh them, then try again.</p>
+                    <p>Your grants may have expired. Reauthorize to refresh them, then try again.</p>
+                    <button className="auth-error-banner__reauth btn--inverted" onClick={login} style={{ marginTop: 'var(--space-sm)' }}>
+                      Reauthorize
+                    </button>
                   </>
                 ) : (
                   <>
