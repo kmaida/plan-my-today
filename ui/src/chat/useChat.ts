@@ -26,6 +26,18 @@ function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+/**
+ * Truncate a tool result string to avoid blowing up the Anthropic context window.
+ * 30K chars ≈ ~8K tokens — plenty for Claude to summarise while staying well
+ * within limits even after multiple tool rounds.
+ */
+const MAX_TOOL_RESULT_CHARS = 30_000
+
+function truncateToolResult(text: string): string {
+  if (text.length <= MAX_TOOL_RESULT_CHARS) return text
+  return text.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n[... result truncated due to size ...]'
+}
+
 export interface UseChatReturn {
   messages: ChatMessage[]
   isLoading: boolean
@@ -123,7 +135,7 @@ export function useChat(systemPrompt?: string): UseChatReturn {
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
-            content: resultText,
+            content: truncateToolResult(resultText),
             is_error: isError,
           })
         }

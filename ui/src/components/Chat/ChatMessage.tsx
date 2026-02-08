@@ -40,7 +40,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
       </div>
       <div className="chat-message__meta">
-        {isUser ? 'You' : 'Claude'} &middot;{' '}
+        {isUser ? 'You' : 'Todaygent'} &middot;{' '}
         {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </div>
     </div>

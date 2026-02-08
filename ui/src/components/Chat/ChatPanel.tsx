@@ -1,22 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useChat } from '../../chat/useChat'
+import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
+import { SYSTEM_PROMPT } from '../../chat/system-prompt'
 import './ChatPanel.css'
-
-const SYSTEM_PROMPT = `You are a daily planning assistant helping the user maximize productivity by analyzing their tasks from multiple sources. You have access to MCP tools that can fetch tasks from Calendar, Linear, Gmail, GitHub, Slack, Google Docs, and Meeting Notes.
-
-Key behaviors:
-- When the user asks to plan their day or check tasks, call list-all-tasks-today first
-- Analyze priority metadata (score 0-300, categories: critical/high/medium/low)
-- Always include clickable links for every item you mention
-- Use visual indicators: red circle for critical, yellow circle for high, blue circle for medium, white circle for low
-- Be concise and scannable — use markdown headers and bullet points
-- Explain your reasoning when prioritizing work
-
-Available completion tools:
-- mark-email-complete: Mark a Gmail message as complete
-- mark-action-complete: Mark a meeting note, Slack message, or ad-hoc task as complete`
 
 interface ChatPanelProps {
   isOpen: boolean
@@ -25,7 +13,8 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) {
-  const { isConnected } = useMCP()
+  const { isAuthenticated } = useAuth()
+  const { isConnected, error: mcpError } = useMCP()
   const { messages, isLoading, error, sendMessage, clearMessages } = useChat(SYSTEM_PROMPT)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -64,7 +53,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
   return (
     <div className="chat-panel">
       <div className="chat-panel__header">
-        <h2 className="chat-panel__title">Chat</h2>
+        <h2 className="chat-panel__title">Todaygent</h2>
         <div className="chat-panel__actions">
           {messages.length > 0 && (
             <button
@@ -82,15 +71,23 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
       </div>
 
       <div className="chat-panel__messages">
-        {!isConnected && (
+        {!isConnected && !isAuthenticated && (
           <div className="chat-panel__notice">
-            MCP client not connected. Sign in to start chatting.
+            Sign in to start chatting.
+          </div>
+        )}
+
+        {!isConnected && isAuthenticated && (
+          <div className="chat-panel__notice">
+            {mcpError
+              ? 'Could not connect to server. Try reloading the page or signing out and back in.'
+              : 'Connecting to server...'}
           </div>
         )}
 
         {isConnected && messages.length === 0 && (
           <div className="chat-panel__notice">
-            Ask me to plan your day, check your tasks, or help you prioritize.
+            I'm Todaygent. Tell me to plan your day and I'll pull in everything from your calendar, Linear, Gmail, Slack, GitHub, and more.
           </div>
         )}
 
@@ -115,7 +112,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={isConnected ? 'Ask about your tasks...' : 'Sign in to chat'}
+          placeholder={isConnected ? 'What do I have today?' : 'Sign in to chat'}
           disabled={!isConnected || isLoading}
         />
         <button

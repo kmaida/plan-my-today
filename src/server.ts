@@ -94,8 +94,8 @@ export function createApp(): express.Application {
   // Trust proxy for correct protocol detection behind reverse proxies (ngrok)
   app.set('trust proxy', true);
 
-  // Parse JSON requests
-  app.use(express.json());
+  // Parse JSON requests (increased limit for chat payloads with tool results)
+  app.use(express.json({ limit: '2mb' }));
 
   // Check if we're in multi-tenant mode
   const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;

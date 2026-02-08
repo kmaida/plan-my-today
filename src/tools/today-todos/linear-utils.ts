@@ -1,5 +1,6 @@
 import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "./types";
 import { PriorityMetadata, categorizeScore } from "./priority-utils";
+import { FETCH_LIMITS } from "../../constants";
 
 /**
  * Fetches all Linear issues assigned to the user
@@ -102,14 +103,14 @@ export async function fetchLinearIssues(
   // Fetch open issues
   let issues = await fetchAllAssignedIssues(accessToken, {
     includeCompleted: false,
-    limit: 50,
+    limit: FETCH_LIMITS.LINEAR,
   });
 
   // If includeRecentlyCompleted, also fetch completed items
   if (includeRecentlyCompleted && completedDaysBack > 0) {
     const completedIssues = await fetchAllAssignedIssues(accessToken, {
       includeCompleted: true,
-      limit: 50,
+      limit: FETCH_LIMITS.LINEAR,
     });
 
     // Filter to only include items completed within completedDaysBack
@@ -128,7 +129,10 @@ export async function fetchLinearIssues(
     issues = [...issues, ...recentlyCompleted];
   }
 
-  // Filter for issues due within the specified date window, overdue, or without due dates
+  // Filter: include issues that are actionable today
+  // 1. Due within the date window (or overdue)
+  // 2. High or Urgent priority (priority ≤ 2), even without a due date
+  // 3. Recently completed (already filtered by date above)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -136,11 +140,18 @@ export async function fetchLinearIssues(
     // If completed, always include (already filtered by date above)
     if (issue.state?.type === "completed") return true;
 
-    // For non-completed, filter by due date
-    if (!issue.dueDate) return true; // Include issues without due dates
-    const dueDate = new Date(issue.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
-    return dueDate <= dueByDate; // Include within date window or overdue
+    // High or Urgent priority always included (priority: 0=No, 1=Urgent, 2=High, 3=Medium, 4=Low)
+    if (issue.priority >= 1 && issue.priority <= 2) return true;
+
+    // Has a due date within the window or overdue
+    if (issue.dueDate) {
+      const dueDate = new Date(issue.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate <= dueByDate;
+    }
+
+    // No due date and not high/urgent — skip
+    return false;
   });
 }
 
@@ -290,7 +301,7 @@ export function calculateLinearPriority(
     } else if (daysUntilDue <= 7) {
       temporalUrgency = "due_this_week";
       score += 40;
-      reasons.push("Due this week");
+      reasons.push("Due soon");
     } else {
       temporalUrgency = "due_later";
       score += 10;

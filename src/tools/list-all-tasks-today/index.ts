@@ -16,7 +16,7 @@ import { detectLinearMentions, detectGitHubMentions } from "../today-todos/cross
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
-import { TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
+import { TIME_WINDOWS, FETCH_LIMITS, DISPLAY_LIMITS } from "../../constants";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -97,11 +97,80 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
 }
 
 /**
+ * Strip verbose enrichment metadata from the full response to reduce token
+ * usage when returning data to chat agents.
+ *
+ * Keeps: essential fields, priority category/score/reasons, links
+ * Strips: signals, crossReferenceMetadata, dependencyMetadata,
+ *         meetingContextMetadata, conferenceData, internal IDs, redundant fields
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function compactifyResponse(data: Record<string, any>): Record<string, any> {
+  // Slim priority metadata: keep score, category, reasons — drop signals
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function slimPriority(item: any) {
+    if (!item.priorityMetadata) return undefined;
+    return {
+      score: item.priorityMetadata.score,
+      category: item.priorityMetadata.category,
+      reasons: item.priorityMetadata.reasons,
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function stripItem(item: any, keepFields: string[]): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const slim: any = {};
+    for (const key of keepFields) {
+      if (item[key] !== undefined && item[key] !== null) slim[key] = item[key];
+    }
+    slim.priorityMetadata = slimPriority(item);
+    return slim;
+  }
+
+  return {
+    calendar: (data.calendar || []).map((e: any) => stripItem(e, [
+      "summary", "start", "end", "htmlLink", "hangoutLink", "attendees", "taskId",
+    ])),
+    linear: (data.linear || []).map((e: any) => stripItem(e, [
+      "identifier", "title", "priority", "priorityLabel", "url", "state", "dueDate", "estimate", "project", "taskId",
+    ])),
+    gmail: (data.gmail || []).map((e: any) => stripItem(e, [
+      "id", "subject", "from", "link", "needsReply", "hasActionItems", "taskId",
+    ])),
+    meetingSummaries: (data.meetingSummaries || []).map((e: any) => stripItem(e, [
+      "platform", "meetingTitle", "subject", "link", "recordingLink", "hasActionItems", "taskId",
+    ])),
+    docs: (data.docs || []).map((e: any) => stripItem(e, [
+      "fileTitle", "actionType", "fileLink", "taskId",
+    ])),
+    github: {
+      prs: (data.github?.prs || []).map((e: any) => stripItem(e, [
+        "number", "title", "url", "repo", "type", "isDraft", "taskId",
+      ])),
+      issues: (data.github?.issues || []).map((e: any) => stripItem(e, [
+        "number", "title", "url", "repo", "labels", "taskId",
+      ])),
+    },
+    slack: (data.slack || []).map((e: any) => stripItem(e, [
+      "text", "type", "userName", "permalink", "taskId",
+    ])),
+    meetingNotes: (data.meetingNotes || []).map((e: any) => stripItem(e, [
+      "actionItem", "documentTitle", "documentLink", "assignee", "isUrgent", "taskId",
+    ])),
+    metadata: data.metadata,
+  };
+}
+
+/**
  * Input schema for the list-all-tasks-today tool
  */
 const listAllTasksTodayInputSchema = {
   includeGithub: z.boolean()
     .describe("Include GitHub PRs and issues (default: true)")
+    .optional(),
+  compact: z.boolean()
+    .describe("Return a compact response with only essential fields per item. Recommended for chat agents to reduce token usage. (default: false)")
     .optional(),
 };
 
@@ -142,6 +211,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       }
 
       const includeGithub = args.includeGithub ?? true;
+      const compact = args.compact ?? false;
       const today = new Date();
       const errors: string[] = [];
 
@@ -156,125 +226,123 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       let slackMessages: any[] = [];
       let meetingNoteActions: any[] = [];
 
-      // Fetch Calendar events
-      try {
-        const calendarToken = await stsClient.exchange(
-          authInfo,
-          CALENDAR_RESOURCE,
-          CALENDAR_SCOPES
-        );
-        calendarEvents = await fetchTodayCalendarEvents(calendarToken.access_token);
-      } catch (error) {
-        errors.push(formatAuthError("Google Calendar", error));
-      }
+      // ============================================
+      // PARALLEL FETCH: All sources run concurrently
+      // ============================================
+      const sevenDaysFromNow = new Date(today);
+      sevenDaysFromNow.setDate(today.getDate() + 7);
+      sevenDaysFromNow.setHours(23, 59, 59, 999);
 
-      // Fetch Linear issues (with 14-day window for due dates + recently completed)
-      try {
-        const fourteenDaysFromNow = new Date(today);
-        fourteenDaysFromNow.setDate(today.getDate() + 14);
-        fourteenDaysFromNow.setHours(23, 59, 59, 999);
+      const fetchResults = await Promise.allSettled([
+        // 0: Calendar
+        (async () => {
+          const token = await stsClient.exchange(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
+          return fetchTodayCalendarEvents(token.access_token);
+        })(),
 
-        const linearToken = await stsClient.exchange(
-          authInfo,
-          LINEAR_RESOURCE,
-          LINEAR_SCOPES
-        );
-        linearIssues = await fetchLinearIssues(linearToken.access_token, fourteenDaysFromNow, {
-          includeRecentlyCompleted: true,
-          completedDaysBack: 3
-        });
-      } catch (error) {
-        errors.push(formatAuthError("Linear", error));
-      }
+        // 1: Linear
+        (async () => {
+          const token = await stsClient.exchange(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
+          return fetchLinearIssues(token.access_token, sevenDaysFromNow, {
+            includeRecentlyCompleted: true,
+            completedDaysBack: 3
+          });
+        })(),
 
-      // Fetch Gmail todos (more inclusive for agent use)
-      try {
-        const gmailToken = await stsClient.exchange(
-          authInfo,
-          GMAIL_RESOURCE,
-          GMAIL_SCOPES
-        );
-        gmailTodos = await fetchGmailTodos(gmailToken.access_token, {
-          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
-          maxResults: FETCH_LIMITS.GMAIL,
-          includeRead: true,
-          strictFiltering: false
-        });
-      } catch (error) {
-        errors.push(formatAuthError("Gmail", error));
-      }
+        // 2: Gmail (todos + meeting summaries share one STS exchange)
+        (async () => {
+          const token = await stsClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
+          const [todos, summaries] = await Promise.all([
+            fetchGmailTodos(token.access_token, {
+              daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+              maxResults: FETCH_LIMITS.GMAIL,
+              includeRead: true,
+              strictFiltering: false
+            }),
+            fetchMeetingSummaries(token.access_token, {
+              daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+              maxResults: FETCH_LIMITS.MEETINGS
+            })
+          ]);
+          return { todos, summaries };
+        })(),
 
-      // Fetch meeting summaries (Zoom, Google Meet, etc.)
-      try {
-        const gmailToken = await stsClient.exchange(
-          authInfo,
-          GMAIL_RESOURCE,
-          GMAIL_SCOPES
-        );
-        meetingSummaries = await fetchMeetingSummaries(gmailToken.access_token, {
-          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
-          maxResults: FETCH_LIMITS.MEETINGS
-        });
-      } catch (error) {
-        errors.push(formatAuthError("Meeting Summaries (Gmail)", error));
-      }
+        // 3: Google Drive Activity (assigned actions)
+        (async () => {
+          const token = await stsClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
+          return fetchAssignedActions(token.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
+        })(),
 
-      // Fetch assigned actions from Google Docs (extended time window)
-      try {
-        const driveActivityToken = await stsClient.exchange(
-          authInfo,
-          DRIVE_ACTIVITY_RESOURCE,
-          DRIVE_ACTIVITY_SCOPES
-        );
-        assignedActions = await fetchAssignedActions(driveActivityToken.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
-      } catch (error) {
-        errors.push(formatAuthError("Google Drive Activity", error));
-      }
+        // 4: GitHub (conditional)
+        (async () => {
+          if (!includeGithub) return { prs: [], issues: [] };
+          const token = await stsClient.exchange(authInfo, GITHUB_RESOURCE, GITHUB_SCOPES);
+          return fetchGitHubTodos(token.access_token);
+        })(),
 
-      // Fetch GitHub PRs and issues
-      if (includeGithub) {
-        try {
-          const githubToken = await stsClient.exchange(
-            authInfo,
-            GITHUB_RESOURCE,
-            GITHUB_SCOPES
-          );
-          const githubData = await fetchGitHubTodos(githubToken.access_token);
-          githubPRs = githubData.prs;
-          githubIssues = githubData.issues;
-        } catch (error) {
-          errors.push(formatAuthError("GitHub", error));
-        }
-      }
-
-      // Fetch Slack messages (more inclusive for agent use)
-      try {
-        // Use environment variable token (single-user deployment)
-        const slackToken = config.slackUserToken || null;
-
-        if (slackToken) {
-          slackMessages = await fetchSlackMessages(slackToken, {
+        // 5: Slack (env token, no STS)
+        (async () => {
+          const slackToken = config.slackUserToken || null;
+          if (!slackToken) return [];
+          return fetchSlackMessages(slackToken, {
             daysBack: TIME_WINDOWS.SLACK_DAYS_BACK,
             maxMessages: FETCH_LIMITS.SLACK
           });
-        }
-      } catch (error) {
-        errors.push(formatAuthError("Slack", error));
+        })(),
+
+        // 6: Meeting notes (Granola via Google Drive)
+        (async () => {
+          const token = await stsClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+          return fetchMeetingNoteActions(token.access_token, {
+            daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+            maxResults: FETCH_LIMITS.MEETINGS
+          });
+        })(),
+      ]);
+
+      // Unpack results — each source fails independently
+      if (fetchResults[0].status === "fulfilled") {
+        calendarEvents = fetchResults[0].value;
+      } else {
+        errors.push(formatAuthError("Google Calendar", fetchResults[0].reason));
       }
 
-      // Fetch meeting notes from Granola (synced to Google Drive)
-      try {
-        const driveToken = await stsClient.exchange(
-          authInfo,
-          DRIVE_RESOURCE,
-          DRIVE_SCOPES
-        );
-        meetingNoteActions = await fetchMeetingNoteActions(driveToken.access_token, {
-          daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
-          maxResults: FETCH_LIMITS.MEETINGS
-        });
-      } catch (error) {
-        errors.push(formatAuthError("Meeting Notes (Google Drive)", error));
+      if (fetchResults[1].status === "fulfilled") {
+        linearIssues = fetchResults[1].value;
+      } else {
+        errors.push(formatAuthError("Linear", fetchResults[1].reason));
+      }
+
+      if (fetchResults[2].status === "fulfilled") {
+        gmailTodos = fetchResults[2].value.todos;
+        meetingSummaries = fetchResults[2].value.summaries;
+      } else {
+        errors.push(formatAuthError("Gmail", fetchResults[2].reason));
+      }
+
+      if (fetchResults[3].status === "fulfilled") {
+        assignedActions = fetchResults[3].value;
+      } else {
+        errors.push(formatAuthError("Google Drive Activity", fetchResults[3].reason));
+      }
+
+      if (fetchResults[4].status === "fulfilled") {
+        githubPRs = fetchResults[4].value.prs;
+        githubIssues = fetchResults[4].value.issues;
+      } else if (includeGithub) {
+        errors.push(formatAuthError("GitHub", fetchResults[4].reason));
+      }
+
+      if (fetchResults[5].status === "fulfilled") {
+        slackMessages = fetchResults[5].value;
+      } else {
+        errors.push(formatAuthError("Slack", fetchResults[5].reason));
+      }
+
+      if (fetchResults[6].status === "fulfilled") {
+        meetingNoteActions = fetchResults[6].value;
+      } else {
+        errors.push(formatAuthError("Meeting Notes (Google Drive)", fetchResults[6].reason));
       }
 
       // Enrich with priority metadata
@@ -344,8 +412,30 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         };
       });
 
+      // Add id to meeting notes (they don't go through an enrichment .map())
+      meetingNoteActions = meetingNoteActions.map(note => ({
+        ...note,
+        taskId: randomUUID(),
+      }));
+
+      // Sort by priority score (highest first) and cap each source
+      // Done BEFORE enrichment so cross-reference/dependency work runs on fewer items
+      const byPriority = (a: any, b: any) =>
+        (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0);
+
+      // Calendar is uncapped (you need to see all your meetings)
+      linearIssues = linearIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.LINEAR);
+      gmailTodos = gmailTodos.sort(byPriority).slice(0, DISPLAY_LIMITS.GMAIL);
+      slackMessages = slackMessages.sort(byPriority).slice(0, DISPLAY_LIMITS.SLACK);
+      githubPRs = githubPRs.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_PRS);
+      githubIssues = githubIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_ISSUES);
+      assignedActions = assignedActions.sort(byPriority).slice(0, DISPLAY_LIMITS.DOCS);
+      meetingSummaries = meetingSummaries.sort(byPriority).slice(0, DISPLAY_LIMITS.MEETING_SUMMARIES);
+      meetingNoteActions = meetingNoteActions.slice(0, DISPLAY_LIMITS.MEETING_NOTES);
+
       // ============================================
       // ENRICHMENT PHASE: Cross-Item Intelligence
+      // Runs on capped arrays so less work to do
       // ============================================
 
       // 1. Dependencies: Parse blocking relationships from Linear issue titles
@@ -419,12 +509,6 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         );
       }
 
-      // Add id to meeting notes (they don't go through an enrichment .map())
-      meetingNoteActions = meetingNoteActions.map(note => ({
-        ...note,
-        taskId: randomUUID(),
-      }));
-
       // Build response data
       const responseData = {
         calendar: calendarEvents,
@@ -445,23 +529,24 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         }
       };
 
-      // Write to local file so the UI can read it without auth
-      try {
-        const dataDir = path.join(process.cwd(), "data");
-        await fs.mkdir(dataDir, { recursive: true });
-        await fs.writeFile(
+      // Write full data to local file so the UI can read it without auth
+      // Fire-and-forget: don't block the response on disk I/O
+      const dataDir = path.join(process.cwd(), "data");
+      fs.mkdir(dataDir, { recursive: true })
+        .then(() => fs.writeFile(
           path.join(dataDir, "latest-tasks.json"),
           JSON.stringify(responseData, null, 2)
-        );
-      } catch {
-        // Non-fatal: UI cache write failed, tool still returns data normally
-      }
+        ))
+        .catch(() => {}); // Non-fatal: UI cache write failed
+
+      // In compact mode, strip verbose enrichment to reduce token usage for chat agents
+      const outputData = compact ? compactifyResponse(responseData) : responseData;
 
       // Return JSON string
       return {
         content: [{
           type: "text",
-          text: JSON.stringify(responseData, null, 2)
+          text: JSON.stringify(outputData)
         }]
       };
     }) as AuthenticatedToolHandlerWithArgs<typeof listAllTasksTodayInputSchema>
