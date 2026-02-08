@@ -57,7 +57,3 @@ export async function discoverEndpoints(baseUrl: string): Promise<OAuthEndpoints
   }
 }
 
-/** Clear cached endpoints (useful for testing or re-discovery). */
-export function clearEndpointCache(): void {
-  cachedEndpoints = null
-}

@@ -38,31 +38,3 @@ export function buildSlackId(channelId: string, messageTs: string): string {
   return `slack:${channelId}:${messageTs}`;
 }
 
-/**
- * Build identifier for ad-hoc user-defined actions
- * @param userProvidedId - User's custom identifier
- * @returns Composite identifier: adhoc:{userProvidedId}
- */
-export function buildAdHocId(userProvidedId: string): string {
-  return `adhoc:${userProvidedId}`;
-}
-
-/**
- * Parse a composite action ID into its parts
- * @param compositeId - Full identifier (e.g., "meeting-note:doc123:abc12345")
- * @returns Object with source and identifier parts
- */
-export function parseActionId(compositeId: string): {
-  source: ActionSource;
-  identifier: string;
-} {
-  const colonIndex = compositeId.indexOf(":");
-  if (colonIndex === -1) {
-    throw new Error(`Invalid action ID format: ${compositeId}`);
-  }
-
-  const source = compositeId.substring(0, colonIndex) as ActionSource;
-  const identifier = compositeId.substring(colonIndex + 1);
-
-  return { source, identifier };
-}

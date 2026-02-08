@@ -79,6 +79,13 @@ export function formatDueDate(dueDate: string): { text: string; isOverdue: boole
 }
 
 /**
+ * Smart date display: show time only if today, otherwise show date
+ */
+export function formatSmartDate(timestamp: string): string {
+  return isToday(timestamp) ? formatTime(timestamp) : formatDate(timestamp)
+}
+
+/**
  * Check if a date is today
  */
 export function isToday(timestamp: string): boolean {

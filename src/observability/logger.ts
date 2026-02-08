@@ -200,15 +200,6 @@ export function injectContextIntoHeaders(
   return injectedHeaders;
 }
 
-export function getCurrentContext() {
-  const activeSpan = trace.getSpan(context.active());
-  return {
-    traceId: activeSpan?.spanContext().traceId,
-    spanId: activeSpan?.spanContext().spanId,
-    hasActiveSpan: !!activeSpan,
-  };
-}
-
 function parseLogLevelFromEnv(): LogLevel {
   const envLevel = process.env.LOG_LEVEL?.toUpperCase();
 
@@ -232,10 +223,6 @@ function parseLogLevelFromEnv(): LogLevel {
 
 export function setGlobalLogLevel(level: LogLevel): void {
   globalLogger.setLevel(level);
-}
-
-export function getGlobalLogLevel(): LogLevel {
-  return globalLogger.getLevel();
 }
 
 export const logger = {

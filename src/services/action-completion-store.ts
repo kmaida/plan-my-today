@@ -174,14 +174,6 @@ export async function isActionCompleted(
 }
 
 /**
- * Get all completed actions
- */
-export async function getAllCompletions(): Promise<CompletedAction[]> {
-  const data = await readCompletionsFile();
-  return Object.values(data.completions);
-}
-
-/**
  * Manually trigger pruning (for testing)
  */
 export async function forcePrune(daysBack: number = PRUNE_DAYS): Promise<number> {

@@ -6,7 +6,7 @@ import {
 } from '../types/tasks'
 import { getTaskTitle, getTaskUrl } from '../utils/taskHelpers'
 import { getPriorityLabel } from '../utils/priorityHelpers'
-import { formatDueDate, formatTime, formatDate, isToday } from '../utils/dateHelpers'
+import { formatDueDate, formatTime, formatDate, isToday, formatSmartDate } from '../utils/dateHelpers'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
 import { Chevron } from './Chevron'
 import './TaskCard.css'
@@ -67,7 +67,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
 
     if (isGmailTask(task)) {
       metadata.push(`From: ${task.from}`)
-      metadata.push(isToday(task.timestamp) ? formatTime(task.timestamp) : formatDate(task.timestamp))
+      metadata.push(formatSmartDate(task.timestamp))
     }
 
     if (isGitHubTask(task)) {
@@ -86,7 +86,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
       } else if (channel && !isRawId) {
         metadata.push(`#${channel}`)
       }
-      metadata.push(isToday(task.timestamp) ? formatTime(task.timestamp) : formatDate(task.timestamp))
+      metadata.push(formatSmartDate(task.timestamp))
     }
 
     if (isCalendarTask(task)) {
@@ -98,7 +98,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
     }
 
     if (isDocsActionTask(task) || isMeetingNotesTask(task)) {
-      metadata.push(isToday(task.timestamp) ? formatTime(task.timestamp) : formatDate(task.timestamp))
+      metadata.push(formatSmartDate(task.timestamp))
     }
 
     return metadata

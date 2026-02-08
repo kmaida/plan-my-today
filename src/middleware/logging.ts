@@ -137,7 +137,3 @@ export function createLoggingMiddleware(operation: string) {
 export const httpLoggingMiddleware = createLoggingMiddleware("http_request");
 export const mcpLoggingMiddleware = createLoggingMiddleware("mcp_request");
 export const generalLoggingMiddleware = createLoggingMiddleware("general");
-
-export function getCurrentRequestContext(req: Request) {
-  return req.context;
-}
