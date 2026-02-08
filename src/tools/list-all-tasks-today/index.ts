@@ -243,10 +243,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         // 1: Linear
         (async () => {
           const token = await stsClient.exchange(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
-          return fetchLinearIssues(token.access_token, sevenDaysFromNow, {
-            includeRecentlyCompleted: true,
-            completedDaysBack: 3
-          });
+          return fetchLinearIssues(token.access_token, sevenDaysFromNow);
         })(),
 
         // 2: Gmail (todos + meeting summaries share one STS exchange)

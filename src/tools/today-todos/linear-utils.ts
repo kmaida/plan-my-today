@@ -100,47 +100,20 @@ export async function fetchLinearIssues(
   // Defaults: backward compatible with existing behavior
   const { includeRecentlyCompleted = false, completedDaysBack = 0 } = options;
 
-  // Fetch open issues
-  let issues = await fetchAllAssignedIssues(accessToken, {
+  // Fetch open issues (excludes completed and canceled at GraphQL level)
+  const issues = await fetchAllAssignedIssues(accessToken, {
     includeCompleted: false,
     limit: FETCH_LIMITS.LINEAR,
   });
-
-  // If includeRecentlyCompleted, also fetch completed items
-  if (includeRecentlyCompleted && completedDaysBack > 0) {
-    const completedIssues = await fetchAllAssignedIssues(accessToken, {
-      includeCompleted: true,
-      limit: FETCH_LIMITS.LINEAR,
-    });
-
-    // Filter to only include items completed within completedDaysBack
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - completedDaysBack);
-    cutoffDate.setHours(0, 0, 0, 0);
-
-    const recentlyCompleted = completedIssues.filter(issue => {
-      if (issue.state?.type !== "completed") return false;
-      if (!issue.completedAt) return false;
-      const completedDate = new Date(issue.completedAt);
-      return completedDate >= cutoffDate;
-    });
-
-    // Merge with open issues
-    issues = [...issues, ...recentlyCompleted];
-  }
 
   // Filter: include issues that are actionable today
   // 1. In-progress states (started, blocked, in review, etc.)
   // 2. Due within the date window (or overdue)
   // 3. High or Urgent priority (priority ≤ 2), even without a due date
-  // 4. Recently completed (already filtered by date above)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   return issues.filter(issue => {
-    // If completed, always include (already filtered by date above)
-    if (issue.state?.type === "completed") return true;
-
     // In-progress issues always included (started, blocked, in review, etc.)
     if (issue.state?.type === "started") return true;
 
