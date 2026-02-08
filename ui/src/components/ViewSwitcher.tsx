@@ -9,8 +9,6 @@ interface ViewSwitcherProps {
 const VIEW_OPTIONS: Array<{ mode: ViewMode; label: string }> = [
   { mode: 'priority', label: 'Priority' },
   { mode: 'source', label: 'Source' },
-  { mode: 'timeline', label: 'Timeline' },
-  { mode: 'related', label: 'Related' },
 ]
 
 export function ViewSwitcher({ activeView, onViewChange }: ViewSwitcherProps) {

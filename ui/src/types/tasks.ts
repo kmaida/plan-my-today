@@ -337,7 +337,7 @@ export interface MarkCompleteResponse {
 
 // ===== View Modes =====
 
-export type ViewMode = 'priority' | 'source' | 'timeline' | 'related'
+export type ViewMode = 'priority' | 'source'
 
 // ===== Filter State =====
 
