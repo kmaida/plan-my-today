@@ -494,17 +494,12 @@ export function createApp(): express.Application {
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
 
-      const reader = (anthropicRes.body as ReadableStream<Uint8Array>).getReader();
-      const decoder = new TextDecoder();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(decoder.decode(value, { stream: true }));
-        }
-      } finally {
-        res.end();
-      }
+      // Convert web ReadableStream to Node.js Readable and pipe to response
+      const { Readable } = await import('node:stream');
+      const nodeStream = Readable.fromWeb(
+        anthropicRes.body as import('node:stream/web').ReadableStream,
+      );
+      nodeStream.pipe(res);
     } catch (err) {
       console.error('Chat proxy failed:', err);
       res.status(500).json({ error: 'Chat proxy failed' });
