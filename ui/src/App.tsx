@@ -113,7 +113,7 @@ function App() {
         <header className="app-header">
           <div className="app-header__content">
             <div className="app-header__top">
-              <h1>Your Tasks</h1>
+              <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
               <div className="app-header__actions">
                 <button
                   className="app-header__reload"

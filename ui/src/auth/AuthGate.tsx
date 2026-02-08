@@ -19,7 +19,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
-          <h1 className="auth-gate__title">To Do</h1>
+          <h1 className="auth-gate__title app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
           <p className="auth-gate__subtitle">Sign in to view your tasks</p>
 
           {error && <p className="auth-gate__error">{error}</p>}

@@ -59,6 +59,16 @@
   margin: 0 0 var(--space-xs) 0;
 }
 
+.app-brand {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.app-brand__to {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-normal);
+}
+
 .app-header__actions {
   display: flex;
   align-items: center;
