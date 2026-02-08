@@ -1,3 +1,4 @@
+import ReactMarkdown from 'react-markdown'
 import type { ChatMessage as ChatMessageType } from '../../chat/types'
 import { ToolCallCard } from './ToolCallCard'
 
@@ -12,7 +13,23 @@ export function ChatMessage({ message }: ChatMessageProps) {
     <div className={`chat-message chat-message--${message.role}`}>
       <div className="chat-message__bubble">
         {message.text && (
-          <div className="chat-message__text">{message.text}</div>
+          <div className="chat-message__text">
+            {isUser ? (
+              message.text
+            ) : (
+              <ReactMarkdown
+                components={{
+                  a: ({ children, href, ...props }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {message.text}
+              </ReactMarkdown>
+            )}
+          </div>
         )}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="chat-message__tools">
