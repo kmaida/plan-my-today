@@ -194,13 +194,15 @@
 .auth-error-banner {
   background-color: color-mix(in srgb, var(--color-high) 12%, var(--color-bg));
   border-bottom: 1px solid color-mix(in srgb, var(--color-high) 30%, transparent);
-  padding: var(--space-sm) var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  position: relative;
 }
 
 .auth-error-banner__content {
   display: flex;
-  align-items: center;
-  gap: var(--space-md);
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-sm) var(--space-md);
   max-width: 800px;
   margin: 0 auto;
   padding: 0 var(--space-xl);
@@ -214,7 +216,7 @@
 }
 
 .auth-error-banner__details {
-  margin-top: var(--space-xs);
+  flex-basis: 100%;
 }
 
 .auth-error-banner__details summary {
@@ -260,15 +262,21 @@
 .auth-error-banner__dismiss {
   background: none;
   border: none;
+  box-shadow: none;
   color: var(--color-text-secondary);
   font-size: 1.2em;
   cursor: pointer;
   padding: 0 var(--space-xs);
   line-height: 1;
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
 }
 
 .auth-error-banner__dismiss:hover {
   color: var(--color-text-primary);
+  background: none;
+  box-shadow: none;
 }
 
 /* ── Empty / loading states ─────────────────────────────────── */

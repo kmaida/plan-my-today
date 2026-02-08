@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useAuth } from './AuthContext'
+import { AuthHint } from './AuthHint'
 import './AuthGate.css'
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -28,6 +29,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <button className="auth-gate__button btn--inverted" onClick={login}>
             Sign in
           </button>
+          <div className="auth-gate__hint">
+            <AuthHint />
+          </div>
         </div>
       </div>
     )

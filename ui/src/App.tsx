@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { AuthGate, useAuth } from './auth'
+import { AuthGate, AuthHint, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
@@ -175,11 +175,7 @@ function App() {
             <div className="auth-error-banner__content">
               <div className="auth-error-banner__message">
                 <strong>Some sources couldn't be reached.</strong>
-                {' '}Your authorization grants may have expired or been revoked.
-                <details className="auth-error-banner__details">
-                  <summary>{authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}</summary>
-                  <pre className="auth-error-banner__pre">{authErrors.join('\n\n')}</pre>
-                </details>
+                {' '}Your authorization grants may have expired or been revoked. <AuthHint />
               </div>
               <div className="auth-error-banner__actions">
                 <button
@@ -188,15 +184,19 @@ function App() {
                 >
                   Reauthorize
                 </button>
-                <button
-                  className="auth-error-banner__dismiss"
-                  onClick={() => setAuthErrorsDismissed(true)}
-                  aria-label="Dismiss"
-                >
-                  &times;
-                </button>
               </div>
+              <details className="auth-error-banner__details">
+                <summary>{authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}</summary>
+                <pre className="auth-error-banner__pre">{authErrors.join('\n\n')}</pre>
+              </details>
             </div>
+            <button
+              className="auth-error-banner__dismiss"
+              onClick={() => setAuthErrorsDismissed(true)}
+              aria-label="Dismiss"
+            >
+              &times;
+            </button>
           </div>
         )}
 
