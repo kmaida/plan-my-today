@@ -17,6 +17,28 @@ import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
 import { TIME_WINDOWS, FETCH_LIMITS, DISPLAY_LIMITS } from "../../constants";
+import type {
+  CalendarEventDetail,
+  LinearIssueDetail,
+  GmailMessageDetail,
+  MeetingSummaryDetail,
+  AssignedActionDetail,
+  GitHubPRDetail,
+  GitHubIssueDetail,
+  SlackMessageDetail,
+  MeetingNoteActionDetail,
+  EnrichedCalendarEvent,
+  EnrichedLinearIssue,
+  EnrichedGmailMessage,
+  EnrichedMeetingSummary,
+  EnrichedAssignedAction,
+  EnrichedGitHubPR,
+  EnrichedGitHubIssue,
+  EnrichedSlackMessage,
+  EnrichedMeetingNote,
+  ListAllTasksResponse,
+} from "../today-todos/types";
+import type { PriorityMetadata } from "../today-todos/priority-utils";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -104,11 +126,9 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
  * Strips: signals, crossReferenceMetadata, dependencyMetadata,
  *         meetingContextMetadata, conferenceData, internal IDs, redundant fields
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function compactifyResponse(data: Record<string, any>): Record<string, any> {
+function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown> {
   // Slim priority metadata: keep score, category, reasons — drop signals
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function slimPriority(item: any) {
+  function slimPriority(item: { priorityMetadata?: PriorityMetadata }) {
     if (!item.priorityMetadata) return undefined;
     return {
       score: item.priorityMetadata.score,
@@ -117,45 +137,43 @@ function compactifyResponse(data: Record<string, any>): Record<string, any> {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function stripItem(item: any, keepFields: string[]): any {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const slim: any = {};
+  function stripItem(item: Record<string, unknown>, keepFields: string[]): Record<string, unknown> {
+    const slim: Record<string, unknown> = {};
     for (const key of keepFields) {
       if (item[key] !== undefined && item[key] !== null) slim[key] = item[key];
     }
-    slim.priorityMetadata = slimPriority(item);
+    slim.priorityMetadata = slimPriority(item as { priorityMetadata?: PriorityMetadata });
     return slim;
   }
 
   return {
-    calendar: (data.calendar || []).map((e: any) => stripItem(e, [
+    calendar: data.calendar.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "summary", "start", "end", "htmlLink", "hangoutLink", "attendees", "taskId",
     ])),
-    linear: (data.linear || []).map((e: any) => stripItem(e, [
+    linear: data.linear.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "identifier", "title", "priority", "priorityLabel", "url", "state", "dueDate", "estimate", "project", "taskId",
     ])),
-    gmail: (data.gmail || []).map((e: any) => stripItem(e, [
+    gmail: data.gmail.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "id", "subject", "from", "link", "needsReply", "hasActionItems", "taskId",
     ])),
-    meetingSummaries: (data.meetingSummaries || []).map((e: any) => stripItem(e, [
+    meetingSummaries: data.meetingSummaries.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "platform", "meetingTitle", "subject", "link", "recordingLink", "hasActionItems", "taskId",
     ])),
-    docs: (data.docs || []).map((e: any) => stripItem(e, [
+    docs: data.docs.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "fileTitle", "actionType", "fileLink", "taskId",
     ])),
     github: {
-      prs: (data.github?.prs || []).map((e: any) => stripItem(e, [
+      prs: data.github.prs.map(e => stripItem(e as unknown as Record<string, unknown>, [
         "number", "title", "url", "repo", "type", "isDraft", "taskId",
       ])),
-      issues: (data.github?.issues || []).map((e: any) => stripItem(e, [
+      issues: data.github.issues.map(e => stripItem(e as unknown as Record<string, unknown>, [
         "number", "title", "url", "repo", "labels", "taskId",
       ])),
     },
-    slack: (data.slack || []).map((e: any) => stripItem(e, [
+    slack: data.slack.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "text", "type", "userName", "permalink", "taskId",
     ])),
-    meetingNotes: (data.meetingNotes || []).map((e: any) => stripItem(e, [
+    meetingNotes: data.meetingNotes.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "actionItem", "documentTitle", "documentLink", "assignee", "isUrgent", "taskId",
     ])),
     metadata: data.metadata,
@@ -215,16 +233,16 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const today = new Date();
       const errors: string[] = [];
 
-      // Initialize data containers
-      let calendarEvents: any[] = [];
-      let linearIssues: any[] = [];
-      let gmailTodos: any[] = [];
-      let meetingSummaries: any[] = [];
-      let assignedActions: any[] = [];
-      let githubPRs: any[] = [];
-      let githubIssues: any[] = [];
-      let slackMessages: any[] = [];
-      let meetingNoteActions: any[] = [];
+      // Initialize raw data containers (populated by parallel fetch)
+      let rawCalendar: CalendarEventDetail[] = [];
+      let rawLinear: LinearIssueDetail[] = [];
+      let rawGmail: GmailMessageDetail[] = [];
+      let rawMeetingSummaries: MeetingSummaryDetail[] = [];
+      let rawAssignedActions: AssignedActionDetail[] = [];
+      let rawGithubPRs: GitHubPRDetail[] = [];
+      let rawGithubIssues: GitHubIssueDetail[] = [];
+      let rawSlack: SlackMessageDetail[] = [];
+      let rawMeetingNotes: MeetingNoteActionDetail[] = [];
 
       // ============================================
       // PARALLEL FETCH: All sources run concurrently
@@ -299,101 +317,101 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // Unpack results — each source fails independently
       if (fetchResults[0].status === "fulfilled") {
-        calendarEvents = fetchResults[0].value;
+        rawCalendar = fetchResults[0].value;
       } else {
         errors.push(formatAuthError("Google Calendar", fetchResults[0].reason));
       }
 
       if (fetchResults[1].status === "fulfilled") {
-        linearIssues = fetchResults[1].value;
+        rawLinear = fetchResults[1].value;
       } else {
         errors.push(formatAuthError("Linear", fetchResults[1].reason));
       }
 
       if (fetchResults[2].status === "fulfilled") {
-        gmailTodos = fetchResults[2].value.todos;
-        meetingSummaries = fetchResults[2].value.summaries;
+        rawGmail = fetchResults[2].value.todos;
+        rawMeetingSummaries = fetchResults[2].value.summaries;
       } else {
         errors.push(formatAuthError("Gmail", fetchResults[2].reason));
       }
 
       if (fetchResults[3].status === "fulfilled") {
-        assignedActions = fetchResults[3].value;
+        rawAssignedActions = fetchResults[3].value;
       } else {
         errors.push(formatAuthError("Google Drive Activity", fetchResults[3].reason));
       }
 
       if (fetchResults[4].status === "fulfilled") {
-        githubPRs = fetchResults[4].value.prs;
-        githubIssues = fetchResults[4].value.issues;
+        rawGithubPRs = fetchResults[4].value.prs;
+        rawGithubIssues = fetchResults[4].value.issues;
       } else if (includeGithub) {
         errors.push(formatAuthError("GitHub", fetchResults[4].reason));
       }
 
       if (fetchResults[5].status === "fulfilled") {
-        slackMessages = fetchResults[5].value;
+        rawSlack = fetchResults[5].value;
       } else {
         errors.push(formatAuthError("Slack", fetchResults[5].reason));
       }
 
       if (fetchResults[6].status === "fulfilled") {
-        meetingNoteActions = fetchResults[6].value;
+        rawMeetingNotes = fetchResults[6].value;
       } else {
         errors.push(formatAuthError("Meeting Notes (Google Drive)", fetchResults[6].reason));
       }
 
-      // Enrich with priority metadata
+      // Enrich with priority metadata + taskId
       const now = new Date();
 
       // Remove calendar events that have already ended (keep all-day events)
-      calendarEvents = calendarEvents.filter(event => {
+      const activeCalendar = rawCalendar.filter(event => {
         const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
         return !endTime || endTime > now;
       });
 
-      calendarEvents = calendarEvents.map(event => ({
+      let calendarEvents: EnrichedCalendarEvent[] = activeCalendar.map(event => ({
         ...event,
         taskId: randomUUID(),
         priorityMetadata: calculateCalendarPriority(event, now)
       }));
 
-      linearIssues = linearIssues.map(issue => ({
+      let linearIssues: EnrichedLinearIssue[] = rawLinear.map(issue => ({
         ...issue,
         taskId: randomUUID(),
         priorityMetadata: calculateLinearPriority(issue, now)
       }));
 
-      gmailTodos = gmailTodos.map(email => ({
+      let gmailTodos: EnrichedGmailMessage[] = rawGmail.map(email => ({
         ...email,
         taskId: randomUUID(),
         priorityMetadata: calculateEmailPriority(email, now)
       }));
 
-      meetingSummaries = meetingSummaries.map(summary => ({
+      let meetingSummaries: EnrichedMeetingSummary[] = rawMeetingSummaries.map(summary => ({
         ...summary,
         taskId: randomUUID(),
         priorityMetadata: calculateMeetingSummaryPriority(summary, now)
       }));
 
-      assignedActions = assignedActions.map(action => ({
+      let assignedActions: EnrichedAssignedAction[] = rawAssignedActions.map(action => ({
         ...action,
         taskId: randomUUID(),
         priorityMetadata: calculateDocsPriority(action, now)
       }));
 
-      githubPRs = githubPRs.map(pr => ({
+      let githubPRs: EnrichedGitHubPR[] = rawGithubPRs.map(pr => ({
         ...pr,
         taskId: randomUUID(),
         priorityMetadata: calculateGitHubPriority(pr, now)
       }));
 
-      githubIssues = githubIssues.map(issue => ({
+      let githubIssues: EnrichedGitHubIssue[] = rawGithubIssues.map(issue => ({
         ...issue,
         taskId: randomUUID(),
         priorityMetadata: calculateGitHubPriority(issue, now)
       }));
 
-      slackMessages = slackMessages.map(msg => {
+      let slackMessages: EnrichedSlackMessage[] = rawSlack.map(msg => {
         // Priority must be calculated BEFORE we convert the timestamp,
         // since calculateSlackPriorityWithMetadata expects epoch seconds
         const priorityMetadata = calculateSlackPriorityWithMetadata(msg, now);
@@ -409,15 +427,15 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         };
       });
 
-      // Add id to meeting notes (they don't go through an enrichment .map())
-      meetingNoteActions = meetingNoteActions.map(note => ({
+      // Add taskId to meeting notes
+      let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map(note => ({
         ...note,
         taskId: randomUUID(),
       }));
 
       // Sort by priority score (highest first) and cap each source
-      // Done BEFORE enrichment so cross-reference/dependency work runs on fewer items
-      const byPriority = (a: any, b: any) =>
+      // Done BEFORE cross-reference enrichment so less work to do
+      const byPriority = (a: { priorityMetadata?: PriorityMetadata }, b: { priorityMetadata?: PriorityMetadata }) =>
         (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0);
 
       // Calendar is uncapped (you need to see all your meetings)
@@ -510,7 +528,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       linkMeetingAssets(meetingSummaries, meetingNoteActions, calendarEvents);
 
       // Build response data
-      const responseData = {
+      const responseData: ListAllTasksResponse = {
         calendar: calendarEvents,
         linear: linearIssues,
         gmail: gmailTodos,

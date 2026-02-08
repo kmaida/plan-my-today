@@ -221,6 +221,34 @@ export interface MeetingNoteActionDetail {
   priorityMetadata?: PriorityMetadata;
 }
 
+// ── Enriched types (after taskId + priority assignment in list-all-tasks-today) ──
+
+/** Fields added to every item during enrichment */
+export type Enriched<T> = T & { taskId: string; priorityMetadata: PriorityMetadata };
+
+export type EnrichedCalendarEvent = Enriched<CalendarEventDetail>;
+export type EnrichedLinearIssue = Enriched<LinearIssueDetail>;
+export type EnrichedGmailMessage = Enriched<GmailMessageDetail>;
+export type EnrichedMeetingSummary = Enriched<MeetingSummaryDetail>;
+export type EnrichedAssignedAction = Enriched<AssignedActionDetail>;
+export type EnrichedGitHubPR = Enriched<GitHubPRDetail>;
+export type EnrichedGitHubIssue = Enriched<GitHubIssueDetail>;
+export type EnrichedSlackMessage = Enriched<SlackMessageDetail>;
+export type EnrichedMeetingNote = MeetingNoteActionDetail & { taskId: string };
+
+/** Full response shape from list-all-tasks-today */
+export interface ListAllTasksResponse {
+  calendar: EnrichedCalendarEvent[];
+  linear: EnrichedLinearIssue[];
+  gmail: EnrichedGmailMessage[];
+  meetingSummaries: EnrichedMeetingSummary[];
+  docs: EnrichedAssignedAction[];
+  github: { prs: EnrichedGitHubPR[]; issues: EnrichedGitHubIssue[] };
+  slack: EnrichedSlackMessage[];
+  meetingNotes: EnrichedMeetingNote[];
+  metadata: { fetched_at: string; date: string; errors?: string[] };
+}
+
 /**
  * Time block for work suggestions
  */

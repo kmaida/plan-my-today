@@ -2,6 +2,7 @@ import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index
 import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
+import { handleToolError } from "../utils/tool-error-utils";
 import type { LinearIssueDetail } from "./today-todos/types";
 
 const LINEAR_RESOURCE = "https://api.linear.app";
@@ -159,35 +160,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
         };
 
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        const normalizedMessage = message.toLowerCase();
-        const isInvalidGrant = normalizedMessage.includes("invalid_grant")
-          || normalizedMessage.includes("not allowed to exchange token");
-
-        if (isInvalidGrant) {
-          return {
-            content: [{
-              type: "text",
-              text: [
-                `❌ Error: ${message}`,
-                "",
-                "Possible fixes:",
-                "- Verify KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET are set for this server.",
-                "- Confirm the Keycard client is allowed to exchange tokens for:",
-                `  resource: ${LINEAR_RESOURCE}`,
-                `  scope: ${LINEAR_SCOPES.join(" ")}`,
-                "- Ensure the STS issuer/zone matches the one that issued your MCP token."
-              ].join("\n")
-            }]
-          };
-        }
-
-        return {
-          content: [{
-            type: "text",
-            text: `❌ Error: ${message}`
-          }]
-        };
+        return handleToolError(error, LINEAR_RESOURCE, LINEAR_SCOPES);
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof linearIssuesInputSchema>
   );

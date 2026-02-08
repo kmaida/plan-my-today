@@ -2,6 +2,7 @@ import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index
 import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { fetchGmailTodos } from "./today-todos/email-utils";
+import { handleToolError } from "../utils/tool-error-utils";
 import type { GmailMessageDetail } from "./today-todos/types";
 
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
@@ -192,36 +193,9 @@ export function registerGmailTool(mcpServer: McpServer): void {
         };
 
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        const normalizedMessage = message.toLowerCase();
-        const isInvalidGrant = normalizedMessage.includes("invalid_grant")
-          || normalizedMessage.includes("not allowed to exchange token");
-
-        if (isInvalidGrant) {
-          return {
-            content: [{
-              type: "text",
-              text: [
-                `❌ Error: ${message}`,
-                "",
-                "Possible fixes:",
-                "- Verify KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET are set for this server.",
-                "- Confirm the Keycard client is allowed to exchange tokens for:",
-                `  resource: ${GMAIL_RESOURCE}`,
-                `  scope: ${GMAIL_SCOPES.join(" ")}`,
-                "- Ensure your Gmail credential provider is configured in Keycard.",
-                "- Ensure the STS issuer/zone matches the one that issued your MCP token."
-              ].join("\n")
-            }]
-          };
-        }
-
-        return {
-          content: [{
-            type: "text",
-            text: `❌ Error: ${message}`
-          }]
-        };
+        return handleToolError(error, GMAIL_RESOURCE, GMAIL_SCOPES, [
+          "Ensure your Gmail credential provider is configured in Keycard.",
+        ]);
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof gmailTodosInputSchema>
   );

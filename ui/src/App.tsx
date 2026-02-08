@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { AuthGate, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
@@ -91,8 +91,8 @@ function App() {
     }
   }, [isConnected, authErrors, handleRefresh])
 
-  const filteredTasks = applyFilters(tasks, filterState)
-  const taskGroups = groupTasks(filteredTasks, viewMode)
+  const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
+  const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
 
   const handleMarkComplete = useCallback(async (task: Task) => {
     setCompletingTaskId(task.taskId)

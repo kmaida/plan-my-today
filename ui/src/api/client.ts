@@ -138,54 +138,6 @@ export async function refreshAllTasks(): Promise<TasksResult> {
 }
 
 /**
- * Fetch calendar events for today
- */
-export async function listCalendarEvents(): Promise<Task[]> {
-  const response = await callTool<{ events: Task[] }>('list-calendar-events')
-  return response.events || []
-}
-
-/**
- * Fetch Linear issues assigned to user
- */
-export async function listLinearIssues(): Promise<Task[]> {
-  const response = await callTool<{ issues: Task[] }>('list-linear-issues')
-  return response.issues || []
-}
-
-/**
- * Fetch Gmail todos (unread/starred)
- */
-export async function listGmailTodos(): Promise<Task[]> {
-  const response = await callTool<{ emails: Task[] }>('list-gmail-todos')
-  return response.emails || []
-}
-
-/**
- * Fetch GitHub PRs and issues
- */
-export async function listGitHubTodos(): Promise<Task[]> {
-  const response = await callTool<{ items: Task[] }>('list-github-todos')
-  return response.items || []
-}
-
-/**
- * Fetch Slack mentions and DMs
- */
-export async function listSlackTodos(): Promise<Task[]> {
-  const response = await callTool<{ messages: Task[] }>('list-slack-todos')
-  return response.messages || []
-}
-
-/**
- * Fetch assigned actions from Google Docs
- */
-export async function listAssignedActions(): Promise<Task[]> {
-  const response = await callTool<{ actions: Task[] }>('list-assigned-actions')
-  return response.actions || []
-}
-
-/**
  * Mark an email as complete (adds "Complete" label)
  */
 export async function markEmailComplete(emailId: string): Promise<MarkCompleteResponse> {
@@ -209,35 +161,3 @@ export async function markActionComplete(
   })
 }
 
-/**
- * Get authenticated user info
- */
-export async function whoami(): Promise<{ user?: string; authenticated: boolean }> {
-  return await callTool<{ user?: string; authenticated: boolean }>('whoami')
-}
-
-/**
- * Check authentication status
- */
-export async function checkAuth(): Promise<{ authenticated: boolean; message: string }> {
-  return await callTool<{ authenticated: boolean; message: string }>('check-auth')
-}
-
-// ===== Export all methods =====
-
-export const api = {
-  listAllTasks,
-  refreshAllTasks,
-  listCalendarEvents,
-  listLinearIssues,
-  listGmailTodos,
-  listGitHubTodos,
-  listSlackTodos,
-  listAssignedActions,
-  markEmailComplete,
-  markActionComplete,
-  whoami,
-  checkAuth,
-}
-
-export default api
