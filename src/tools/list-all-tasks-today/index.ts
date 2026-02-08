@@ -15,7 +15,7 @@ import { parseDependencies } from "../today-todos/dependency-utils";
 import { detectLinearMentions, detectGitHubMentions, linkMeetingAssets } from "../today-todos/cross-reference-utils";
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
-import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
+import { formatAuthError } from "../../utils/error-utils";
 import { TIME_WINDOWS, FETCH_LIMITS, DISPLAY_LIMITS } from "../../constants";
 import type {
   CalendarEventDetail,

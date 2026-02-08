@@ -11,15 +11,26 @@ export interface TokenExchangeResponse {
   scope?: string;
 }
 
+interface CachedToken {
+  response: TokenExchangeResponse;
+  expiresAt: number;
+}
+
 export class STSClient {
   private stsBaseUrl: string;
   private clientId: string;
   private clientSecret: string;
+  private tokenCache = new Map<string, CachedToken>();
 
   constructor() {
     this.stsBaseUrl = config.keycardStsIssuerUrl;
     this.clientId = config.keycardClientId;
     this.clientSecret = config.keycardClientSecret;
+  }
+
+  /** Clear all cached tokens (e.g., on logout or token refresh) */
+  clearCache(): void {
+    this.tokenCache.clear();
   }
 
   private getIssuerFromAuthInfo(authInfo: AuthInfo): string | undefined {
@@ -40,6 +51,12 @@ export class STSClient {
     resource: string,
     scopes?: string[]
   ): Promise<TokenExchangeResponse> {
+    const cacheKey = `${resource}|${scopes?.join(",") ?? ""}`;
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt - 90_000) {
+      return cached.response;
+    }
+
     const stsBaseUrl = this.stsBaseUrl || this.getIssuerFromAuthInfo(authInfo);
     if (!stsBaseUrl) {
       throw new Error("Token exchange failed: missing STS issuer URL");
@@ -67,7 +84,7 @@ export class STSClient {
     } satisfies RequestInit;
 
     const tokenUrl = `${stsBaseUrl}/oauth/2/token`;
-    
+
     let response = await fetch(tokenUrl, requestInit);
     if (response.status === 404) {
       const fallbackUrl = `${stsBaseUrl}/oauth/token`;
@@ -79,7 +96,12 @@ export class STSClient {
       throw new Error(`Token exchange failed: ${response.status} - ${error}`);
     }
 
-    return await response.json() as TokenExchangeResponse;
+    const tokenResponse = await response.json() as TokenExchangeResponse;
+    this.tokenCache.set(cacheKey, {
+      response: tokenResponse,
+      expiresAt: Date.now() + tokenResponse.expires_in * 1000,
+    });
+    return tokenResponse;
   }
 }
 
