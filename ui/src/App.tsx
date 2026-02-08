@@ -80,7 +80,7 @@ function App() {
 
   const snapshotLabel = fetchedAt
     ? `Snapshot from ${isToday(fetchedAt) ? `today ${formatTime(fetchedAt)}` : `${formatDate(fetchedAt)} ${formatTime(fetchedAt)}`}`
-    : 'Using sample data'
+    : null
 
   return (
     <AuthGate>
@@ -109,14 +109,16 @@ function App() {
               </div>
             </div>
             <p className="app-header__subtitle">
-              {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
+              {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
             </p>
-            <p className="app-header__snapshot">
-              {snapshotLabel}
-              {!loading && !chatOpen && (
-                <> — ask your agent what you have to do today to capture a fresh list</>
-              )}
-            </p>
+            {snapshotLabel && (
+              <p className="app-header__snapshot">
+                {snapshotLabel}
+                {!loading && !chatOpen && (
+                  <> — ask your agent what you have to do today to capture a fresh list</>
+                )}
+              </p>
+            )}
             {!loading && tasks.length > 0 && (
               <FilterBar
                 filters={filterState}
@@ -137,23 +139,17 @@ function App() {
               </p>
             )}
 
-            {error && (
+            {!loading && (error || tasks.length === 0) && (
               <div style={{
-                padding: 'var(--space-md)',
-                margin: 'var(--space-md) 0',
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: 'var(--radius-md)',
-                color: '#991b1b',
+                textAlign: 'center',
+                padding: 'var(--space-xl)',
+                color: 'var(--color-text-secondary)',
               }}>
-                <strong>Error:</strong> {error}
+                <p style={{ marginBottom: 'var(--space-sm)' }}>
+                  <strong>No task data available.</strong>
+                </p>
+                <p>Open the chat and ask your agent to plan your day. The dashboard will populate once tasks are fetched.</p>
               </div>
-            )}
-
-            {!loading && !error && tasks.length === 0 && (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: 'var(--space-xl)' }}>
-                No tasks found. All clear!
-              </p>
             )}
 
             {!loading && tasks.length > 0 && (

@@ -8,9 +8,6 @@ import type {
   ServerTasksResponse,
 } from '../types/tasks'
 import { transformServerResponse } from './transformers'
-import { mockServerResponse } from './mockData'
-// Set VITE_USE_MOCK=true in .env to force mock data during UI-only development
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
@@ -110,23 +107,13 @@ export interface TasksResult {
 /**
  * Fetch all tasks from all sources with enrichment data.
  * Reads the cached JSON file written by the list-all-tasks-today tool
- * each time Claude calls it. Falls back to mock data in dev mode.
+ * each time the agent calls it. Throws on failure (no mock fallback).
  */
 export async function listAllTasks(): Promise<TasksResult> {
-  if (!USE_MOCK) {
-    try {
-      const response = await apiCall<ServerTasksResponse>('/tasks')
-      return {
-        tasks: transformServerResponse(response),
-        fetchedAt: response.metadata?.fetched_at || null,
-      }
-    } catch (err) {
-      console.warn('Failed to fetch live task data, falling back to mock:', err)
-    }
-  }
+  const response = await apiCall<ServerTasksResponse>('/tasks')
   return {
-    tasks: transformServerResponse(mockServerResponse),
-    fetchedAt: null,
+    tasks: transformServerResponse(response),
+    fetchedAt: response.metadata?.fetched_at || null,
   }
 }
 

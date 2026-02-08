@@ -46,7 +46,7 @@ export interface UseChatReturn {
   clearMessages: () => void
 }
 
-export function useChat(systemPrompt?: string): UseChatReturn {
+export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
   const { callTool, tools: mcpTools, isConnected } = useMCP()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -79,7 +79,7 @@ export function useChat(systemPrompt?: string): UseChatReturn {
       while (rounds < MAX_TOOL_ROUNDS) {
         rounds++
 
-        const response = await callChatAPI(historyRef.current, tools, systemPrompt)
+        const response = await callChatAPI(historyRef.current, tools, buildSystemPrompt?.())
 
         // Extract text and tool_use blocks from Claude's response
         const textParts: string[] = []
@@ -165,7 +165,7 @@ export function useChat(systemPrompt?: string): UseChatReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [isConnected, mcpTools, callTool, systemPrompt])
+  }, [isConnected, mcpTools, callTool, buildSystemPrompt])
 
   const clearMessages = useCallback(() => {
     setMessages([])

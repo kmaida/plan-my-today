@@ -3,7 +3,7 @@ import { useChat } from '../../chat/useChat'
 import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
-import { SYSTEM_PROMPT } from '../../chat/system-prompt'
+import { buildSystemPrompt } from '../../chat/system-prompt'
 import './ChatPanel.css'
 
 interface ChatPanelProps {
@@ -15,7 +15,7 @@ interface ChatPanelProps {
 export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
-  const { messages, isLoading, error, sendMessage, clearMessages } = useChat(SYSTEM_PROMPT)
+  const { messages, isLoading, error, sendMessage, clearMessages } = useChat(buildSystemPrompt)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
