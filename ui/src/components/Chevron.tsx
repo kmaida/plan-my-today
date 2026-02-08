@@ -19,7 +19,7 @@ export function Chevron({ direction, size = 12, className }: ChevronProps) {
       style={{
         flexShrink: 0,
         transform: direction === 'down' ? 'rotate(90deg)' : 'rotate(0deg)',
-        transition: 'transform var(--transition-fast)',
+        transition: 'transform 150ms ease-in-out',
       }}
     >
       <path d="M6 4 L10 8 L6 12" />
