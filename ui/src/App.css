@@ -188,3 +188,58 @@
     z-index: var(--z-modal);
   }
 }
+
+/* ── Auth error banner ─────────────────────────────────────────────────────── */
+
+.auth-error-banner {
+  background-color: color-mix(in srgb, var(--color-high) 15%, var(--color-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-high) 40%, transparent);
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.auth-error-banner__content {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  max-width: var(--content-max-width, 1200px);
+  margin: 0 auto;
+}
+
+.auth-error-banner__icon {
+  color: var(--color-high);
+  font-size: 1.2em;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.auth-error-banner__text {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--color-text-primary);
+  line-height: 1.4;
+}
+
+.auth-error-banner__list {
+  margin: var(--space-xs) 0 0;
+  padding-left: var(--space-md);
+  color: var(--color-text-secondary);
+}
+
+.auth-error-banner__list li {
+  margin-bottom: 2px;
+}
+
+.auth-error-banner__dismiss {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 0 var(--space-xs);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.auth-error-banner__dismiss:hover {
+  color: var(--color-text-primary);
+}

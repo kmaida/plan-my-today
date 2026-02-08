@@ -1,6 +1,7 @@
 import type { GitHubPRDetail, GitHubIssueDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { TIME_WINDOWS } from "../../constants";
+import { AuthenticationError } from "../../utils/error-utils";
 
 /**
  * Gets the authenticated user's GitHub username
@@ -15,6 +16,9 @@ async function getGitHubUsername(accessToken: string): Promise<string | null> {
   const response = await fetch("https://api.github.com/user", { headers });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthenticationError("GitHub", response.status);
+    }
     return null;
   }
 
@@ -57,6 +61,13 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     );
 
     // Fetch full PR details
+    if (!assignedPRResponse.ok && (assignedPRResponse.status === 401 || assignedPRResponse.status === 403)) {
+      throw new AuthenticationError("GitHub", assignedPRResponse.status);
+    }
+    if (!reviewPRResponse.ok && (reviewPRResponse.status === 401 || reviewPRResponse.status === 403)) {
+      throw new AuthenticationError("GitHub", reviewPRResponse.status);
+    }
+
     if (assignedPRResponse.ok) {
       const assignedData = await assignedPRResponse.json() as { items: Array<{ pull_request?: { url: string } }> };
       const prPromises = assignedData.items
@@ -159,6 +170,10 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
       { headers }
     );
 
+    if (!issuesResponse.ok && (issuesResponse.status === 401 || issuesResponse.status === 403)) {
+      throw new AuthenticationError("GitHub", issuesResponse.status);
+    }
+
     if (issuesResponse.ok) {
       const issuesData = await issuesResponse.json() as {
         items: Array<{
@@ -185,7 +200,8 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
         });
       }
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof AuthenticationError) throw err;
     // Silently fail - GitHub is optional
   }
 

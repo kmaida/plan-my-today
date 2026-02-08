@@ -102,6 +102,7 @@ async function callTool<T>(toolName: string, params: Record<string, unknown> = {
 export interface TasksResult {
   tasks: Task[]
   fetchedAt: string | null // ISO timestamp from server, null if using mock data
+  authErrors: string[] // per-source auth failures (e.g. expired grants)
 }
 
 /**
@@ -114,6 +115,7 @@ export async function listAllTasks(): Promise<TasksResult> {
   return {
     tasks: transformServerResponse(response),
     fetchedAt: response.metadata?.fetched_at || null,
+    authErrors: response.metadata?.errors || [],
   }
 }
 
@@ -131,6 +133,7 @@ export async function refreshAllTasks(): Promise<TasksResult> {
   return {
     tasks: transformServerResponse(response),
     fetchedAt: response.metadata?.fetched_at || null,
+    authErrors: response.metadata?.errors || [],
   }
 }
 

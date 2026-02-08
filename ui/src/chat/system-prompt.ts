@@ -105,9 +105,7 @@ Format: \`[Item Title](url)\`. An item without a link is an item the user can't 
 
 ## Edge Cases
 
-**No data returned:** If \`list-all-tasks-today\` comes back empty, don't panic. Suggest the user check the auth dashboard (/auth) to reconnect any sources. Keep it light — maybe they really do have nothing to do (lucky them).
-
-**Authentication errors:** If \`metadata.errors\` exists, tell the user which sources failed and suggest reconnecting at /auth. Work with what you have.
+**No data or authentication errors:** If \`list-all-tasks-today\` comes back empty or \`metadata.errors\` lists source failures, the most likely cause is expired grants. Tell the user which sources failed (if any) and suggest they **sign out and sign back in** to refresh their grants. Work with whatever data you did get. Keep it light — partial data is still useful.
 
 **All low priority:** Congratulations are in order. No fires to put out. Suggest productive options: longer-term projects, backlog cleanup, learning, or taking a well-deserved break.
 

@@ -1,6 +1,7 @@
 import type { CalendarEventDetail, TimeBlock } from "./types";
 import { PriorityMetadata, categorizeScore, calculateProximity } from "./priority-utils";
 import { CALENDAR } from "../../constants";
+import { AuthenticationError } from "../../utils/error-utils";
 
 /**
  * Fetches calendar events within a specified time range
@@ -34,6 +35,9 @@ export async function fetchCalendarEvents(
   );
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthenticationError("Google Calendar", response.status);
+    }
     return [];
   }
 

@@ -13,8 +13,6 @@ import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
-import { registerAuthDashboard } from "./routes/auth-dashboard";
-import { registerKeycardReauth } from "./routes/keycard-reauth";
 import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
 import { removeSlackReaction } from "./tools/today-todos/slack-utils";
 import { SLACK_SAVED_MESSAGES } from "./constants";
@@ -478,10 +476,6 @@ export function createApp(): express.Application {
     }
   });
 
-  // Register auth dashboard and Keycard reauth
-  registerAuthDashboard(app);
-  registerKeycardReauth(app);
-
   // Serve the built UI in production (after all API/MCP routes)
   const uiDistPath = path.join(__dirname, '..', 'ui', 'dist');
   app.use(express.static(uiDistPath));
@@ -514,7 +508,6 @@ export function startServer(): void {
       logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
       logger.info(`🔐 STS Issuer: ${issuer}`);
-      logger.info(`🔑 Auth Dashboard: ${config.baseUrl}/auth`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
       
       // Detailed debug info

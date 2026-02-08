@@ -1,5 +1,6 @@
 import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
+import { AuthenticationError } from "../../utils/error-utils";
 
 /**
  * Determines if an email is from an individual (not an automated system)
@@ -404,6 +405,9 @@ export async function fetchMeetingSummaries(
   );
 
   if (!messagesResponse.ok) {
+    if (messagesResponse.status === 401 || messagesResponse.status === 403) {
+      throw new AuthenticationError("Gmail", messagesResponse.status);
+    }
     return [];
   }
 
@@ -647,6 +651,9 @@ export async function fetchGmailTodos(
   );
 
   if (!messagesResponse.ok) {
+    if (messagesResponse.status === 401 || messagesResponse.status === 403) {
+      throw new AuthenticationError("Gmail", messagesResponse.status);
+    }
     return [];
   }
 

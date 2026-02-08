@@ -43,6 +43,8 @@ function App() {
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
   const [completeError, setCompleteError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [authErrors, setAuthErrors] = useState<string[]>([])
+  const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -51,6 +53,8 @@ function App() {
       const result = await listAllTasks()
       setTasks(result.tasks)
       setFetchedAt(result.fetchedAt)
+      setAuthErrors(result.authErrors)
+      setAuthErrorsDismissed(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks')
     } finally {
@@ -65,6 +69,8 @@ function App() {
       const result = await refreshAllTasks()
       setTasks(result.tasks)
       setFetchedAt(result.fetchedAt)
+      setAuthErrors(result.authErrors)
+      setAuthErrorsDismissed(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
     } finally {
@@ -160,6 +166,28 @@ function App() {
           </div>
         </header>
 
+        {authErrors.length > 0 && !authErrorsDismissed && (
+          <div className="auth-error-banner">
+            <div className="auth-error-banner__content">
+              <span className="auth-error-banner__icon">&#9888;</span>
+              <div className="auth-error-banner__text">
+                <strong>Some sources couldn't be reached.</strong>
+                {' '}Sign out and sign back in to refresh your grants.
+                <ul className="auth-error-banner__list">
+                  {authErrors.map((err, i) => <li key={i}>{err}</li>)}
+                </ul>
+              </div>
+              <button
+                className="auth-error-banner__dismiss"
+                onClick={() => setAuthErrorsDismissed(true)}
+                aria-label="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        )}
+
         <main className="app-main">
           <div className="app-content">
             {loading && (
@@ -174,10 +202,21 @@ function App() {
                 padding: 'var(--space-xl)',
                 color: 'var(--color-text-secondary)',
               }}>
-                <p style={{ marginBottom: 'var(--space-sm)' }}>
-                  <strong>No task data available.</strong>
-                </p>
-                <p>Open the chat and ask your agent to plan your day. The dashboard will populate once tasks are fetched.</p>
+                {authErrors.length > 0 ? (
+                  <>
+                    <p style={{ marginBottom: 'var(--space-sm)' }}>
+                      <strong>Couldn't reach some sources.</strong>
+                    </p>
+                    <p>Your grants may have expired. Sign out and sign back in to refresh them, then try again.</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ marginBottom: 'var(--space-sm)' }}>
+                      <strong>No task data available.</strong>
+                    </p>
+                    <p>Open the chat and ask your agent to plan your day. The dashboard will populate once tasks are fetched.</p>
+                  </>
+                )}
               </div>
             )}
 

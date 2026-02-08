@@ -1,5 +1,6 @@
 import type { AssignedActionDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
+import { AuthenticationError } from "../../utils/error-utils";
 
 /**
  * Fetches assigned actions from Google Docs
@@ -32,6 +33,9 @@ export async function fetchAssignedActions(
   );
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthenticationError("Google Drive Activity", response.status);
+    }
     return [];
   }
 

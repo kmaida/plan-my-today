@@ -1,6 +1,7 @@
 import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "./types";
 import { PriorityMetadata, categorizeScore } from "./priority-utils";
 import { FETCH_LIMITS } from "../../constants";
+import { AuthenticationError } from "../../utils/error-utils";
 
 /**
  * Fetches all Linear issues assigned to the user
@@ -63,6 +64,9 @@ export async function fetchAllAssignedIssues(
   });
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthenticationError("Linear", response.status);
+    }
     return [];
   }
 

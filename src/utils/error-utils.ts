@@ -1,4 +1,15 @@
 /**
+ * Error thrown when an upstream API returns 401 or 403.
+ * Propagates through Promise.allSettled so formatAuthError can surface it.
+ */
+export class AuthenticationError extends Error {
+  constructor(service: string, status: number) {
+    super(`${service}: ${status === 401 ? "unauthorized" : "forbidden"} (${status})`);
+    this.name = "AuthenticationError";
+  }
+}
+
+/**
  * Format authentication errors with actionable guidance
  */
 export function formatAuthError(serviceName: string, error: unknown): string {
@@ -6,15 +17,15 @@ export function formatAuthError(serviceName: string, error: unknown): string {
 
   // Check for common authentication errors
   if (errorMsg.includes("unauthorized") || errorMsg.includes("401")) {
-    return `${serviceName}: Authentication failed - Run 'check-auth' tool and re-authorize in Keycard`;
+    return `${serviceName}: Authentication failed — sign out and sign back in to refresh grants`;
   }
 
   if (errorMsg.includes("forbidden") || errorMsg.includes("403")) {
-    return `${serviceName}: Access denied - Check permissions in Keycard`;
+    return `${serviceName}: Access denied — sign out and sign back in to refresh grants`;
   }
 
   if (errorMsg.includes("token") || errorMsg.includes("auth")) {
-    return `${serviceName}: ${errorMsg} - Run 'check-auth' tool to verify connection`;
+    return `${serviceName}: ${errorMsg} — try signing out and signing back in`;
   }
 
   return `${serviceName}: ${errorMsg}`;
@@ -26,9 +37,5 @@ export function formatAuthError(serviceName: string, error: unknown): string {
 export function getErrorFooter(hasAuthErrors: boolean): string {
   if (!hasAuthErrors) return "";
 
-  return "\n\n💡 **Troubleshooting Authentication Issues:**\n" +
-    "1. Run the 'check-auth' tool to see which services are disconnected\n" +
-    "2. Go to https://keycard.cloud and re-authorize any disconnected services\n" +
-    "3. Restart Claude Desktop to refresh the connection\n" +
-    "4. If issues persist, restart the MCP server";
+  return "\n\nSign out and sign back in to refresh your grants. If issues persist, restart the MCP server.";
 }
