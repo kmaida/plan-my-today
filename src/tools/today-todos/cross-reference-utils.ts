@@ -1,4 +1,4 @@
-import type { CrossReferenceMetadata, GmailMessageDetail, SlackMessageDetail } from "./types";
+import type { CrossReferenceMetadata, GmailMessageDetail, SlackMessageDetail, MeetingSummaryDetail, MeetingNoteActionDetail, CalendarEventDetail } from "./types";
 
 /**
  * Detects mentions of a Linear issue across email and Slack
@@ -111,4 +111,82 @@ export function detectGitHubMentions(
     relatedItems,
     totalMentions: relatedItems.length + 1, // +1 for GitHub itself
   };
+}
+
+/**
+ * Normalize a title for fuzzy comparison: lowercase, collapse whitespace,
+ * strip leading date-like prefixes (e.g., "2025-02-07 ") that Granola
+ * often prepends to document names.
+ */
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*/, "") // strip leading date
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Links Zoom "meeting assets" emails to matching Granola meeting notes
+ * and calendar events using meeting title matching.
+ *
+ * Zoom emails have subjects like "meeting assets for <title> are ready!"
+ * The extracted meetingTitle should match (as a substring) against:
+ * - Granola document titles (often "<date> <meeting title>")
+ * - Calendar event summaries (the meeting name itself)
+ */
+export function linkMeetingAssets(
+  meetingSummaries: MeetingSummaryDetail[],
+  meetingNotes: MeetingNoteActionDetail[],
+  calendarEvents: CalendarEventDetail[]
+): void {
+  for (const summary of meetingSummaries) {
+    if (!summary.meetingTitle) continue;
+
+    const normalizedZoomTitle = normalizeTitle(summary.meetingTitle);
+    if (!normalizedZoomTitle) continue;
+
+    // Match against Granola meeting notes by document title
+    // Dedupe by documentId (multiple action items can come from the same doc)
+    const seenDocIds = new Set<string>();
+    const matchedNotes: MeetingSummaryDetail["relatedMeetingNotes"] = [];
+
+    for (const note of meetingNotes) {
+      if (seenDocIds.has(note.documentId)) continue;
+
+      const normalizedDocTitle = normalizeTitle(note.documentTitle);
+      if (
+        normalizedDocTitle.includes(normalizedZoomTitle) ||
+        normalizedZoomTitle.includes(normalizedDocTitle)
+      ) {
+        seenDocIds.add(note.documentId);
+        matchedNotes.push({
+          documentId: note.documentId,
+          documentTitle: note.documentTitle,
+          documentLink: note.documentLink,
+        });
+      }
+    }
+
+    if (matchedNotes.length > 0) {
+      summary.relatedMeetingNotes = matchedNotes;
+    }
+
+    // Match against calendar events by summary (title)
+    for (const event of calendarEvents) {
+      if (!event.summary) continue;
+
+      const normalizedEventTitle = normalizeTitle(event.summary);
+      if (
+        normalizedEventTitle.includes(normalizedZoomTitle) ||
+        normalizedZoomTitle.includes(normalizedEventTitle)
+      ) {
+        summary.relatedCalendarEvent = {
+          summary: event.summary,
+          htmlLink: event.htmlLink,
+        };
+        break; // Take the first match
+      }
+    }
+  }
 }

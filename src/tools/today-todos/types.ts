@@ -133,6 +133,15 @@ export interface MeetingSummaryDetail {
   recordingLink: string | null; // Link to meeting recording (if available)
   from: string; // Email sender (e.g., no-reply@zoom.us)
   priorityMetadata?: PriorityMetadata;
+  relatedMeetingNotes?: Array<{
+    documentId: string;
+    documentTitle: string;
+    documentLink: string;
+  }>;
+  relatedCalendarEvent?: {
+    summary: string;
+    htmlLink?: string;
+  };
 }
 
 /**

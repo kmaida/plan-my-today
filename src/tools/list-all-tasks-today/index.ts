@@ -12,7 +12,7 @@ import { fetchGitHubTodos, calculateGitHubPriority } from "../today-todos/github
 import { fetchSlackMessages, calculateSlackPriorityWithMetadata } from "../today-todos/slack-utils";
 import { fetchMeetingNoteActions } from "../today-todos/granola-utils";
 import { parseDependencies } from "../today-todos/dependency-utils";
-import { detectLinearMentions, detectGitHubMentions } from "../today-todos/cross-reference-utils";
+import { detectLinearMentions, detectGitHubMentions, linkMeetingAssets } from "../today-todos/cross-reference-utils";
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
 import { formatAuthError, getErrorFooter } from "../../utils/error-utils";
@@ -505,6 +505,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           meetingSummaries
         );
       }
+
+      // 4. Meeting assets: Link Zoom "meeting assets" emails to Granola notes & calendar events
+      linkMeetingAssets(meetingSummaries, meetingNoteActions, calendarEvents);
 
       // Build response data
       const responseData = {
