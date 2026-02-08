@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useMemo, useCallback, memo, type ReactNode } from 'react'
 import type { Task, TaskSource, RelatedItem } from '../types/tasks'
 import {
   isLinearTask, isGmailTask, isGitHubTask, isSlackTask,
@@ -54,72 +54,83 @@ interface TaskCardProps {
   hasError?: boolean
 }
 
-export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, hasError }: TaskCardProps) {
+export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, hasError }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const getTaskMetadata = (): string[] => {
-    const metadata: string[] = []
+  const title = getTaskTitle(task)
+  const url = getTaskUrl(task)
+
+  const metadata = useMemo(() => {
+    const items: string[] = []
 
     if (isLinearTask(task) && task.dueDate) {
       const due = formatDueDate(task.dueDate)
-      metadata.push(due.text)
+      items.push(due.text)
     }
 
     if (isGmailTask(task)) {
-      metadata.push(`From: ${task.from}`)
-      metadata.push(formatSmartDate(task.timestamp))
+      items.push(`From: ${task.from}`)
+      items.push(formatSmartDate(task.timestamp))
     }
 
     if (isGitHubTask(task)) {
-      metadata.push(`${task.repo}`)
-      metadata.push(`#${task.number}`)
+      items.push(`${task.repo}`)
+      items.push(`#${task.number}`)
     }
 
     if (isSlackTask(task)) {
       const channel = task.channel
-      // Skip raw channel IDs (all-caps alphanumeric like C08JF82CB1N)
       const isRawId = channel && /^[A-Z0-9]+$/.test(channel)
       if (channel && channel.startsWith('DM:')) {
-        metadata.push(channel)
+        items.push(channel)
       } else if (channel && channel === 'DM') {
-        metadata.push(channel)
+        items.push(channel)
       } else if (channel && !isRawId) {
-        metadata.push(`#${channel}`)
+        items.push(`#${channel}`)
       }
-      metadata.push(formatSmartDate(task.timestamp))
+      items.push(formatSmartDate(task.timestamp))
     }
 
     if (isCalendarTask(task)) {
       const calendarDate = isToday(task.start) ? formatTime(task.start) : `${formatDate(task.start)} ${formatTime(task.start)}`
-      metadata.push(calendarDate)
+      items.push(calendarDate)
       if (task.attendees) {
-        metadata.push(`${task.attendees.length} attendees`)
+        items.push(`${task.attendees.length} attendees`)
       }
     }
 
     if (isDocsActionTask(task) || isMeetingNotesTask(task)) {
-      metadata.push(formatSmartDate(task.timestamp))
+      items.push(formatSmartDate(task.timestamp))
     }
 
-    return metadata
-  }
+    return items
+  }, [task])
 
-  const title = getTaskTitle(task)
-  const url = getTaskUrl(task)
-  const metadata = getTaskMetadata()
   const crossRefs = task.crossReferences
-  // Only show the expand section when the item is mentioned in OTHER sources
-  // (not just its own source) or has actual related items
-  const otherSources = crossRefs?.mentionedIn?.filter((s: TaskSource) => s !== task.source) ?? []
+  const otherSources = useMemo(
+    () => crossRefs?.mentionedIn?.filter((s: TaskSource) => s !== task.source) ?? [],
+    [crossRefs?.mentionedIn, task.source],
+  )
   const hasCrossReferences = otherSources.length > 0 || (crossRefs?.relatedItems && crossRefs.relatedItems.length > 0)
 
   const priorityLabel = getPriorityLabel(task.priorityMetadata.category)
 
-  // Format reasons as a sentence-case string
-  const reasons = task.priorityMetadata.reasons
-  const formattedReasons = reasons
-    ? reasons.charAt(0).toUpperCase() + reasons.slice(1).toLowerCase()
-    : ''
+  const formattedReasons = useMemo(() => {
+    const reasons = task.priorityMetadata.reasons
+    return reasons ? reasons.charAt(0).toUpperCase() + reasons.slice(1).toLowerCase() : ''
+  }, [task.priorityMetadata.reasons])
+
+  const parsedTitle = useMemo(
+    () => isSlackTask(task) && title.includes('<http') ? parseSlackLinks(title) : title,
+    [task, title],
+  )
+
+  const toggleExpanded = useCallback(() => setIsExpanded(prev => !prev), [])
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') setIsExpanded(prev => !prev)
+  }, [])
+  const handleViewSource = useCallback(() => { if (onViewSource) onViewSource(task) }, [onViewSource, task])
+  const handleMarkComplete = useCallback(() => { if (onMarkComplete) onMarkComplete(task) }, [onMarkComplete, task])
 
   return (
     <div className={`task-card${isExpanded ? ' task-card--expanded' : ''}`}>
@@ -127,7 +138,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
         <span className={`task-card__priority-tag task-card__priority-tag--${task.priorityMetadata.category}`}>{priorityLabel}</span>
         <div className="task-card__title-row">
           <h3 className="task-card__title">
-            {isSlackTask(task) && title.includes('<http') ? parseSlackLinks(title) : title}
+            {parsedTitle}
           </h3>
         </div>
 
@@ -180,10 +191,10 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
         <>
           <div
             className="task-card__cross-refs"
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={toggleExpanded}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsExpanded(!isExpanded) }}
+            onKeyDown={handleKeyDown}
           >
             <Chevron direction={isExpanded ? 'down' : 'right'} size={12} className="task-card__expand-icon" />
             <span className="task-card__cross-refs-label">
@@ -220,11 +231,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
             target="_blank"
             rel="noopener noreferrer"
             className="task-card__action task-card__action--view"
-            onClick={() => {
-              if (onViewSource) {
-                onViewSource(task)
-              }
-            }}
+            onClick={handleViewSource}
           >
             View in {getSourceLabel(task.source)} →
           </a>
@@ -232,7 +239,7 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
         {onMarkComplete && COMPLETABLE_SOURCES.includes(task.source) && (
           <button
             className={`task-card__action task-card__action--complete${hasError ? ' task-card__action--error' : ''}`}
-            onClick={() => onMarkComplete(task)}
+            onClick={handleMarkComplete}
             disabled={isCompleting}
           >
             {isCompleting ? 'Completing...' : hasError ? 'Failed — Retry' : 'Mark Complete'}
@@ -241,4 +248,4 @@ export function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, has
       </div>
     </div>
   )
-}
+})

@@ -1,4 +1,4 @@
-import { useState, useRef, type ReactNode } from 'react'
+import { useState, useRef, useMemo, useCallback, type ReactNode } from 'react'
 import type { FilterState, TaskSource, PriorityCategory } from '../types/tasks'
 import { DEFAULT_FILTERS } from '../types/tasks'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
@@ -32,42 +32,45 @@ export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount,
   const [isOpen, setIsOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const activeFilterCount =
-    (filters.search ? 1 : 0) +
-    filters.sources.length +
-    filters.priorities.length +
-    (filters.timeFilter !== 'all' ? 1 : 0)
+  const activeFilterCount = useMemo(
+    () =>
+      (filters.search ? 1 : 0) +
+      filters.sources.length +
+      filters.priorities.length +
+      (filters.timeFilter !== 'all' ? 1 : 0),
+    [filters],
+  )
 
   const hasActiveFilters = activeFilterCount > 0
 
-  function toggleSource(source: TaskSource) {
+  const toggleSource = useCallback((source: TaskSource) => {
     const current = filters.sources
     const next = current.includes(source)
       ? current.filter(s => s !== source)
       : [...current, source]
     onFiltersChange({ ...filters, sources: next })
-  }
+  }, [filters, onFiltersChange])
 
-  function togglePriority(priority: PriorityCategory) {
+  const togglePriority = useCallback((priority: PriorityCategory) => {
     const current = filters.priorities
     const next = current.includes(priority)
       ? current.filter(p => p !== priority)
       : [...current, priority]
     onFiltersChange({ ...filters, priorities: next })
-  }
+  }, [filters, onFiltersChange])
 
-  function setTimeFilter(time: FilterState['timeFilter']) {
+  const setTimeFilter = useCallback((time: FilterState['timeFilter']) => {
     onFiltersChange({ ...filters, timeFilter: time })
-  }
+  }, [filters, onFiltersChange])
 
-  function setSearch(search: string) {
+  const setSearch = useCallback((search: string) => {
     onFiltersChange({ ...filters, search })
-  }
+  }, [filters, onFiltersChange])
 
-  function clearAll() {
+  const clearAll = useCallback(() => {
     onFiltersChange(DEFAULT_FILTERS)
     if (searchRef.current) searchRef.current.value = ''
-  }
+  }, [onFiltersChange])
 
   return (
     <div className="filter-bar">

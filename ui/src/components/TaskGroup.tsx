@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import type { Task } from '../types/tasks'
 import { TaskCard } from './TaskCard'
 import { Chevron } from './Chevron'
@@ -18,7 +18,7 @@ interface TaskGroupProps {
   completeError?: string | null
 }
 
-export function TaskGroup({
+export const TaskGroup = memo(function TaskGroup({
   label,
   count,
   tasks,
@@ -31,10 +31,13 @@ export function TaskGroup({
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
 
-  const visibleTasks = tasks.slice(0, visibleCount)
+  const visibleTasks = useMemo(() => tasks.slice(0, visibleCount), [tasks, visibleCount])
   const remaining = tasks.length - visibleCount
 
-  const groupSlug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const groupSlug = useMemo(
+    () => label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+    [label],
+  )
 
   return (
     <div className="task-group" data-group={groupSlug}>
@@ -79,4 +82,4 @@ export function TaskGroup({
       )}
     </div>
   )
-}
+})
