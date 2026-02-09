@@ -364,7 +364,7 @@ interface MeetingContextMetadata {
     id: string;
     subject: string;
     from: string;
-    reason: string;          // "attendee_needs_reply" | "topic_match"
+    reason: string;          // "attendee_needs_action" | "topic_match"
   }>;
   attendeeContext: Array<{
     email: string;
@@ -460,7 +460,7 @@ PR #456 (review, 3 hours old):
 **Modifier flags:**
 - Important: +50
 - Starred: +30
-- Needs reply: +40
+- Needs action: +40
 - Has action items: +30
 - From individual: +20
 

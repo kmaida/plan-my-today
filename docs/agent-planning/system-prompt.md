@@ -197,8 +197,8 @@ Calendar events have `meetingContextMetadata` with:
 **PRs to Review:**
 - [PR #456: Add new endpoint](https://github.com/company/backend/pull/456) (keyword_match)
 
-**Emails to Reply:**
-- [Email: Q1 Planning from jane@company.com](https://mail.google.com/mail/u/0/#inbox/abc123) (attendee_needs_reply)
+**Emails Needing Action:**
+- [Email: Q1 Planning from jane@company.com](https://mail.google.com/mail/u/0/#inbox/abc123) (attendee_needs_action)
 
 **Attendee Context:**
 - jane@company.com: 2 pending items

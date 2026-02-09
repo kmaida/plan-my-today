@@ -46,7 +46,7 @@ export interface MeetingContextMetadata {
     id: string;              // Gmail message ID
     subject: string;         // Email subject
     from: string;            // Sender email
-    reason: string;          // Relation reason ("attendee_needs_reply" | "topic_match")
+    reason: string;          // Relation reason ("attendee_needs_action" | "topic_match")
   }>;
   attendeeContext: Array<{
     email: string;           // Attendee email

@@ -147,7 +147,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
         }
 
         if (needsReplyList.length > 0) {
-          lines.push(`💬 **Needs Reply** (${needsReplyList.length}):\n`);
+          lines.push(`💬 **Needs Action** (${needsReplyList.length}):\n`);
           for (const email of needsReplyList.slice(0, 10)) {
             const date = formatEmailDate(email.timestamp);
 

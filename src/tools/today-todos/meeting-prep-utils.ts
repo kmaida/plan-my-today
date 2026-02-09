@@ -125,7 +125,7 @@ export function generateMeetingContext(
         id: email.id,
         subject: email.subject,
         from: email.from,
-        reason: "attendee_needs_reply",
+        reason: "attendee_needs_action",
       });
     }
   }

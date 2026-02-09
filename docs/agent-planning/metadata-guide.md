@@ -225,7 +225,7 @@ Even without a due date, this issue gets high priority because:
     },
     "reasons": [
       "Marked important",
-      "Needs reply",
+      "Needs action",
       "Has action items",
       "From individual (not automated)"
     ]
@@ -235,14 +235,14 @@ Even without a due date, this issue gets high priority because:
 
 **Agent interpretation:**
 ```
-🟡 HIGH PRIORITY: Email from Jane (score: 155) - Action required, needs reply, 2 days old
+🟡 HIGH PRIORITY: Email from Jane (score: 155) - Action required, needs action, 2 days old
 ```
 
 **Scoring logic:**
 - Base score: 60
 - Marked important: +50
 - Starred: +30
-- Needs reply: +40
+- Needs action: +40
 - Has action items: +30
 - From individual: +20
 - Recency boost: varies by age
@@ -306,7 +306,7 @@ Even without a due date, this issue gets high priority because:
 
 🟡 **Email from Jane** (high, score: 155)
 - Action required
-- Needs reply (2 days old)
+- Needs action (2 days old)
 ```
 
 ---
@@ -566,7 +566,7 @@ interface MeetingContextMetadata {
     id: string;
     subject: string;
     from: string;
-    reason: string;           // "attendee_needs_reply" | "topic_match"
+    reason: string;           // "attendee_needs_action" | "topic_match"
   }>;
   attendeeContext: Array<{
     email: string;
@@ -622,7 +622,7 @@ The server:
         "id": "email123",
         "subject": "Re: Messaging Framework Questions",
         "from": "jane@company.com",
-        "reason": "attendee_needs_reply"
+        "reason": "attendee_needs_action"
       }
     ],
     "attendeeContext": [
@@ -646,8 +646,8 @@ The server:
 **PRs to Review:**
 - PR #456 (company/backend): Add messaging framework tests (keyword match)
 
-**Emails to Reply:**
-- "Re: Messaging Framework Questions" from jane@company.com (needs reply)
+**Emails Needing Action:**
+- "Re: Messaging Framework Questions" from jane@company.com (needs action)
 
 **Attendee Context:**
 - jane@company.com: 2 pending items

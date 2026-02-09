@@ -765,7 +765,7 @@ export function calculateEmailPriority(email: GmailMessageDetail, now: Date): Pr
 
     if (email.needsReply) {
       score += 50;
-      reasons.push("Needs reply");
+      reasons.push("Needs action");
     }
 
     if (email.hasActionItems) {
