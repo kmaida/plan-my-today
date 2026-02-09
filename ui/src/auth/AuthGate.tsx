@@ -27,7 +27,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           {error && <p className="auth-gate__error">{error}</p>}
 
           <button className="auth-gate__button btn--inverted" onClick={login}>
-            Sign in
+            Connect
           </button>
           <div className="auth-gate__hint">
             <AuthHint />

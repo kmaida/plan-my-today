@@ -139,9 +139,9 @@ function App() {
                     <button
                       className="app-header__logout"
                       onClick={logout}
-                      title="Sign out"
+                      title="Disconnect"
                     >
-                      Sign out
+                      Disconnect
                     </button>
                   </div>
                 </div>
