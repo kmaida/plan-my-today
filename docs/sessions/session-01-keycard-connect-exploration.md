@@ -47,7 +47,7 @@ cd poc-keycard-connect && npm install && npm run build
 - **Sign-in Provider:** Google OAuth (not the Keycard default)
 
 ### Google OAuth Provider
-- Uses the same Google OAuth client as the todo-mcp-server
+- Uses the same Google OAuth client as the plan-my-today
 - Issuer URL: `https://accounts.google.com`
 - Client ID and secret stored in Keycard console
 - Redirect URI added to Google OAuth app for Keycard's callback
@@ -181,12 +181,12 @@ Reviewed a demo transcript from a coworker showing Keycard's upcoming provider t
 
 ### Configuration Required in Keycard Console
 
-To use this for the todo-mcp-server, we'd need:
+To use this for the plan-my-today, we'd need:
 
 1. **Providers** configured at zone level: Google OAuth, Linear, GitHub (each with their OAuth client ID/secret)
 2. **Resources** defined for each API surface: e.g., "Google Calendar" with calendar scopes, "Gmail" with mail scopes, "Linear API", "GitHub API"
 3. **Resources must include refresh scopes** (e.g., `offline_access` or provider equivalent) to make grants refreshable
-4. **Application Dependencies** — the todo-mcp-server app declares dependencies on each resource
+4. **Application Dependencies** — the plan-my-today app declares dependencies on each resource
 5. **Provider IDPs configured correctly** — redirect URIs, allowed scopes, etc. on the Google/Linear/GitHub side
 
 ---
@@ -215,7 +215,7 @@ grant_type=urn:ietf:params:oauth:grant-type:token-exchange
 
 **Response**: Provider access token (e.g., a Google OAuth token, a GitHub token)
 
-**The full flow for todo-mcp-server:**
+**The full flow for plan-my-today:**
 1. Login via keycard-connect → get Keycard access token
 2. Token exchange → POST to zone token endpoint with access token + resource identifier → get provider token
 3. Call the provider API with the returned token
@@ -282,13 +282,13 @@ Keep the auth server running — MCP server talks to it on port 3000.
 ### Session 2: Configure Keycard Zone + Test Token Exchange
 - Configure providers in Kim's Keycard zone: Google OAuth (with Calendar/Gmail/Drive scopes), Linear, GitHub
 - Create resources with refresh scopes (e.g., `offline_access`) to enable refreshable grants
-- Add dependencies to the todo-mcp-server application
+- Add dependencies to the plan-my-today application
 - Use `kat` CLI to test: login → token exchange → API call for each provider
 - Reference: `poc-keycard-auth-toolbox` repo, `cmd/kat/main.go`
 - **Key question to answer:** Can we get valid Google Calendar, Gmail, Linear, and GitHub tokens through Keycard?
 
 ### Session 3: Branch Todo MCP Server + keycard-connect Integration
-- Branch todo-mcp-server, add keycard-connect dependency
+- Branch plan-my-today, add keycard-connect dependency
 - Replace per-service OAuth flows with Keycard token exchange
 - Get basic flow working: Keycard login → token exchange for each service → API calls succeed
 - Verify token refresh works (expire a token, confirm Keycard refreshes automatically)

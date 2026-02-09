@@ -38,7 +38,7 @@
 Maintain **both versions** sharing the same core tool logic:
 
 ```
-todo-mcp-server/
+plan-my-today/
 ├── src/
 │   ├── tools/           # Shared: 13 tools across both versions
 │   ├── services/        # Shared: service utilities
@@ -186,8 +186,8 @@ Create **README-STDIO.md** with:
 1. **Prerequisites:** Node.js 18+, Claude Desktop
 2. **Installation:**
    ```bash
-   git clone https://github.com/kmaida/todo-mcp-server.git
-   cd todo-mcp-server
+   git clone https://github.com/kmaida/plan-my-today.git
+   cd plan-my-today
    npm install
    npm run build:stdio
    ```
@@ -195,9 +195,9 @@ Create **README-STDIO.md** with:
    ```json
    {
      "mcpServers": {
-       "todo-mcp": {
+       "plan-my-today": {
          "command": "node",
-         "args": ["/absolute/path/to/todo-mcp-server/dist/stdio/stdio.js"],
+         "args": ["/absolute/path/to/plan-my-today/dist/stdio/stdio.js"],
          "env": {
            "SLACK_USER_TOKEN": "xoxp-your-token",
            "SLACK_EMOJI_NAME": "your-custom-emoji"

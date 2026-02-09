@@ -4,7 +4,7 @@ Step-by-step instructions for setting up agent-based daily planning with Claude 
 
 ## Prerequisites
 
-1. **todo-mcp-server is running**
+1. **plan-my-today is running**
    - Server should be accessible (e.g., `http://localhost:9005` or your deployed URL)
    - You have valid authentication credentials
 
@@ -13,7 +13,7 @@ Step-by-step instructions for setting up agent-based daily planning with Claude 
    - Logged in with your Anthropic account
 
 3. **MCP server is configured in Claude Desktop**
-   - Your `claude_desktop_config.json` includes the todo-mcp-server configuration
+   - Your `claude_desktop_config.json` includes the plan-my-today configuration
 
 ## Configuration File Location
 
@@ -25,14 +25,14 @@ The Claude Desktop MCP configuration file location depends on your OS:
 
 ## Step 1: Configure MCP Server
 
-Add your todo-mcp-server to the Claude Desktop config file:
+Add your plan-my-today to the Claude Desktop config file:
 
 ```json
 {
   "mcpServers": {
-    "todo-mcp-server": {
+    "plan-my-today": {
       "command": "node",
-      "args": ["/path/to/todo-mcp-server/dist/index.js"],
+      "args": ["/path/to/plan-my-today/dist/index.js"],
       "env": {
         "PORT": "9005"
       }
@@ -48,7 +48,7 @@ If your server uses OAuth authentication (recommended), use the HTTP transport:
 ```json
 {
   "mcpServers": {
-    "todo-mcp-server": {
+    "plan-my-today": {
       "url": "http://localhost:9005/mcp",
       "description": "Aggregates tasks from Calendar, Linear, Gmail, GitHub, Slack, etc."
     }
@@ -183,7 +183,7 @@ If you're using a multi-tenant deployment:
 ```json
 {
   "mcpServers": {
-    "todo-mcp-server": {
+    "plan-my-today": {
       "url": "https://z123.your-domain.com/mcp",
       "description": "Todo MCP Server (Zone: z123)"
     }
@@ -335,7 +335,7 @@ const client = new Client({
 
 const transport = new StdioClientTransport({
   command: "node",
-  args: ["/path/to/todo-mcp-server/dist/index.js"]
+  args: ["/path/to/plan-my-today/dist/index.js"]
 });
 
 await client.connect(transport);

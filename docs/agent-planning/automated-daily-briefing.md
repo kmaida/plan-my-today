@@ -14,7 +14,7 @@ This guide shows you how to create a script that:
 ### Prerequisites
 
 - Node.js installed
-- Your todo-mcp-server running (or accessible via URL)
+- Your plan-my-today running (or accessible via URL)
 - Anthropic API key (get from [console.anthropic.com](https://console.anthropic.com/))
 
 ### Step 1: Create the Script
@@ -36,7 +36,7 @@ const CONFIG = {
 
   // MCP Server (choose one)
   mcpCommand: "node",
-  mcpArgs: ["/path/to/todo-mcp-server/dist/index.js"],
+  mcpArgs: ["/path/to/plan-my-today/dist/index.js"],
   // OR use HTTP transport if server is remote:
   // mcpUrl: "http://localhost:9005/mcp",
 
@@ -254,7 +254,7 @@ main();
 ### Step 2: Install Dependencies
 
 ```bash
-cd /Users/kimmaida/Documents/Development/todo-mcp-server
+cd /Users/kimmaida/Documents/Development/plan-my-today
 npm install @anthropic-ai/sdk @modelcontextprotocol/sdk nodemailer
 ```
 
@@ -292,7 +292,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ### Step 4: Test the Script
 
 ```bash
-cd /Users/kimmaida/Documents/Development/todo-mcp-server
+cd /Users/kimmaida/Documents/Development/plan-my-today
 node scripts/daily-briefing.js
 ```
 
@@ -313,7 +313,7 @@ crontab -e
 Add this line to run at 8am every weekday:
 
 ```cron
-0 8 * * 1-5 cd /Users/kimmaida/Documents/Development/todo-mcp-server && source .env.daily-briefing && node scripts/daily-briefing.js >> logs/daily-briefing.log 2>&1
+0 8 * * 1-5 cd /Users/kimmaida/Documents/Development/plan-my-today && source .env.daily-briefing && node scripts/daily-briefing.js >> logs/daily-briefing.log 2>&1
 ```
 
 Or use launchd on macOS (more reliable):
@@ -331,7 +331,7 @@ Create `~/Library/LaunchAgents/com.yourname.daily-briefing.plist`:
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>
-        <string>/Users/kimmaida/Documents/Development/todo-mcp-server/scripts/daily-briefing.js</string>
+        <string>/Users/kimmaida/Documents/Development/plan-my-today/scripts/daily-briefing.js</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -352,10 +352,10 @@ Create `~/Library/LaunchAgents/com.yourname.daily-briefing.plist`:
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/kimmaida/Documents/Development/todo-mcp-server/logs/daily-briefing.log</string>
+    <string>/Users/kimmaida/Documents/Development/plan-my-today/logs/daily-briefing.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/kimmaida/Documents/Development/todo-mcp-server/logs/daily-briefing-error.log</string>
+    <string>/Users/kimmaida/Documents/Development/plan-my-today/logs/daily-briefing-error.log</string>
 </dict>
 </plist>
 ```
@@ -363,7 +363,7 @@ Create `~/Library/LaunchAgents/com.yourname.daily-briefing.plist`:
 Load the job:
 
 ```bash
-mkdir -p ~/Documents/Development/todo-mcp-server/logs
+mkdir -p ~/Documents/Development/plan-my-today/logs
 launchctl load ~/Library/LaunchAgents/com.yourname.daily-briefing.plist
 ```
 

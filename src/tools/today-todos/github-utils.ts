@@ -10,7 +10,7 @@ async function getGitHubUsername(accessToken: string): Promise<string | null> {
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "todo-mcp-server",
+    "User-Agent": "plan-my-today",
   };
 
   const response = await fetch("https://api.github.com/user", { headers });
@@ -41,7 +41,7 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/vnd.github.v3+json",
-    "User-Agent": "todo-mcp-server",
+    "User-Agent": "plan-my-today",
   };
 
   const prs: GitHubPRDetail[] = [];

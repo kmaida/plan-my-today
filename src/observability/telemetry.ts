@@ -8,7 +8,7 @@ import { LoggerProvider, SimpleLogRecordProcessor } from "@opentelemetry/sdk-log
 import { NodeSDK } from "@opentelemetry/sdk-node";
 
 const resource = new Resource({
-  "service.name": process.env.OTEL_SERVICE_NAME || "todo-mcp-server",
+  "service.name": process.env.OTEL_SERVICE_NAME || "plan-my-today",
   "service.version": process.env.OTEL_SERVICE_VERSION || "1.0.0",
   "deployment.environment": process.env.OTEL_ENVIRONMENT || "development",
 });

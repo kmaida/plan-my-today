@@ -70,7 +70,7 @@ export function getConfig(): ServerConfig {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
 
-  const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "todo-mcp-server";
+  const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
   const ENVIRONMENT = process.env.OTEL_ENVIRONMENT || process.env.NODE_ENV || "development";
   const ENABLE_OTEL = process.env.ENABLE_OTEL !== "false";

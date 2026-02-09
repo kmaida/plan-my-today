@@ -1,10 +1,10 @@
 # Agent-Based Daily Planning
 
-Transform your todo-mcp-server data into actionable daily plans using LLM agents like Claude Desktop.
+Transform your plan-my-today data into actionable daily plans using LLM agents like Claude Desktop.
 
 ## Overview
 
-The todo-mcp-server aggregates and enriches tasks from multiple sources (Calendar, Linear, GitHub, Gmail, Slack, Google Docs), providing rich metadata including:
+The plan-my-today aggregates and enriches tasks from multiple sources (Calendar, Linear, GitHub, Gmail, Slack, Google Docs), providing rich metadata including:
 
 - **Priority scores** (0-300 scale with categories)
 - **Dependency metadata** (blocking relationships)
@@ -24,7 +24,7 @@ This documentation shows you how to use these capabilities with an LLM agent for
 
 ### Prerequisites
 
-1. Your todo-mcp-server is running and configured
+1. Your plan-my-today is running and configured
 2. Claude Desktop (or other MCP-compatible client) is set up
 3. The `list-all-tasks-today` tool is accessible
 
@@ -249,7 +249,7 @@ Share your system prompt with your team so everyone uses consistent planning log
 
 ### Why No Server Changes?
 
-The todo-mcp-server is intentionally designed as a **pure data aggregation and enrichment layer**. Adding planning logic would:
+The plan-my-today is intentionally designed as a **pure data aggregation and enrichment layer**. Adding planning logic would:
 - Violate separation of concerns
 - Reduce flexibility (hardcoded logic vs. adaptable prompts)
 - Make it harder to customize for different users
@@ -280,8 +280,8 @@ This is a living document. As you use agent-based planning:
 
 - [MCP Documentation](https://modelcontextprotocol.io/)
 - [Claude Desktop Setup](https://claude.ai/download)
-- [todo-mcp-server README](../../README.md)
+- [plan-my-today README](../../README.md)
 
 ## License
 
-This documentation is part of the todo-mcp-server project and shares the same Apache 2.0 license.
+This documentation is part of the plan-my-today project and shares the same Apache 2.0 license.

@@ -4,7 +4,7 @@ Comprehensive guide to understanding and using the enriched metadata from `list-
 
 ## Overview
 
-The todo-mcp-server enriches every item with metadata to help agents make intelligent planning decisions. This guide explains each metadata type with examples and best practices.
+The plan-my-today enriches every item with metadata to help agents make intelligent planning decisions. This guide explains each metadata type with examples and best practices.
 
 ## Metadata Types
 

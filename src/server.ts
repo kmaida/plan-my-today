@@ -34,7 +34,7 @@ const sessionServers: {
  */
 function createMcpServerForSession(): McpServer {
   const mcpServer: McpServer = new McpServerImpl({
-    name: "todo-mcp-server",
+    name: "plan-my-today",
     version: "0.2.1",
   });
 

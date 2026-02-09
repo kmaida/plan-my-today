@@ -29,9 +29,8 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 │  │  ├── Linear                           │               │
 │  │  └── GitHub                           │               │
 │  └───────────────────────────────────────┘               │
-│             + direct API tokens:                         │
-│             ├── Slack (user OAuth token)                  │
-│             └── Granola (meeting notes)                   │
+│             + direct API token:                           │
+│             └── Slack (user OAuth token)                  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -46,8 +45,8 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/kmaida/todo-mcp-server.git
-cd todo-mcp-server
+git clone https://github.com/kmaida/plan-my-today.git
+cd plan-my-today
 npm install
 cd ui && npm install && cd ..
 ```
@@ -72,9 +71,6 @@ HOST=localhost
 # ── Optional: Slack (direct token, not via Keycard) ──
 SLACK_USER_TOKEN=xoxp-your-user-token
 SLACK_EMOJI_NAME=my-todo-reminder
-
-# ── Optional: Granola meeting notes ───────────
-GRANOLA_API_KEY=your-granola-api-key
 ```
 
 ### 3. Run
@@ -119,7 +115,7 @@ Update Keycard settings with the tunnel URL. Try to reuse the same URL to avoid 
 ## Features
 
 ### Task Dashboard
-- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Docs, Granola meeting notes
+- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Docs, meeting notes
 - Priority scoring and grouping (critical, high, medium, low)
 - Source-based grouping with filter/search
 - Mark tasks complete from the dashboard
@@ -149,9 +145,9 @@ Update Keycard settings with the tunnel URL. Try to reuse the same URL to avoid 
 | `list-slack-todos` | Slack mentions, DMs, and saved messages |
 | `list-assigned-actions` | Google Docs action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
-| `list-meeting-notes-actions` | Action items from Granola meeting notes |
-| `mark-action-complete` | Mark a task complete (Linear, Slack, etc.) |
-| `mark-email-complete` | Archive/mark an email as handled |
+| `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
+| `mark-action-complete` | Dismiss meeting note todos, remove Slack reminder emoji, or mark ad-hoc tasks done |
+| `mark-email-complete` | Add a "Complete" label to a Gmail message |
 | `whoami` | Current user info and token details |
 
 ## REST API
@@ -177,7 +173,7 @@ Add to your MCP client configuration:
 ```json
 {
   "mcpServers": {
-    "todo-mcp-server": {
+    "plan-my-today": {
       "url": "http://localhost:9005/mcp"
     }
   }
@@ -204,7 +200,7 @@ src/
 │   ├── slack-list.ts         # Slack messages
 │   ├── assigned-actions.ts   # Google Docs actions
 │   ├── drive-activity.ts     # Google Drive activity
-│   ├── meeting-notes.ts      # Granola meeting notes
+│   ├── meeting-notes.ts      # Meeting notes (via Google Drive)
 │   ├── mark-action-complete.ts
 │   ├── mark-email-complete.ts
 │   └── list-all-tasks-today/ # Aggregation tool
@@ -235,7 +231,7 @@ ui/
 
 ## Service Setup
 
-Each data source requires configuration in Keycard (or direct API tokens for Slack/Granola).
+Each data source requires configuration in Keycard (or a direct API token for Slack).
 
 ### Google Services (Calendar, Gmail, Docs, Drive)
 
@@ -262,9 +258,9 @@ Direct token (not via Keycard):
 2. Add user token scopes: `search:read`, `reactions:read`, `reactions:write`
 3. Set `SLACK_USER_TOKEN` and optionally `SLACK_EMOJI_NAME` in `.env`
 
-### Granola (Meeting Notes)
+### Meeting Notes
 
-Set `GRANOLA_API_KEY` in `.env`.
+Meeting notes are read from Google Drive (no separate API key needed). The tool searches a configurable folder (default: "Meeting Notes") for recent documents and extracts action items.
 
 ## Environment Variables
 
@@ -278,7 +274,6 @@ Set `GRANOLA_API_KEY` in `.env`.
 | `HOST` | Server host | `localhost` |
 | `SLACK_USER_TOKEN` | Slack user OAuth token | — |
 | `SLACK_EMOJI_NAME` | Custom emoji for saved messages | `mcp-todo-reminder` |
-| `GRANOLA_API_KEY` | Granola API key | — |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `ENABLE_OTEL` | Enable OpenTelemetry | `true` |
 

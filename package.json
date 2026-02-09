@@ -1,5 +1,5 @@
 {
-  "name": "todo-mcp-server",
+  "name": "plan-my-today",
   "version": "0.2.1",
   "description": "An MCP server for compiling To-Dos from multiple sources",
   "license": "Apache-2.0",

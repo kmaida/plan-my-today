@@ -83,7 +83,7 @@ All exchanges succeeded. Drive, Calendar, and GitHub show API validation because
 
 ## Next: Session 3 — UI Auth + Standalone App
 
-**Pivoted from the original plan.** The todo-mcp-server already has full Keycard integration (`STSClient`, `requireBearerAuth`, etc.) — no need to add `@keycardlabs/connect`. Instead, the focus shifted to building a standalone app that doesn't need Cursor or Claude Desktop.
+**Pivoted from the original plan.** The plan-my-today already has full Keycard integration (`STSClient`, `requireBearerAuth`, etc.) — no need to add `@keycardlabs/connect`. Instead, the focus shifted to building a standalone app that doesn't need Cursor or Claude Desktop.
 
 ### What We're Building
 1. **PKCE OAuth auth module in the UI** (done) — browser-side login via Keycard
