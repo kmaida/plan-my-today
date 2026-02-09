@@ -25,6 +25,15 @@ const BUTTON_LABELS = [
   'Deploy Todaygent',
 ]
 
+const WELCOME_MESSAGES = [
+  // Informative with personality
+  'I\'m Todaygent. I pull from your calendar, Linear, Gmail, Slack, and GitHub so you don\'t have to. Tell me to plan your day.',
+  'Todaygent, reporting for duty. I\'ve got eyes on your calendar, inbox, Slack, Linear, and GitHub. Say the word and I\'ll brief you.',
+  'I\'m Todaygent. I aggregate your calendar, email, Slack, Linear, and GitHub into one plan. They don\'t let me execute on it yet, but I make a great briefing.',
+  'Todaygent here. I read your calendar, email, Slack, Linear, and GitHub so you don\'t have to open six tabs. Ask me to plan your day.',
+  'I\'m Todaygent. I exist because calendar blocking didn\'t work. You just kept pushing those blocks to Friday. Let me plan your day instead.',
+]
+
 const PLACEHOLDERS = [
   // Practical / planner
   'What do I have today?',
@@ -50,11 +59,13 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [placeholder, setPlaceholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
   const [buttonLabel, setButtonLabel] = useState(() => BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
+  const [welcomeMsg, setWelcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
 
   // Re-randomize labels each time the chat is toggled
   useEffect(() => {
     setPlaceholder(PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
     setButtonLabel(BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
+    setWelcomeMsg(WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
   }, [isOpen])
 
   // Auto-scroll to bottom when new messages arrive
@@ -130,7 +141,7 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
 
         {isConnected && messages.length === 0 && (
           <div className="chat-panel__notice">
-            I'm Todaygent. Tell me to plan your day and I'll pull in everything from your calendar, Linear, Gmail, Slack, GitHub, and more.
+            {welcomeMsg}
           </div>
         )}
 
