@@ -1,7 +1,7 @@
 import './AuthHint.css'
 
 const TOOLTIP_TEXT =
-  "You\u2019ll be asked to select your Google account several times, once for each service (Calendar, Gmail, Drive, etc.)."
+  "You may be asked to select your Google account several times, once for each service (Calendar, Gmail, Drive, etc.)."
 
 export function AuthHint() {
   return (
