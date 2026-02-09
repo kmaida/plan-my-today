@@ -116,10 +116,35 @@ function App() {
     ? `Last updated ${isToday(fetchedAt) ? 'today' : formatDate(fetchedAt)} at ${formatTime(fetchedAt)}`
     : null
 
+  // Back-to-top: track scroll position on the .app container.
+  // Uses a callback ref because AuthGate defers rendering children
+  // until auth resolves, so a plain useEffect([]) would miss the element.
+  const appElRef = useRef<HTMLDivElement | null>(null)
+  const [showBackToTop, setShowBackToTop] = useState(false)
+
+  const appRef = useCallback((el: HTMLDivElement | null) => {
+    // Clean up previous listener
+    if (appElRef.current) {
+      appElRef.current.removeEventListener("scroll", handleAppScroll)
+    }
+    appElRef.current = el
+    if (el) {
+      el.addEventListener("scroll", handleAppScroll, { passive: true })
+    }
+  }, [])
+
+  function handleAppScroll(this: HTMLDivElement) {
+    setShowBackToTop(this.scrollTop > 200)
+  }
+
+  const scrollToTop = () => {
+    appElRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   return (
     <AuthGate>
     <div className={`app-layout ${chatOpen ? 'app-layout--chat-open' : ''}`}>
-      <div className="app">
+      <div className="app" ref={appRef}>
         <header className="app-header">
           <div className="app-header__content">
             <div className="app-header__banner">
@@ -251,6 +276,17 @@ function App() {
           </div>
         </main>
       </div>
+
+      <button
+        className={`back-to-top${showBackToTop ? " back-to-top--visible" : ""}`}
+        onClick={scrollToTop}
+        title="Back to top"
+        aria-label="Back to top"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="18 15 12 9 6 15" />
+        </svg>
+      </button>
 
       <ChatPanel
         isOpen={chatOpen}

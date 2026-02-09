@@ -28,9 +28,6 @@
   background: linear-gradient(to bottom, #faf8f5, #f5f0eb);
   border-bottom: 1px solid var(--color-divider);
   box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
 }
 
 .app-header__content {
@@ -291,4 +288,45 @@
 .app-empty-state p + p,
 .app-empty-state p + button {
   margin-top: var(--space-sm);
+}
+
+/* ── Back to top button ──────────────────────────────────────── */
+
+.back-to-top {
+  position: fixed;
+  bottom: var(--space-lg);
+  left: var(--space-lg);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), box-shadow var(--transition-fast);
+  z-index: var(--z-sticky);
+  padding: 0;
+}
+
+.back-to-top--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.back-to-top:hover {
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-md);
+  background: var(--color-bg);
+}
+
+.back-to-top svg {
+  width: 18px;
+  height: 18px;
 }
