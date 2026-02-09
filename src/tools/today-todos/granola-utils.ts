@@ -2,7 +2,7 @@ import type { MeetingNoteActionDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { PRIORITY_THRESHOLDS, TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
-import { buildMeetingNoteId } from "../../utils/action-identifiers";
+import { hashActionText } from "../../utils/action-identifiers";
 import { parseDateFromFilename, isWithinBusinessDays } from "../../utils/date-utils";
 import { config } from "../../config";
 
@@ -426,13 +426,16 @@ export async function fetchMeetingNoteActions(
   });
 
   // Filter out completed actions
+  // The identifier used by mark-action-complete may be just the documentId
+  // (dismisses all actions from that doc) or documentId:hash (specific action)
   const filteredActions: MeetingNoteActionDetail[] = [];
   for (const action of allActionItems) {
-    const actionId = buildMeetingNoteId(action.documentId, action.actionItem);
-    const completed = await isActionCompleted("meeting-note", actionId);
-    if (!completed) {
-      filteredActions.push(action);
-    }
+    const docCompleted = await isActionCompleted("meeting-note", action.documentId);
+    if (docCompleted) continue;
+    const specificId = `${action.documentId}:${hashActionText(action.actionItem)}`;
+    const specificCompleted = await isActionCompleted("meeting-note", specificId);
+    if (specificCompleted) continue;
+    filteredActions.push(action);
   }
 
   return filteredActions;

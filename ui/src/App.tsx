@@ -96,7 +96,7 @@ function App() {
       if (task.source === 'gmail') {
         // Gmail needs OAuth token exchange — route through MCP tool
         const emailId = getTaskIdentifier(task)
-        await markEmailComplete(emailId)
+        await markEmailComplete(emailId, task.taskId)
       } else {
         // Slack, meeting-notes, docs — use no-auth REST endpoint
         const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source

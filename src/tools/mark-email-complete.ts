@@ -3,6 +3,7 @@ import { z } from "zod/v3";
 import { stsClient } from "../services/sts-client";
 import { markEmailComplete, unmarkEmailComplete } from "../services/gmail-label-service";
 import { handleToolError } from "../utils/tool-error-utils";
+import { getLogger } from "../observability/logger";
 
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
 const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
@@ -45,6 +46,9 @@ export function registerMarkEmailCompleteTool(mcpServer: McpServer): void {
       }
 
       try {
+        const logger = getLogger().withOperation("mark_email_complete");
+        logger.info("mark-email-complete called", { emailId: args.emailId, complete: args.complete });
+
         // Exchange user's JWT for a Gmail access token
         const tokenResponse = await stsClient.exchange(
           authInfo,

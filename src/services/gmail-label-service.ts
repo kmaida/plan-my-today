@@ -1,3 +1,5 @@
+import { getLogger } from "../observability/logger";
+
 const GMAIL_API_BASE = "https://www.googleapis.com/gmail/v1";
 const COMPLETE_LABEL_NAME = "Complete";
 
@@ -66,6 +68,9 @@ export async function addLabelToEmail(
   messageId: string,
   labelId: string
 ): Promise<void> {
+  const logger = getLogger().withOperation("gmail_label_service");
+  logger.info("Adding label to email", { messageId, labelId });
+
   const response = await fetch(
     `${GMAIL_API_BASE}/users/me/messages/${messageId}/modify`,
     {
@@ -81,8 +86,19 @@ export async function addLabelToEmail(
   );
 
   if (!response.ok) {
-    throw new Error(`Failed to add label to email: ${response.statusText}`);
+    const body = await response.text().catch(() => "");
+    logger.error("Failed to add label to email", {
+      messageId,
+      labelId,
+      status: response.status,
+      body,
+    });
+    throw new Error(
+      `Failed to add label to email (${response.status}): ${body || response.statusText}`
+    );
   }
+
+  logger.info("Successfully added label to email", { messageId, labelId });
 }
 
 /**

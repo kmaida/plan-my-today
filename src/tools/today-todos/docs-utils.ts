@@ -1,6 +1,7 @@
 import type { AssignedActionDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { AuthenticationError } from "../../utils/error-utils";
+import { isActionCompleted } from "../../services/action-completion-store";
 
 /**
  * Fetches assigned actions from Google Docs
@@ -99,7 +100,18 @@ export async function fetchAssignedActions(
     }
   }
 
-  return actionItems;
+  // Filter out completed actions
+  // The identifier used by mark-action-complete is the fileLink URL or fileTitle
+  const filteredActions: AssignedActionDetail[] = [];
+  for (const action of actionItems) {
+    const identifier = action.fileLink || action.fileTitle;
+    if (identifier && await isActionCompleted("docs", identifier)) {
+      continue;
+    }
+    filteredActions.push(action);
+  }
+
+  return filteredActions;
 }
 
 /**

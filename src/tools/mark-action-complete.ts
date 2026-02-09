@@ -15,15 +15,15 @@ import { getLogger } from "../observability/logger";
  */
 const markActionCompleteInputSchema = {
   source: z
-    .enum(["meeting-note", "slack", "adhoc"])
+    .enum(["meeting-note", "slack", "docs", "adhoc"])
     .describe(
-      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages, or 'adhoc' for custom tasks"
+      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages, 'docs' for Google Docs assigned actions/mentions, or 'adhoc' for custom tasks"
     ),
   identifier: z
     .string()
     .describe(
       "The unique identifier for this action. Format varies by source: " +
-        "meeting-note uses '{docId}:{hash}', slack uses '{channelId}:{messageTs}', adhoc uses any custom ID"
+        "meeting-note uses '{docId}' or '{docId}:{hash}', slack uses the permalink URL, docs uses the file link or file title, adhoc uses any custom ID"
     ),
   complete: z
     .boolean()
@@ -51,7 +51,7 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
     {
       title: "Mark Action Complete",
       description:
-        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages, and ad-hoc tasks that don't have native completion tracking. For Slack saved messages, this also removes the emoji reaction. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
+        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages, Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. For Slack saved messages, this also removes the emoji reaction. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
       inputSchema: markActionCompleteInputSchema,
     },
     (async (args, _extra) => {

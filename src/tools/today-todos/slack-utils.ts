@@ -2,7 +2,7 @@ import type { SlackMessageDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { getLogger } from "../../observability/logger";
 import { isActionCompleted } from "../../services/action-completion-store";
-import { buildSlackId } from "../../utils/action-identifiers";
+
 import { SLACK_SAVED_MESSAGES } from "../../constants";
 
 /**
@@ -778,13 +778,14 @@ export async function fetchSlackMessages(
   const enrichedMessages = await resolveChannelNames(accessToken, messagesWithPermalinks);
 
   // Filter out completed messages
+  // The identifier used by mark-action-complete is the permalink URL
   const filteredMessages: SlackMessageDetail[] = [];
   for (const message of enrichedMessages) {
-    const actionId = buildSlackId(message.channel, message.timestamp);
-    const completed = await isActionCompleted("slack", actionId);
-    if (!completed) {
-      filteredMessages.push(message);
+    if (message.permalink) {
+      const completed = await isActionCompleted("slack", message.permalink);
+      if (completed) continue;
     }
+    filteredMessages.push(message);
   }
 
   return filteredMessages;

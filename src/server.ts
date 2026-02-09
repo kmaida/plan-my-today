@@ -390,6 +390,16 @@ export function createApp(): express.Application {
     }
   });
 
+  // Remove a task from the cache by taskId (called by the UI after MCP mark-email-complete)
+  app.post('/api/tasks/evict', async (req: express.Request, res: express.Response) => {
+    const { taskId } = req.body || {};
+    if (!taskId) {
+      return res.status(400).json({ error: 'Missing required field: taskId' });
+    }
+    await removeTaskFromCache(taskId);
+    return res.json({ success: true });
+  });
+
   // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today)
   app.get('/api/tasks', async (_req: express.Request, res: express.Response) => {
     try {
