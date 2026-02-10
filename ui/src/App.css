@@ -184,8 +184,8 @@
 /* ── Auth error banner ─────────────────────────────────────────────────────── */
 
 .auth-error-banner {
-  background-color: color-mix(in srgb, var(--color-high) 12%, var(--color-bg));
-  border-bottom: 1px solid color-mix(in srgb, var(--color-high) 30%, transparent);
+  background-color: color-mix(in srgb, var(--color-critical) 15%, var(--color-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-critical) 35%, transparent);
   padding: var(--space-md) var(--space-lg);
   position: relative;
 }
@@ -225,8 +225,8 @@
 .auth-error-banner__pre {
   margin: var(--space-xs) 0 0;
   padding: var(--space-sm);
-  background: color-mix(in srgb, var(--color-high) 8%, var(--color-bg));
-  border: 1px solid color-mix(in srgb, var(--color-high) 20%, transparent);
+  background: color-mix(in srgb, var(--color-critical) 8%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-critical) 20%, transparent);
   border-radius: var(--radius-sm, 4px);
   font-family: var(--font-mono, monospace);
   font-size: var(--font-xs, 0.75rem);
@@ -245,10 +245,23 @@
   flex-shrink: 0;
 }
 
-.auth-error-banner__reauth {
+button.auth-error-banner__reauth {
   white-space: nowrap;
   padding: var(--space-xs) var(--space-sm);
   font-size: var(--font-sm);
+  background: var(--color-critical);
+  color: var(--color-surface);
+  box-shadow: none;
+}
+
+button.auth-error-banner__reauth:hover {
+  background: #A94E4E;
+  box-shadow: none;
+}
+
+button.auth-error-banner__reauth:active {
+  background: #934444;
+  box-shadow: none;
 }
 
 .auth-error-banner__dismiss {

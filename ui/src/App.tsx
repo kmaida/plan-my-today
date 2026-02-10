@@ -98,12 +98,15 @@ function App() {
     fetchTasks()
   }, [fetchTasks])
 
-  // When MCP connects (e.g. after reauth), auto-refresh to replace stale cached data.
-  // Dismiss the banner immediately so it doesn't flash while the refresh is in-flight.
-  const hasAutoRefreshed = useRef(false)
+  // When MCP reconnects (e.g. after reauth), auto-refresh to replace stale cached data.
+  // Only triggers on a false→true transition of isConnected, not on initial mount,
+  // so the banner doesn't flash and immediately dismiss on first load.
+  const wasConnected = useRef(isConnected)
   useEffect(() => {
-    if (isConnected && !hasAutoRefreshed.current && authErrors.length > 0) {
-      hasAutoRefreshed.current = true
+    const justReconnected = isConnected && !wasConnected.current
+    wasConnected.current = isConnected
+
+    if (justReconnected && authErrors.length > 0) {
       setAuthErrorsDismissed(true)
       handleRefresh()
     }
@@ -216,7 +219,7 @@ function App() {
               </div>
               <div className="auth-error-banner__actions">
                 <button
-                  className="auth-error-banner__reauth btn--inverted"
+                  className="auth-error-banner__reauth"
                   onClick={login}
                 >
                   Reauthorize
@@ -253,7 +256,7 @@ function App() {
                       <strong>Couldn't reach some sources.</strong>
                     </p>
                     <p>Your grants may have expired. Reauthorize to refresh them, then try again.</p>
-                    <button className="auth-error-banner__reauth btn--inverted" onClick={login}>
+                    <button className="auth-error-banner__reauth" onClick={login}>
                       Reauthorize
                     </button>
                   </>

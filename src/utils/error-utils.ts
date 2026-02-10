@@ -10,7 +10,30 @@ export class AuthenticationError extends Error {
 }
 
 /**
- * Format authentication errors with actionable guidance
+ * Extract error_description from a JSON error body embedded in a message string.
+ * Keycard and OAuth providers return errors like:
+ *   {"error":"invalid_grant","error_description":"Token has been revoked","requestId":"..."}
+ * The user only needs the description, not the raw JSON or requestId.
+ */
+function extractErrorDescription(message: string): string | null {
+  const jsonStart = message.search(/[{[]/);
+  if (jsonStart === -1) return null;
+
+  try {
+    const parsed = JSON.parse(message.slice(jsonStart)) as Record<string, unknown>;
+    if (typeof parsed.error_description === "string") {
+      return parsed.error_description;
+    }
+  } catch {
+    // Not valid JSON
+  }
+  return null;
+}
+
+/**
+ * Format authentication errors with actionable guidance.
+ * Extracts error_description from JSON error bodies so the user sees
+ * clean messages instead of raw JSON with requestIds.
  */
 export function formatAuthError(serviceName: string, error: unknown): string {
   const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -25,10 +48,12 @@ export function formatAuthError(serviceName: string, error: unknown): string {
   }
 
   if (errorMsg.includes("token") || errorMsg.includes("auth")) {
-    return `${serviceName}: ${errorMsg} — try reauthorizing`;
+    const desc = extractErrorDescription(errorMsg);
+    return `${serviceName}: ${desc || errorMsg} — try reauthorizing`;
   }
 
-  return `${serviceName}: ${errorMsg}`;
+  const desc = extractErrorDescription(errorMsg);
+  return `${serviceName}: ${desc || errorMsg}`;
 }
 
 /**
