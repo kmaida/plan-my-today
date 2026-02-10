@@ -118,7 +118,7 @@ export function createApp(): express.Application {
     // Single-tenant mode: static issuer (backward compatibility)
     const singleTenantOptions: InferredAuthMetadataOptions = {
       oauthMetadata: {
-        issuer: config.keycardStsIssuerUrl
+        issuer: config.keycardIssuerUrl
       },
       scopesSupported: ['mcp:tools'],
       resourceName: "Todo MCP Server",
@@ -421,7 +421,7 @@ export function createApp(): express.Application {
         return;
       }
 
-      const tokenUrl = `${config.keycardStsIssuerUrl}/oauth/2/token`;
+      const tokenUrl = `${config.keycardIssuerUrl}/oauth/2/token`;
       const body = new URLSearchParams({
         grant_type: 'authorization_code',
         code,
@@ -542,12 +542,12 @@ export function startServer(): void {
   app
     .listen(config.port, () => {
       const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
-      const issuer = isMultiTenant ? `https://{zoneId}.${config.issuerBaseDomain}` : config.keycardStsIssuerUrl;
+      const issuer = isMultiTenant ? `https://{zoneId}.${config.issuerBaseDomain}` : config.keycardIssuerUrl;
       
       // Clean startup messages
       logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
-      logger.info(`🔐 STS Issuer: ${issuer}`);
+      logger.info(`🔐 Keycard Issuer: ${issuer}`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
       
       // Detailed debug info

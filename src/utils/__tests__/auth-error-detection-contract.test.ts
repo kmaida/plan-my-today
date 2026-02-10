@@ -2,7 +2,7 @@
  * Auth error detection contract tests
  *
  * These tests verify that error messages produced by the server-side error
- * utilities (handleToolError, formatAuthError, STSClient) are detectable by
+ * utilities (handleToolError, formatAuthError, KeycardClient) are detectable by
  * the UI's AUTH_ERROR_PATTERNS used in ChatPanel.extractAuthErrors().
  *
  * This is the exact class of bug we hit in production: the chatbot called
@@ -74,32 +74,32 @@ describe("handleToolError → UI detection contract", () => {
   });
 });
 
-// ── STSClient error format (thrown by sts-client.ts, caught by tools) ──
+// ── KeycardClient error format (thrown by keycard-client.ts, caught by tools) ──
 
-describe("STSClient error format → UI detection contract", () => {
-  // STSClient throws: `Token exchange failed: ${status} - ${body}`
+describe("KeycardClient error format → UI detection contract", () => {
+  // KeycardClient throws: `Token exchange failed: ${status} - ${body}`
   // This flows through handleToolError's generic path (❌ Error: <message>)
 
-  it("should be detectable when STS returns 500", () => {
+  it("should be detectable when Keycard returns 500", () => {
     const error = new Error("Token exchange failed: 500 - Internal Server Error");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
     expect(wouldUIDetect(result.content[0].text)).toBe(true);
   });
 
-  it("should be detectable when STS returns 400 with invalid_grant", () => {
+  it("should be detectable when Keycard returns 400 with invalid_grant", () => {
     const error = new Error('Token exchange failed: 400 - {"error":"invalid_grant"}');
     const result = handleToolError(error, "https://api.example.com", ["read"]);
     expect(wouldUIDetect(result.content[0].text)).toBe(true);
   });
 
-  it("should be detectable when STS returns 502 Bad Gateway", () => {
+  it("should be detectable when Keycard returns 502 Bad Gateway", () => {
     const error = new Error("Token exchange failed: 502 - Bad Gateway");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
     expect(wouldUIDetect(result.content[0].text)).toBe(true);
   });
 
-  it("should be detectable when STS issuer URL is missing", () => {
-    const error = new Error("Token exchange failed: missing STS issuer URL");
+  it("should be detectable when Keycard issuer URL is missing", () => {
+    const error = new Error("Token exchange failed: missing Keycard issuer URL");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
     expect(wouldUIDetect(result.content[0].text)).toBe(true);
   });

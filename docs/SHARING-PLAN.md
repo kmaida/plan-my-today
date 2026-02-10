@@ -24,7 +24,7 @@
 | **Setup Steps** | 10+ steps (Keycard, tunnel, OAuth apps) | 3 steps (install, config, restart) | stdio |
 | **Multi-User Support** | ✅ Multi-tenant capable | ❌ Single-user only | HTTP |
 | **Tunnel Required** | ❌ No (localhost for dev) | ❌ No | Tie |
-| **OAuth Management** | Keycard STS (centralized) | Claude Desktop (native) | Depends on use case |
+| **OAuth Management** | Keycard (centralized) | Claude Desktop (native) | Depends on use case |
 | **MCP Client Support** | Any (Cursor, Claude Desktop, etc.) | Claude Desktop only | HTTP |
 | **Maintenance** | Server to run, public endpoint | Local process | stdio |
 | **Enterprise Features** | Auth dashboard, auditing, policies | None | HTTP |
@@ -68,10 +68,10 @@ plan-my-today/
 - Connect transport and start stdio communication
 
 **1.2 Refactor tool authentication**
-- Current: Tools receive `authInfo` from Express middleware + Keycard STS token exchange
+- Current: Tools receive `authInfo` from Express middleware + Keycard token exchange
 - New: Tools request service tokens from Claude Desktop via MCP auth protocol
 - Update all tool handlers to use Claude Desktop's OAuth connectors
-- Remove dependency on [src/services/sts-client.ts](src/services/sts-client.ts) for stdio version
+- Remove dependency on [src/services/keycard-client.ts](src/services/keycard-client.ts) for stdio version
 
 **1.3 Refactor HTTP version**
 - Rename [src/index.ts](src/index.ts) → [src/http.ts](src/http.ts)
@@ -81,7 +81,7 @@ plan-my-today/
 **Critical Files:**
 - [src/server.ts](src/server.ts) - HTTP server setup; reference for stdio pattern
 - [src/tools/index.ts](src/tools/index.ts) - Tool registry (reuse as-is)
-- [src/services/sts-client.ts](src/services/sts-client.ts) - Replace with Claude connector calls
+- [src/services/keycard-client.ts](src/services/keycard-client.ts) - Replace with Claude connector calls
 
 ### Phase 2: Claude Desktop OAuth Integration (2 days)
 
@@ -96,10 +96,10 @@ Configure Claude Desktop to provide OAuth tokens for:
 
 **2.2 Update tool token acquisition**
 
-Replace Keycard STS exchange with Claude Desktop token requests:
+Replace Keycard token exchange with Claude Desktop token requests:
 ```typescript
 // Before (HTTP + Keycard):
-const tokenResponse = await stsClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
+const tokenResponse = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
 const accessToken = tokenResponse.access_token;
 
 // After (stdio + Claude Desktop):
@@ -366,7 +366,7 @@ After implementation, verify:
 - [src/stdio.ts](src/stdio.ts) - NEW: stdio entry point to create
 - [src/server.ts](src/server.ts) - Reference for transport pattern
 - [src/tools/index.ts](src/tools/index.ts) - Tool registry (reuse)
-- [src/services/sts-client.ts](src/services/sts-client.ts) - Replace with Claude connectors
+- [src/services/keycard-client.ts](src/services/keycard-client.ts) - Replace with Claude connectors
 - [src/constants.ts](src/constants.ts#L41) - Make Slack emoji configurable
 - [src/config.ts](src/config.ts) - Adapt for stdio deployment
 

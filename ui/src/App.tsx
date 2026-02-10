@@ -76,7 +76,7 @@ function App() {
    * - Refreshes the dashboard when list-all-tasks-today wrote fresh cache data.
    * - Shows the reauth banner when any tool (aggregate or individual) hit an
    *   auth error. Detection uses the same pattern matching for all tools —
-   *   the underlying failure is always "STS token exchange failed."
+   *   the underlying failure is always "Keycard token exchange failed."
    */
   const handleToolCallsComplete = useCallback(async (result: { didFetchAllTasks: boolean; authErrors: string[] }) => {
     if (result.didFetchAllTasks) {

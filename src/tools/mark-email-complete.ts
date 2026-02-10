@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { markEmailComplete, unmarkEmailComplete } from "../services/gmail-label-service";
 import { handleToolError } from "../utils/tool-error-utils";
 
@@ -46,7 +46,7 @@ export function registerMarkEmailCompleteTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Gmail access token
-        const tokenResponse = await stsClient.exchange(
+        const tokenResponse = await keycardClient.exchange(
           authInfo,
           GMAIL_RESOURCE,
           GMAIL_SCOPES

@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { fetchCalendarEvents } from "./today-todos/calendar-utils";
 import { handleToolError } from "../utils/tool-error-utils";
 
@@ -38,7 +38,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Google Calendar access token
-        const tokenResponse = await stsClient.exchange(
+        const tokenResponse = await keycardClient.exchange(
           authInfo,
           CALENDAR_RESOURCE,
           CALENDAR_SCOPES

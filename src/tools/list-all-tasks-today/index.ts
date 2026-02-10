@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../../services/sts-client";
+import { keycardClient } from "../../services/keycard-client";
 import { fetchTodayCalendarEvents, calculateCalendarPriority } from "../today-todos/calendar-utils";
 import { fetchLinearIssues, calculateLinearPriority } from "../today-todos/linear-utils";
 import { fetchGmailTodos, fetchMeetingSummaries, calculateEmailPriority, calculateMeetingSummaryPriority } from "../today-todos/email-utils";
@@ -254,19 +254,19 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const fetchResults = await Promise.allSettled([
         // 0: Calendar
         (async () => {
-          const token = await stsClient.exchange(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
+          const token = await keycardClient.exchange(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
           return fetchTodayCalendarEvents(token.access_token);
         })(),
 
         // 1: Linear
         (async () => {
-          const token = await stsClient.exchange(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
+          const token = await keycardClient.exchange(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
           return fetchLinearIssues(token.access_token, sevenDaysFromNow);
         })(),
 
         // 2: Gmail (todos + meeting summaries share one STS exchange)
         (async () => {
-          const token = await stsClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
+          const token = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
           const [todos, summaries] = await Promise.all([
             fetchGmailTodos(token.access_token, {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
@@ -284,14 +284,14 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
         // 3: Google Drive Activity (assigned actions)
         (async () => {
-          const token = await stsClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
+          const token = await keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
           return fetchAssignedActions(token.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
         })(),
 
         // 4: GitHub (conditional)
         (async () => {
           if (!includeGithub) return { prs: [], issues: [] };
-          const token = await stsClient.exchange(authInfo, GITHUB_RESOURCE, GITHUB_SCOPES);
+          const token = await keycardClient.exchange(authInfo, GITHUB_RESOURCE, GITHUB_SCOPES);
           return fetchGitHubTodos(token.access_token);
         })(),
 
@@ -307,7 +307,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
         // 6: Meeting notes (Granola via Google Drive)
         (async () => {
-          const token = await stsClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+          const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
           return fetchMeetingNoteActions(token.access_token, {
             daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
             maxResults: FETCH_LIMITS.MEETINGS

@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { handleToolError } from "../utils/tool-error-utils";
 
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
@@ -312,8 +312,8 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
       try {
         // Exchange user's JWT for Drive and Drive Activity access tokens
         const [tokenResponse, activityTokenResponse] = await Promise.all([
-          stsClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
-          stsClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES).catch(() => null),
+          keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
+          keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES).catch(() => null),
         ]);
 
         // Build query parameters

@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { fetchGitHubTodos } from "./today-todos/github-utils";
 import type { GitHubPRDetail, GitHubIssueDetail } from "./today-todos/types";
 
@@ -418,7 +418,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a GitHub access token
-        const tokenResponse = await stsClient.exchange(
+        const tokenResponse = await keycardClient.exchange(
           authInfo,
           GITHUB_RESOURCE,
           GITHUB_SCOPES
@@ -564,7 +564,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
               text: [
                 `❌ Error: ${message}`,
                 "",
-                "🔍 **Diagnosis**: The Keycard STS server encountered an internal error during token exchange.",
+                "🔍 **Diagnosis**: The Keycard server encountered an internal error during token exchange.",
                 "",
                 "**Possible causes and fixes:**",
                 "",
@@ -609,7 +609,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
                 "- Confirm the Keycard client is allowed to exchange tokens for:",
                 `  resource: ${GITHUB_RESOURCE}`,
                 `  scope: ${GITHUB_SCOPES.join(" ")}`,
-                "- Ensure the STS issuer/zone matches the one that issued your MCP token.",
+                "- Ensure the Keycard issuer/zone matches the one that issued your MCP token.",
                 requestId
               ].join("\n")
             }]

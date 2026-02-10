@@ -1,4 +1,4 @@
-This is a TypeScript MCP server using Keycard for STS and Google OAuth.
+This is a TypeScript MCP server using Keycard for token exchange and Google OAuth.
 
 # General guidelines
 - Use JSDoc style comments for functions
@@ -16,7 +16,7 @@ This is a TypeScript MCP server using Keycard for STS and Google OAuth.
 # Project-Specific Conventions
 - Use Zod for input validation schemas in MCP tools
 - Follow the pattern in src/tools/ when adding new tools (register function, typed handler)
-- Use the singleton pattern for service clients (see src/services/sts-client.ts)
+- Use the singleton pattern for service clients (see src/services/keycard-client.ts)
 - Export tool registration functions from src/tools/index.ts
 
 # Code Style

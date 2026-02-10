@@ -11,13 +11,13 @@ export interface TokenExchangeResponse {
   scope?: string;
 }
 
-export class STSClient {
-  private stsBaseUrl: string;
+export class KeycardClient {
+  private keycardBaseUrl: string;
   private clientId: string;
   private clientSecret: string;
 
   constructor() {
-    this.stsBaseUrl = config.keycardStsIssuerUrl;
+    this.keycardBaseUrl = config.keycardIssuerUrl;
     this.clientId = config.keycardClientId;
     this.clientSecret = config.keycardClientSecret;
   }
@@ -40,9 +40,9 @@ export class STSClient {
     resource: string,
     scopes?: string[]
   ): Promise<TokenExchangeResponse> {
-    const stsBaseUrl = this.stsBaseUrl || this.getIssuerFromAuthInfo(authInfo);
-    if (!stsBaseUrl) {
-      throw new Error("Token exchange failed: missing STS issuer URL");
+    const keycardBaseUrl = this.keycardBaseUrl || this.getIssuerFromAuthInfo(authInfo);
+    if (!keycardBaseUrl) {
+      throw new Error("Token exchange failed: missing Keycard issuer URL");
     }
 
     const params = new URLSearchParams({
@@ -66,11 +66,11 @@ export class STSClient {
       body: params.toString(),
     } satisfies RequestInit;
 
-    const tokenUrl = `${stsBaseUrl}/oauth/2/token`;
+    const tokenUrl = `${keycardBaseUrl}/oauth/2/token`;
 
     let response = await fetch(tokenUrl, requestInit);
     if (response.status === 404) {
-      const fallbackUrl = `${stsBaseUrl}/oauth/token`;
+      const fallbackUrl = `${keycardBaseUrl}/oauth/token`;
       response = await fetch(fallbackUrl, requestInit);
     }
 
@@ -84,4 +84,4 @@ export class STSClient {
 }
 
 // Singleton instance
-export const stsClient = new STSClient();
+export const keycardClient = new KeycardClient();

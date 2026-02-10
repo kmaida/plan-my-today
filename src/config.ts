@@ -8,7 +8,7 @@ export interface ServerConfig {
   port: string;
   host: string;
   baseUrl: string;
-  keycardStsIssuerUrl: string;
+  keycardIssuerUrl: string;
   issuerBaseDomain: string;
   mcpBaseDomain: string;
   keycardClientId: string;
@@ -84,7 +84,7 @@ export function getConfig(): ServerConfig {
     console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
   }
 
-  // For backward compatibility, KEYCARD_STS_ISSUER_URL is still required in single-tenant mode
+  // KEYCARD_STS_ISSUER_URL is required in single-tenant mode
   // In multi-tenant mode, ISSUER_BASE_DOMAIN and MCP_BASE_DOMAIN are required
   const isMultiTenant = ISSUER_BASE_DOMAIN && MCP_BASE_DOMAIN;
   
@@ -121,7 +121,7 @@ export function getConfig(): ServerConfig {
     port: PORT,
     host: HOST,
     baseUrl: BASE_URL,
-    keycardStsIssuerUrl: KEYCARD_STS_ISSUER_URL || '', // Fallback for multi-tenant mode
+    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL || '', // Fallback for multi-tenant mode
     issuerBaseDomain: ISSUER_BASE_DOMAIN || '',
     mcpBaseDomain: MCP_BASE_DOMAIN || '',
     keycardClientId: KEYCARD_CLIENT_ID || '',

@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { fetchMeetingNoteActions } from "./today-todos/granola-utils";
 import { handleToolError } from "../utils/tool-error-utils";
 import type { MeetingNoteActionDetail } from "./today-todos/types";
@@ -89,7 +89,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Drive access token
-        const tokenResponse = await stsClient.exchange(
+        const tokenResponse = await keycardClient.exchange(
           authInfo,
           DRIVE_RESOURCE,
           DRIVE_SCOPES

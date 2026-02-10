@@ -140,7 +140,7 @@ Reviewed all source files in `poc-keycard-connect/src/`:
 - The entire `AuthProvider` class is marked `@deprecated Use KeycardMCPAuth for MCP Apps flow`
 - This was scaffolding for where token exchange *would* go, but it's not implemented
 
-**keycard-connect does NOT have token exchange functionality.** The provider token exchange (RFC 8693 style, as shown in the demo) is a direct call to the Keycard STS endpoint. Your app calls it yourself.
+**keycard-connect does NOT have token exchange functionality.** The provider token exchange (RFC 8693 style, as shown in the demo) is a direct call to the Keycard token exchange endpoint. Your app calls it yourself.
 
 ---
 
@@ -153,7 +153,7 @@ Reviewed a demo transcript from a coworker showing Keycard's upcoming provider t
 1. User authenticates via Keycard (the flow we validated today)
 2. Keycard creates **grants** for each downstream resource the app depends on (Google, Linear, GitHub, etc.)
 3. Each grant holds an access token (and optionally a refresh token) from the provider
-4. When the app needs a provider token, it calls Keycard STS's **token exchange endpoint** (RFC 8693 style)
+4. When the app needs a provider token, it calls Keycard's **token exchange endpoint** (RFC 8693 style)
 5. Keycard returns a valid provider access token
 6. If the backing access token is expired but the grant is refreshable, Keycard automatically refreshes it using the provider's refresh token — transparently to the app
 

@@ -4,8 +4,8 @@ TypeScript MCP server that aggregates to-dos from multiple sources (Google Calen
 
 ## Architecture
 
-- **Auth flow**: User authenticates via Keycard → STS issues delegated tokens → server exchanges tokens per-service
-- **Token exchange**: `src/services/sts-client.ts` (singleton) handles RFC 8693 token exchange with Keycard STS
+- **Auth flow**: User authenticates via Keycard → Keycard issues delegated tokens → server exchanges tokens per-service
+- **Token exchange**: `src/services/keycard-client.ts` (singleton) handles RFC 8693 token exchange with Keycard
 - **Transport**: Streamable HTTP MCP transport via Express (`src/server.ts`)
 - **Tools**: Each tool in `src/tools/` follows the register-function pattern, registered centrally in `src/tools/index.ts`
 - **Config**: All env vars loaded via `src/config.ts`, never hardcode secrets
@@ -19,7 +19,7 @@ src/
   config.ts          # All env var loading and validation
   server.ts          # Express + MCP transport setup
   index.ts           # Entry point
-  services/          # STS client (singleton), Gmail labels, action completion store
+  services/          # Keycard client (singleton), Gmail labels, action completion store
   tools/             # One file per tool, plus today-todos/ and list-all-tasks-today/
   tools/index.ts     # Central tool registry (TOOL_REGISTRY array)
   middleware/         # Auth middleware

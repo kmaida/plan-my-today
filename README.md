@@ -23,7 +23,7 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 │  └── Static UI (ui/dist/)                                │
 │             │                                            │
 │             ▼                                            │
-│  ┌─ Keycard STS ─────────────────────────┐               │
+│  ┌─ Keycard ─────────────────────────────┐               │
 │  │  OAuth 2.0 + Token Exchange           │               │
 │  │  ├── Google (Calendar, Gmail, Docs)   │               │
 │  │  ├── Linear                           │               │
@@ -118,7 +118,7 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 - Streaming responses with tool call visibility
 
 ### OAuth & Auth
-- OAuth 2.0 via Keycard STS with PKCE
+- OAuth 2.0 via Keycard with PKCE
 - Token exchange for Google, Linear, and GitHub APIs
 - Auth error banner with reauthorization flow
 - Session persistence
@@ -181,7 +181,7 @@ src/
 ├── config.ts                 # Environment config
 ├── constants.ts              # App constants
 ├── middleware/                # Auth & logging middleware
-├── services/                 # STS client, Gmail labels, completion store
+├── services/                 # Keycard client, Gmail labels, completion store
 ├── tools/                    # MCP tool implementations
 │   ├── calendar.ts           # Google Calendar
 │   ├── linear.ts             # Linear issues
@@ -256,7 +256,7 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `KEYCARD_STS_ISSUER_URL` | Keycard STS issuer URL | — (required) |
+| `KEYCARD_STS_ISSUER_URL` | Keycard issuer URL | — (required) |
 | `KEYCARD_CLIENT_ID` | Keycard client ID | — (required) |
 | `KEYCARD_CLIENT_SECRET` | Keycard client secret | — (required) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Todaygent | — (required for chat) |

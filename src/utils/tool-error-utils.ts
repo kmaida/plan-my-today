@@ -13,7 +13,7 @@ type ToolErrorResponse = {
 /**
  * Build a structured MCP error response from a caught error.
  *
- * For token-exchange failures (invalid_grant, STS rejection), returns
+ * For token-exchange failures (invalid_grant, Keycard rejection), returns
  * detailed troubleshooting with the resource URLs and scopes involved.
  * For everything else, returns a generic error message.
  */
@@ -55,7 +55,7 @@ export function handleToolError(
     }
 
     lines.push(
-      "- Ensure the STS issuer/zone matches the one that issued your MCP token."
+      "- Ensure the Keycard issuer/zone matches the one that issued your MCP token."
     );
 
     return { content: [{ type: "text", text: lines.join("\n") }] };

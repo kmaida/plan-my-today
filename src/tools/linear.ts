@@ -1,6 +1,6 @@
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
-import { stsClient } from "../services/sts-client";
+import { keycardClient } from "../services/keycard-client";
 import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
 import { handleToolError } from "../utils/tool-error-utils";
 import type { LinearIssueDetail } from "./today-todos/types";
@@ -80,7 +80,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Linear access token
-        const tokenResponse = await stsClient.exchange(
+        const tokenResponse = await keycardClient.exchange(
           authInfo,
           LINEAR_RESOURCE,
           LINEAR_SCOPES
