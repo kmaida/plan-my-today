@@ -4,7 +4,7 @@ import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { ChatPanel } from './components/Chat/ChatPanel'
-import { listAllTasks, refreshAllTasks, markActionComplete, markEmailComplete } from './api/client'
+import { listAllTasks, refreshAllTasks, markActionComplete } from './api/client'
 import { useMCP } from './mcp'
 import type { Task, ViewMode, FilterState } from './types/tasks'
 import { DEFAULT_FILTERS } from './types/tasks'
@@ -116,16 +116,10 @@ function App() {
     setCompletingTaskId(task.taskId)
     setCompleteError(null)
     try {
-      if (task.source === 'gmail') {
-        // Gmail needs OAuth token exchange — route through MCP tool
-        const emailId = getTaskIdentifier(task)
-        await markEmailComplete(emailId, task.taskId)
-      } else {
-        // Slack, meeting-notes, docs — use no-auth REST endpoint
-        const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
-        const identifier = getTaskIdentifier(task)
-        await markActionComplete(source, identifier, task.taskId)
-      }
+      // Meeting-notes, docs — use no-auth REST endpoint (local completion store)
+      const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
+      const identifier = getTaskIdentifier(task)
+      await markActionComplete(source, identifier, task.taskId)
       setTasks(prev => prev.filter(t => t !== task))
     } catch (err) {
       console.error('Failed to mark complete:', err)

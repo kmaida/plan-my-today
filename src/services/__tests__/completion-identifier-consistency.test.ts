@@ -19,7 +19,6 @@ import path from "node:path";
 import {
   markActionComplete,
   isActionCompleted,
-  markActionIncomplete,
 } from "../action-completion-store";
 import { hashActionText } from "../../utils/action-identifiers";
 
@@ -31,33 +30,6 @@ beforeEach(async () => {
   // Start each test with an empty completions store
   await fs.mkdir(path.dirname(COMPLETIONS_FILE), { recursive: true });
   await fs.writeFile(COMPLETIONS_FILE, JSON.stringify({ completions: {} }));
-});
-
-describe("Slack completion identifier consistency", () => {
-  // UI sends: source="slack", identifier=message.permalink (a full URL)
-  // Filter checks: isActionCompleted("slack", message.permalink)
-  const SLACK_PERMALINK =
-    "https://workspace.slack.com/archives/C01ABC123/p1234567890123456";
-
-  it("should find a completed Slack message by permalink", async () => {
-    await markActionComplete("slack", SLACK_PERMALINK);
-    const completed = await isActionCompleted("slack", SLACK_PERMALINK);
-    expect(completed).toBe(true);
-  });
-
-  it("should NOT match Slack completion by channel:timestamp format", async () => {
-    // This was the old buggy format — channel:timestamp should NOT match a permalink
-    await markActionComplete("slack", SLACK_PERMALINK);
-    const wrongFormat = await isActionCompleted("slack", "C01ABC123:1234567890.123456");
-    expect(wrongFormat).toBe(false);
-  });
-
-  it("should allow un-completing a Slack message", async () => {
-    await markActionComplete("slack", SLACK_PERMALINK);
-    await markActionIncomplete("slack", SLACK_PERMALINK);
-    const completed = await isActionCompleted("slack", SLACK_PERMALINK);
-    expect(completed).toBe(false);
-  });
 });
 
 describe("Meeting notes completion identifier consistency", () => {
@@ -141,15 +113,14 @@ describe("Docs (Google Docs assigned actions) completion identifier consistency"
 
 describe("Cross-source isolation", () => {
   // Completions for one source must never match another source.
-  // The store key is "${source}:${identifier}", so "slack:foo" !== "docs:foo".
+  // The store key is "${source}:${identifier}", so "docs:foo" !== "meeting-note:foo".
   const IDENTIFIER = "shared-identifier-value";
 
   it("should not cross-match completions between sources", async () => {
-    await markActionComplete("slack", IDENTIFIER);
+    await markActionComplete("docs", IDENTIFIER);
 
-    expect(await isActionCompleted("slack", IDENTIFIER)).toBe(true);
+    expect(await isActionCompleted("docs", IDENTIFIER)).toBe(true);
     expect(await isActionCompleted("meeting-note", IDENTIFIER)).toBe(false);
-    expect(await isActionCompleted("docs", IDENTIFIER)).toBe(false);
     expect(await isActionCompleted("adhoc", IDENTIFIER)).toBe(false);
   });
 });
@@ -158,7 +129,7 @@ describe("ActionSource type coverage", () => {
   // Every source in the mark-action-complete tool schema must be representable
   // in ActionSource. This test acts as a compile-time + runtime guard: if someone
   // adds a source to the tool but forgets ActionSource, this fails to compile.
-  const TOOL_SOURCES = ["meeting-note", "slack", "docs", "adhoc"] as const;
+  const TOOL_SOURCES = ["meeting-note", "docs", "adhoc"] as const;
 
   it.each(TOOL_SOURCES)(
     "should accept '%s' as a valid ActionSource for storage and lookup",

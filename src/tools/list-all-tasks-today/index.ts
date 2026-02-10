@@ -45,7 +45,7 @@ const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 const LINEAR_RESOURCE = "https://api.linear.app";
 const LINEAR_SCOPES = ["read"];
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
-const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
+const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
 const GITHUB_RESOURCE = "https://api.github.com";
@@ -295,7 +295,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           return fetchGitHubTodos(token.access_token);
         })(),
 
-        // 5: Slack (env token, no STS)
+        // 5: Slack (static user token, not STS)
+        // Slack's OIDC discovery only advertises identity scopes (openid, profile,
+        // email), so the API scopes we need (search:read, etc.) can't go through
+        // Keycard STS. See src/tools/slack-list.ts for full explanation.
         (async () => {
           const slackToken = config.slackUserToken || null;
           if (!slackToken) return [];

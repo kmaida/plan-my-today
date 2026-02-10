@@ -14,8 +14,6 @@ import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
-import { removeSlackReaction } from "./tools/today-todos/slack-utils";
-import { SLACK_SAVED_MESSAGES } from "./constants";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -343,7 +341,7 @@ export function createApp(): express.Application {
   });
 
   // Mark an action as complete (no auth — writes to local completion store).
-  // Supports slack, meeting-note, docs, and adhoc sources.
+  // Supports meeting-note, docs, and adhoc sources.
   app.post('/api/mark-action-complete', async (req: express.Request, res: express.Response) => {
     try {
       const { source, identifier, complete = true, metadata, taskId } = req.body || {};
@@ -352,7 +350,7 @@ export function createApp(): express.Application {
         return res.status(400).json({ error: 'Missing required fields: source, identifier' });
       }
 
-      const validSources = ['meeting-note', 'slack', 'docs', 'adhoc'];
+      const validSources = ['meeting-note', 'docs', 'adhoc'];
       if (!validSources.includes(source)) {
         return res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
       }
@@ -363,18 +361,6 @@ export function createApp(): express.Application {
       }
 
       await storeComplete(source, identifier, metadata);
-
-      // For Slack saved messages, also remove the emoji reaction
-      if (source === 'slack' && config.slackUserToken) {
-        try {
-          const [channel, timestamp] = identifier.split(':');
-          if (channel && timestamp) {
-            await removeSlackReaction(config.slackUserToken, channel, timestamp, SLACK_SAVED_MESSAGES.EMOJI_NAME);
-          }
-        } catch {
-          // Non-fatal — completion tracking still works
-        }
-      }
 
       // Remove from cached tasks JSON so it disappears on next UI reload
       if (taskId) {
@@ -390,7 +376,7 @@ export function createApp(): express.Application {
     }
   });
 
-  // Remove a task from the cache by taskId (called by the UI after MCP mark-email-complete)
+  // Remove a task from the cache by taskId (called by the UI after mark-action-complete)
   app.post('/api/tasks/evict', async (req: express.Request, res: express.Response) => {
     const { taskId } = req.body || {};
     if (!taskId) {

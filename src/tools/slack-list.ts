@@ -32,6 +32,27 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 /**
+ * Slack authentication: static user token (not STS)
+ *
+ * Unlike other providers in this app, Slack does NOT use Keycard STS
+ * token exchange. Slack's OIDC discovery document at
+ * https://slack.com/.well-known/openid-configuration only advertises
+ * identity scopes (openid, profile, email). The API scopes this tool
+ * needs (search:read, reactions:read, users:read, etc.) use Slack's
+ * separate OAuth v2 system, which has no discovery document. Keycard's
+ * provider configuration validates scopes against the discovery doc,
+ * so Slack API scopes can't be registered as a Keycard resource.
+ *
+ * This means Slack access in this app:
+ * - Uses a static user token from SLACK_USER_TOKEN env var
+ * - Is NOT visible in Keycard audit logs
+ * - Does NOT get task-scoped credentials
+ * - Does NOT participate in delegation chains
+ *
+ * All other OAuth providers (Google, GitHub) go through stsClient.exchange().
+ */
+
+/**
  * Registers the list-slack-todos tool with the MCP server
  *
  * This tool fetches recent @mentions and DMs from Slack with priority analysis.

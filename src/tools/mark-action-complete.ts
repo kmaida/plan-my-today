@@ -5,25 +5,21 @@ import {
   markActionIncomplete as storeMarkIncomplete,
 } from "../services/action-completion-store";
 import type { ActionSource } from "../utils/action-identifiers";
-import { removeSlackReaction } from "./today-todos/slack-utils";
-import { SLACK_SAVED_MESSAGES } from "../constants";
-import { config } from "../config";
-import { getLogger } from "../observability/logger";
 
 /**
  * Input schema for the mark-action-complete tool
  */
 const markActionCompleteInputSchema = {
   source: z
-    .enum(["meeting-note", "slack", "docs", "adhoc"])
+    .enum(["meeting-note", "docs", "adhoc"])
     .describe(
-      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages, 'docs' for Google Docs assigned actions/mentions, or 'adhoc' for custom tasks"
+      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'docs' for Google Docs assigned actions/mentions, or 'adhoc' for custom tasks"
     ),
   identifier: z
     .string()
     .describe(
       "The unique identifier for this action. Format varies by source: " +
-        "meeting-note uses '{docId}' or '{docId}:{hash}', slack uses the permalink URL, docs uses the file link or file title, adhoc uses any custom ID"
+        "meeting-note uses '{docId}' or '{docId}:{hash}', docs uses the file link or file title, adhoc uses any custom ID"
     ),
   complete: z
     .boolean()
@@ -51,7 +47,7 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
     {
       title: "Mark Action Complete",
       description:
-        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages, Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. For Slack saved messages, this also removes the emoji reaction. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
+        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
       inputSchema: markActionCompleteInputSchema,
     },
     (async (args, _extra) => {
@@ -63,38 +59,11 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
         if (shouldComplete) {
           await storeMarkComplete(source, identifier, args.metadata);
 
-          // If this is a Slack message, also remove the emoji reaction
-          if (source === "slack") {
-            try {
-              if (config.slackUserToken) {
-                // Parse identifier: format is "channelId:messageTs"
-                const [channel, timestamp] = identifier.split(":");
-                if (channel && timestamp) {
-                  await removeSlackReaction(
-                    config.slackUserToken,
-                    channel,
-                    timestamp,
-                    SLACK_SAVED_MESSAGES.EMOJI_NAME
-                  );
-                }
-              }
-            } catch (error) {
-              // Log but don't fail - completion tracking still works
-              const logger = getLogger().withOperation("mark_action_complete");
-              logger.warn("Failed to remove Slack emoji reaction", {
-                error: error instanceof Error ? error.message : String(error),
-                identifier,
-              });
-            }
-          }
-
           return {
             content: [
               {
                 type: "text",
-                text: `Action marked as complete: ${source}:${identifier}${
-                  source === "slack" ? " (emoji removed from Slack)" : ""
-                }`,
+                text: `Action marked as complete: ${source}:${identifier}`,
               },
             ],
           };

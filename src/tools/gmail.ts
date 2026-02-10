@@ -6,7 +6,7 @@ import { handleToolError } from "../utils/tool-error-utils";
 import type { GmailMessageDetail } from "./today-todos/types";
 
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
-const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"];
+const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 
 /**
  * Input schema for the list-gmail-todos tool

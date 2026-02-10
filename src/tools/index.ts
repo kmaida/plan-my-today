@@ -8,7 +8,6 @@ import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerSlackListTool } from "./slack-list";
-import { registerMarkEmailCompleteTool } from "./mark-email-complete";
 import { registerMarkActionCompleteTool } from "./mark-action-complete";
 import { registerMeetingNotesTool } from "./meeting-notes";
 
@@ -21,7 +20,6 @@ export const TOOL_REGISTRY = [
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
   { name: "list-drive-activity", register: registerDriveActivityTool },
   { name: "list-gmail-todos", register: registerGmailTool },
-  { name: "mark-email-complete", register: registerMarkEmailCompleteTool },
   { name: "mark-action-complete", register: registerMarkActionCompleteTool },
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-slack-todos", register: registerSlackListTool },

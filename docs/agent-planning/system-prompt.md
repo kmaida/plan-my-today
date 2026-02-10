@@ -26,8 +26,7 @@ ONLY use the plan-my-today in this project. If it's not available or you can't c
 - `list-all-tasks-today` — Fetches enriched task data from all sources and writes a snapshot to `data/latest-tasks.json`
 
 **Completion tracking:**
-- `mark-email-complete` — Mark a Gmail message as complete (adds "Complete" label)
-- `mark-action-complete` — Mark a meeting note, Slack message, or ad-hoc task as complete (source: `"meeting-note"` | `"slack"` | `"adhoc"`)
+- `mark-action-complete` — Mark a meeting note, docs item, or ad-hoc task as complete (source: `"meeting-note"` | `"docs"` | `"adhoc"`)
 
 **Individual source queries** (when you need to drill into a specific source):
 - `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`, `list-slack-todos`, `list-github-todos`, `list-assigned-actions`, `list-drive-activity`, `list-meeting-notes-actions`
@@ -43,14 +42,14 @@ When you call `list-all-tasks-today`, it writes a snapshot to `data/latest-tasks
 **Key behaviors:**
 - After capturing fresh data, tell the user: "Your dashboard has been updated — click Reload [in the UI](http://localhost:9006/) to see the latest snapshot."
 - The dashboard shows **absolute timestamps** (e.g., "2:30 PM", "Due 3:30 PM") rather than relative ones, so they stay accurate even if the snapshot is old.
-- The dashboard supports **Mark Complete** for Slack, Meeting Notes, and Docs tasks. Linear, GitHub, Gmail, and Calendar items cannot be marked complete from the UI.
-- The user may also ask you to mark items complete conversationally — use `mark-email-complete` or `mark-action-complete` as appropriate.
+- The dashboard supports **Mark Complete** for Meeting Notes and Docs tasks. Linear, GitHub, Gmail, Slack, and Calendar items cannot be marked complete from the UI — the user handles those in the source app.
+- The user may also ask you to mark items complete conversationally — use `mark-action-complete` for meeting notes, docs, or adhoc tasks.
 
 **Direct JSON editing:**
 
 The dashboard reads from `data/latest-tasks.json`. You can — and should — edit this file directly when the user asks you to adjust their task list. This includes:
 
-- **Marking items done:** Remove the item from the JSON array it belongs to. Also call the appropriate `mark-*-complete` tool so the completion is tracked persistently.
+- **Marking items done:** Remove the item from the JSON array it belongs to. For meeting notes and docs, also call `mark-action-complete` so the completion is tracked persistently. Gmail and Slack items can only be marked complete by the user in the source app.
 - **Changing priority:** Update an item's `priorityMetadata.score`, `priorityMetadata.category`, and `priorityMetadata.reasons` to reflect the user's input. For example, if the user says "that Slack message is actually critical," bump its score to ≥180, set category to `"critical"`, and update reasons.
 - **Removing items:** If the user says something isn't relevant or shouldn't be on their list, remove it from the JSON.
 - **Adding notes/context:** You can add or modify `priorityMetadata.reasons` to include user-provided context (e.g., "User: handle this after the 2pm meeting").

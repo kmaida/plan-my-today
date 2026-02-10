@@ -1,7 +1,6 @@
 import type { SlackMessageDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { getLogger } from "../../observability/logger";
-import { isActionCompleted } from "../../services/action-completion-store";
 
 import { SLACK_SAVED_MESSAGES } from "../../constants";
 
@@ -180,52 +179,6 @@ async function fetchSlackSavedMessages(
   }
 
   return filtered;
-}
-
-/**
- * Removes a specific emoji reaction from a Slack message
- *
- * This is used to automatically remove the bookmark emoji when marking a saved message as complete.
- * Gracefully handles the case where the reaction has already been removed.
- *
- * @param accessToken - Slack user token with reactions:write scope
- * @param channel - Slack channel ID
- * @param timestamp - Message timestamp (ts)
- * @param emojiName - Name of the emoji to remove (without colons)
- * @throws Error if the API returns an error other than "no_reaction"
- */
-export async function removeSlackReaction(
-  accessToken: string,
-  channel: string,
-  timestamp: string,
-  emojiName: string
-): Promise<void> {
-  const url = new URL("https://slack.com/api/reactions.remove");
-
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      channel,
-      timestamp,
-      name: emojiName,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Slack reactions.remove API error: ${response.status}`);
-  }
-
-  const data = (await response.json()) as { ok: boolean; error?: string };
-  if (!data.ok) {
-    // Don't throw on already_removed error - that's fine
-    if (data.error !== "no_reaction") {
-      throw new Error(data.error || "Failed to remove reaction");
-    }
-  }
 }
 
 /**
@@ -777,16 +730,5 @@ export async function fetchSlackMessages(
   ]);
   const enrichedMessages = await resolveChannelNames(accessToken, messagesWithPermalinks);
 
-  // Filter out completed messages
-  // The identifier used by mark-action-complete is the permalink URL
-  const filteredMessages: SlackMessageDetail[] = [];
-  for (const message of enrichedMessages) {
-    if (message.permalink) {
-      const completed = await isActionCompleted("slack", message.permalink);
-      if (completed) continue;
-    }
-    filteredMessages.push(message);
-  }
-
-  return filteredMessages;
+  return enrichedMessages;
 }

@@ -3,7 +3,7 @@ import { createHash } from "crypto";
 /**
  * Action source types - only for items without native completion tracking
  */
-export type ActionSource = "meeting-note" | "slack" | "docs" | "adhoc";
+export type ActionSource = "meeting-note" | "docs" | "adhoc";
 
 /**
  * Hash action text to create a short, stable identifier

@@ -137,24 +137,6 @@ export async function refreshAllTasks(): Promise<TasksResult> {
 }
 
 /**
- * Mark an email as complete (adds "Complete" label).
- * Also evicts the task from the server-side cache so page reloads stay consistent.
- */
-export async function markEmailComplete(emailId: string, taskId?: string): Promise<MarkCompleteResponse> {
-  const result = await callTool<MarkCompleteResponse>('mark-email-complete', {
-    emailId,
-  })
-  // Evict from the cached JSON so a page reload doesn't resurrect the task
-  if (taskId) {
-    apiCall('/tasks/evict', {
-      method: 'POST',
-      body: JSON.stringify({ taskId }),
-    }).catch(() => {}) // Non-fatal
-  }
-  return result
-}
-
-/**
  * Mark an action as complete (stores in local completion tracking).
  * Calls a dedicated no-auth REST endpoint instead of the MCP tool layer.
  */
