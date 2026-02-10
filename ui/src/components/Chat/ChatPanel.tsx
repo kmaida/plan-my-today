@@ -3,6 +3,7 @@ import { useChat } from '../../chat/useChat'
 import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
+import type { ChatMessage as ChatMessageType } from '../../chat/types'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { buildSystemPrompt } from '../../chat/system-prompt'
 import './ChatPanel.css'
@@ -10,7 +11,10 @@ import './ChatPanel.css'
 interface ChatPanelProps {
   isOpen: boolean
   onToggle: () => void
-  onTasksUpdated?: () => void
+  /** Called after a chat turn completes with tool calls. Includes whether
+   *  list-all-tasks-today ran (so the caller can re-read the cache) and any
+   *  auth errors detected from tool results. */
+  onToolCallsComplete?: (result: { didFetchAllTasks: boolean; authErrors: string[] }) => void
 }
 
 const BUTTON_LABELS = [
@@ -51,7 +55,44 @@ const PLACEHOLDERS = [
   'Brief me, Todaygent',
 ]
 
-export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) {
+/**
+ * Patterns in tool results that indicate an auth/token error requiring reauthorization.
+ * Mirrored in src/utils/__tests__/auth-error-detection-contract.test.ts — update both.
+ */
+const AUTH_ERROR_PATTERNS = [
+  'unauthorized',
+  'invalid_grant',
+  'not allowed to exchange token',
+  'token exchange failed',
+  'authentication failed',
+  'access denied',
+  'reauthoriz',
+  '401',
+  '403',
+  'forbidden',
+]
+
+/**
+ * Scan completed tool calls for auth-related errors.
+ * Returns an array of human-readable error strings (empty if none found).
+ */
+function extractAuthErrors(messages: ChatMessageType[]): string[] {
+  const errors: string[] = []
+  for (const msg of messages) {
+    if (!msg.toolCalls) continue
+    for (const tc of msg.toolCalls) {
+      if (!tc.result) continue
+      const lower = tc.result.toLowerCase()
+      const isAuthError = AUTH_ERROR_PATTERNS.some((p) => lower.includes(p))
+      if (isAuthError) {
+        errors.push(`${tc.name}: ${tc.result.slice(0, 200)}`)
+      }
+    }
+  }
+  return errors
+}
+
+export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
   const { messages, isLoading, error, sendMessage, clearMessages } = useChat(buildSystemPrompt)
@@ -73,19 +114,27 @@ export function ChatPanel({ isOpen, onToggle, onTasksUpdated }: ChatPanelProps) 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Notify parent when tasks may have been updated (after tool calls complete).
-  // Check all messages (not just the last) because the tool call may be in an
-  // intermediate agentic-loop round while the final message is a text response.
+  // After each chat turn completes, notify the parent about what happened.
+  // Only scans messages added since the last scan to avoid re-reporting old errors.
   const prevLoadingRef = useRef(false)
+  const scannedCountRef = useRef(0)
   useEffect(() => {
     const wasLoading = prevLoadingRef.current
     prevLoadingRef.current = isLoading
-    if (wasLoading && !isLoading && messages.length > 0 && onTasksUpdated) {
-      if (messages.some((m) => m.toolCalls?.some((tc) => tc.name === 'list-all-tasks-today'))) {
-        onTasksUpdated()
+    if (wasLoading && !isLoading && messages.length > 0 && onToolCallsComplete) {
+      const newMessages = messages.slice(scannedCountRef.current)
+      scannedCountRef.current = messages.length
+
+      const didFetchAllTasks = newMessages.some(
+        (m) => m.toolCalls?.some((tc) => tc.name === 'list-all-tasks-today'),
+      )
+      const authErrors = extractAuthErrors(newMessages)
+
+      if (didFetchAllTasks || authErrors.length > 0) {
+        onToolCallsComplete({ didFetchAllTasks, authErrors })
       }
     }
-  }, [isLoading, messages, onTasksUpdated])
+  }, [isLoading, messages, onToolCallsComplete])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

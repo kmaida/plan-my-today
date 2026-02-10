@@ -102,16 +102,6 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 3. Grant access to each service (Calendar, Gmail, Docs, etc.)
 4. Your tasks load automatically
 
-### 5. Tunnel for OAuth (Local Dev)
-
-Keycard needs a public URL for token exchange with Google. Use ngrok or similar:
-
-```bash
-ngrok http 9005
-```
-
-Update Keycard settings with the tunnel URL. Try to reuse the same URL to avoid reconfiguring.
-
 ## Features
 
 ### Task Dashboard
