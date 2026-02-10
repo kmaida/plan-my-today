@@ -136,9 +136,7 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-assigned-actions` | Google Docs action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
-| `mark-action-complete` | Dismiss meeting note todos, remove Slack reminder emoji, or mark ad-hoc tasks done |
-| `mark-email-complete` | Add a "Complete" label to a Gmail message |
-| `whoami` | Current user info and token details |
+| `mark-action-complete` | Mark meeting note todos, docs items, or ad-hoc tasks complete (local store) |
 
 ## REST API
 

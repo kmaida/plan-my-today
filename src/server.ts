@@ -109,7 +109,7 @@ export function createApp(): express.Application {
         }
       },
       scopesSupported: ['mcp:tools'],
-      resourceName: "Todo MCP Server",
+      resourceName: "Plan My Today MCP",
     };
     app.use(mcpAuthMetadataRouter(multiTenantOptions));
   } else {
@@ -119,7 +119,7 @@ export function createApp(): express.Application {
         issuer: config.keycardIssuerUrl
       },
       scopesSupported: ['mcp:tools'],
-      resourceName: "Todo MCP Server",
+      resourceName: "Plan My Today MCP",
     };
     app.use(mcpAuthMetadataRouter(singleTenantOptions));
   }
