@@ -49,7 +49,6 @@ const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
 const GITHUB_RESOURCE = "https://api.github.com";
-const GITHUB_SCOPES = ["repo", "read:org"];
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 
@@ -291,7 +290,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         // 4: GitHub (conditional)
         (async () => {
           if (!includeGithub) return { prs: [], issues: [] };
-          const token = await keycardClient.exchange(authInfo, GITHUB_RESOURCE, GITHUB_SCOPES);
+          const token = await keycardClient.exchange(authInfo, GITHUB_RESOURCE);
           return fetchGitHubTodos(token.access_token);
         })(),
 

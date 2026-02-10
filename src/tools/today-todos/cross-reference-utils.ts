@@ -13,7 +13,7 @@ export function detectLinearMentions(
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[]
 ): CrossReferenceMetadata {
-  const mentionedIn = new Set<string>(["linear"]);
+  const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string }> = [];
 
   // Search emails for issue ID
@@ -45,7 +45,7 @@ export function detectLinearMentions(
   return {
     mentionedIn: Array.from(mentionedIn),
     relatedItems,
-    totalMentions: relatedItems.length + 1, // +1 for Linear itself
+    totalMentions: relatedItems.length,
   };
 }
 
@@ -64,7 +64,7 @@ export function detectGitHubMentions(
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[]
 ): CrossReferenceMetadata {
-  const mentionedIn = new Set<string>(["github"]);
+  const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string }> = [];
 
   // Patterns to search: "#123", "owner/repo#123", github.com URLs
@@ -109,7 +109,7 @@ export function detectGitHubMentions(
   return {
     mentionedIn: Array.from(mentionedIn),
     relatedItems,
-    totalMentions: relatedItems.length + 1, // +1 for GitHub itself
+    totalMentions: relatedItems.length,
   };
 }
 

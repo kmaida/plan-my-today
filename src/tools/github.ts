@@ -5,7 +5,6 @@ import { fetchGitHubTodos } from "./today-todos/github-utils";
 import type { GitHubPRDetail, GitHubIssueDetail } from "./today-todos/types";
 
 const GITHUB_RESOURCE = "https://api.github.com";
-const GITHUB_SCOPES = ["repo", "read:org"];
 
 /**
  * Input schema for the list-github-todos tool
@@ -420,8 +419,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
         // Exchange user's JWT for a GitHub access token
         const tokenResponse = await keycardClient.exchange(
           authInfo,
-          GITHUB_RESOURCE,
-          GITHUB_SCOPES
+          GITHUB_RESOURCE
         );
 
         const includePRs = args.includePRs !== false; // default true
@@ -533,7 +531,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
                 "",
                 "1. **Add GitHub as a Credential Provider** in your Keycard zone:",
                 "   - Go to Keycard Console → Your Zone → Credential Providers",
-                "   - Add GitHub OAuth App credentials",
+                "   - Add GitHub App credentials",
                 "",
                 "2. **Configure Token Exchange Permissions** for your Keycard client:",
                 "   - Go to Keycard Console → Your Zone → Clients",
@@ -541,12 +539,11 @@ export function registerGithubTool(mcpServer: McpServer): void {
                 "   - Enable token exchange",
                 "   - Add resource permission:",
                 `     • Resource: ${GITHUB_RESOURCE}`,
-                `     • Scopes: ${GITHUB_SCOPES.join(", ")}`,
                 "",
-                "3. **Verify your GitHub OAuth App** is configured correctly:",
-                "   - GitHub Settings → Developer settings → OAuth Apps",
-                "   - Ensure the app has the required scopes:",
-                `     • ${GITHUB_SCOPES.join("\n     • ")}`,
+                "3. **Verify your GitHub App** is configured correctly:",
+                "   - GitHub Settings → Developer settings → GitHub Apps",
+                "   - Ensure the app has the required permissions (Issues, Pull requests, Metadata → Read-only)",
+                "   - Ensure the app is installed on your account",
                 "",
                 "4. **Check environment variables**:",
                 "   - Verify KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET are set",
@@ -569,20 +566,19 @@ export function registerGithubTool(mcpServer: McpServer): void {
                 "**Possible causes and fixes:**",
                 "",
                 "1. **Credential Provider Configuration Issue**:",
-                "   - Verify GitHub OAuth App credentials in Keycard Console",
+                "   - Verify GitHub App credentials in Keycard Console",
                 "   - Check that Client ID and Client Secret are correct",
-                "   - Ensure the GitHub OAuth App is active and not revoked",
+                "   - Ensure the GitHub App is active and not revoked",
                 "",
                 "2. **Token Exchange Configuration**:",
                 "   - Verify your Keycard client has token exchange enabled",
                 "   - Confirm resource permission is correctly configured:",
                 `     • Resource: ${GITHUB_RESOURCE}`,
-                `     • Scopes: ${GITHUB_SCOPES.join(", ")}`,
                 "",
-                "3. **GitHub OAuth App Issues**:",
-                "   - Check GitHub OAuth App status in GitHub Settings",
+                "3. **GitHub App Issues**:",
+                "   - Check GitHub App status in GitHub Settings → Developer settings → GitHub Apps",
                 "   - Verify callback URLs are configured correctly",
-                "   - Ensure the app hasn't been deleted or suspended",
+                "   - Ensure the app is installed on your account and hasn't been suspended",
                 "",
                 "4. **Temporary Server Issue**:",
                 "   - Wait a few minutes and try again",
@@ -608,7 +604,6 @@ export function registerGithubTool(mcpServer: McpServer): void {
                 "- Verify KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET are set for this server.",
                 "- Confirm the Keycard client is allowed to exchange tokens for:",
                 `  resource: ${GITHUB_RESOURCE}`,
-                `  scope: ${GITHUB_SCOPES.join(" ")}`,
                 "- Ensure the Keycard issuer/zone matches the one that issued your MCP token.",
                 requestId
               ].join("\n")

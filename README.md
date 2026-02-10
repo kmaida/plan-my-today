@@ -237,9 +237,11 @@ Configure in Keycard Console:
 
 ### GitHub
 
-1. Create an OAuth app in GitHub (Settings > Developer settings > OAuth Apps)
-2. Add GitHub as a credential provider in Keycard
-3. Token exchange resource: `https://api.github.com`, scopes: `repo`, `read:org`
+1. Create a GitHub App (Settings > Developer settings > GitHub Apps)
+2. Set permissions: Metadata (Read-only), Issues (Read-only), Pull requests (Read-only), Contents (Read-only)
+3. Install the app on your GitHub account
+4. Add GitHub as a credential provider in Keycard
+5. Token exchange resource: `https://api.github.com` (no scopes — permissions controlled by GitHub App settings)
 
 ### Slack
 

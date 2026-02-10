@@ -11,7 +11,7 @@ const SOURCE_LABELS: Record<TaskSource, string> = {
   linear: 'Linear',
   gmail: 'Gmail',
   github: 'GitHub',
-  'github-issue': 'GitHub Issue',
+  'github-issue': 'GitHub Issues',
   slack: 'Slack',
   calendar: 'Calendar',
   docs: 'Google Docs',
