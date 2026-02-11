@@ -31,14 +31,8 @@ interface CachedTaskData {
  * Uses a single file read via `getCompletedBySources` to load all
  * dismissable source completions at once.
  */
-export async function filterCompletedTasks(
-  data: CachedTaskData
-): Promise<void> {
-  const completed = await getCompletedBySources([
-    "slack",
-    "docs",
-    "meeting-note",
-  ] as const);
+export async function filterCompletedTasks(data: CachedTaskData): Promise<void> {
+  const completed = await getCompletedBySources(["slack", "docs", "meeting-note"] as const);
   const slackCompleted = completed.get("slack")!;
   const docsCompleted = completed.get("docs")!;
   const meetingNoteCompleted = completed.get("meeting-note")!;

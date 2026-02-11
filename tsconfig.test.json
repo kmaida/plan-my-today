@@ -8,6 +8,10 @@
     "src/**/*",
     "tests/**/*",
     "ui/src/chat/auth-error-detection.ts",
-    "ui/src/chat/types.ts"
+    "ui/src/chat/types.ts",
+    "ui/src/api/transformers.ts",
+    "ui/src/types/tasks.ts",
+    "ui/src/utils/taskHelpers.ts",
+    "ui/src/utils/dateHelpers.ts"
   ]
 }

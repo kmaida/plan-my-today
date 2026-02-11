@@ -15,6 +15,7 @@ import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/
 import type { McpServer } from "./types/index";
 import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
 import { filterCompletedTasks } from "./utils/filter-completed-tasks";
+import { removeTaskFromCache } from "./utils/cache-utils";
 import { PATHS } from "./constants";
 
 // Create authentication middleware using the local SDK
@@ -45,41 +46,6 @@ function createMcpServerForSession(): McpServer {
 }
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
-
-/** Remove a completed task from the cached tasks JSON file */
-async function removeTaskFromCache(taskId: string): Promise<void> {
-  try {
-    const raw = await fs.readFile(TASKS_CACHE_PATH, 'utf-8');
-    const data = JSON.parse(raw);
-    let removed = false;
-
-    for (const key of Object.keys(data)) {
-      if (key === 'metadata') continue;
-      const section = data[key];
-
-      if (Array.isArray(section)) {
-        const before = section.length;
-        data[key] = section.filter((item: { taskId?: string }) => item.taskId !== taskId);
-        if (data[key].length < before) removed = true;
-      } else if (section && typeof section === 'object') {
-        // Nested objects like github: { prs: [], issues: [] }
-        for (const subKey of Object.keys(section)) {
-          if (Array.isArray(section[subKey])) {
-            const before = section[subKey].length;
-            section[subKey] = section[subKey].filter((item: { taskId?: string }) => item.taskId !== taskId);
-            if (section[subKey].length < before) removed = true;
-          }
-        }
-      }
-    }
-
-    if (removed) {
-      await fs.writeFile(TASKS_CACHE_PATH, JSON.stringify(data, null, 2));
-    }
-  } catch {
-    // Non-fatal — optimistic UI removal still works
-  }
-}
 
 /**
  * Creates and configures the Express application
