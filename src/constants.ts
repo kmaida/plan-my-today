@@ -80,3 +80,9 @@ export const OAUTH = {
   /** OAuth state expiry time in milliseconds (10 minutes) */
   STATE_EXPIRY_MS: 10 * 60 * 1000,
 } as const;
+
+/** File paths */
+export const PATHS = {
+  /** Cached tasks JSON written by list-all-tasks-today, read by UI and read-dashboard-tasks */
+  TASKS_CACHE: "data/latest-tasks.json",
+} as const;

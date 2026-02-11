@@ -90,28 +90,17 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
     return `${labels[type] || "Message"} from ${userName}`;
   }
 
-  // Truncate based on visible text length (excluding link URL markup)
-  const visibleLength = title.replace(/<https?:\/\/[^|>]+\|([^>]+)>/g, "$1").replace(/<https?:\/\/[^>]+>/g, "link").length;
-  if (visibleLength > SLACK_TITLE_MAX_LENGTH) {
-    // Truncate conservatively — find a safe cut point in the raw string
-    let visible = 0;
-    let i = 0;
-    while (i < title.length && visible < SLACK_TITLE_MAX_LENGTH - 1) {
-      if (title[i] === "<" && title.substring(i).match(/^<https?:\/\//)) {
-        // Skip to end of link markup, count only label length
-        const end = title.indexOf(">", i);
-        if (end === -1) break;
-        const linkContent = title.substring(i + 1, end);
-        const pipeIdx = linkContent.indexOf("|");
-        const labelLen = pipeIdx >= 0 ? linkContent.length - pipeIdx - 1 : 4; // "link"
-        visible += labelLen;
-        i = end + 1;
-      } else {
-        visible++;
-        i++;
-      }
-    }
-    title = title.substring(0, i).trimEnd() + "\u2026";
+  // Truncate based on visible text length (excluding link URL markup).
+  // "Visible" means what the user sees: link labels instead of full <url|label> markup.
+  const visibleText = title
+    .replace(/<https?:\/\/[^|>]+\|([^>]+)>/g, "$1")  // <url|label> → label
+    .replace(/<https?:\/\/[^>]+>/g, "link");           // <url> → "link"
+  if (visibleText.length > SLACK_TITLE_MAX_LENGTH) {
+    // Estimate a proportional cut point in the raw string.
+    // The ratio of raw length to visible length accounts for link markup overhead.
+    const ratio = title.length / Math.max(visibleText.length, 1);
+    const cutAt = Math.floor((SLACK_TITLE_MAX_LENGTH - 1) * ratio);
+    title = title.substring(0, cutAt).trimEnd() + "\u2026";
   }
 
   return title;

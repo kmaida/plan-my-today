@@ -1,9 +1,10 @@
+import * as path from "path";
 import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import * as fs from "fs/promises";
-import * as path from "path";
+import { PATHS } from "../constants";
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), "data", "latest-tasks.json");
+const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
 /**
  * Valid source keys in the cached latest-tasks.json.

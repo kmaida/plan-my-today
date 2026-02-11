@@ -28,6 +28,11 @@ export interface AuthMiddlewareOptions {
 // which silently mangles array audiences into a comma-joined URL string.
 // We wrap the default verifier so that when `aud` is an array, `resource`
 // is set to the first entry (the MCP resource URL).
+//
+// The comma-detection is a safe no-op once the library ships the fix —
+// a correct `resource` won't contain commas, so the wrapper becomes a
+// passthrough. Safe to remove this entire block after the fix lands in
+// @keycardlabs/mcp-oauth and we bump the dependency.
 // --------------------------------------------------------------------------
 
 interface TokenVerifier {
@@ -41,8 +46,11 @@ interface TokenVerifier {
 }
 
 function createArrayAudVerifier(): TokenVerifier {
-  // The JWKSOAuthKeyring isn't in the package's exports map, so we use
-  // createRequire relative to the exported verifier module to reach it.
+  // FRAGILE WORKAROUND: Reaches into @keycardlabs/mcp-oauth internals via
+  // relative path because JWKSOAuthKeyring isn't in the package's exports map.
+  // This WILL break if the library restructures its internal files.
+  // TODO: Remove once upstream exposes JWKSOAuthKeyring in its public API
+  //       or fixes the array `aud` mangling in JWTOAuthTokenVerifier.
   const innerRequire = createRequire(
     require.resolve("@keycardlabs/mcp-oauth/server/auth/verifiers/jwt"),
   );

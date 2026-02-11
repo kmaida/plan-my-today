@@ -98,15 +98,6 @@ export function getConfig(): ServerConfig {
         "   MCP_BASE_DOMAIN=mcp.example.com"
     );
   }
-  
-  if (isMultiTenant && (!ISSUER_BASE_DOMAIN || !MCP_BASE_DOMAIN)) {
-    throw new Error(
-      "❌ FATAL: For multi-tenant mode, both ISSUER_BASE_DOMAIN and MCP_BASE_DOMAIN are required.\n" +
-        "💡 Example:\n" +
-        "   ISSUER_BASE_DOMAIN=keycard.cloud\n" +
-        "   MCP_BASE_DOMAIN=mcp.example.com"
-    );
-  }
 
   // Warn if Slack is enabled but custom emoji is not configured
   if (SLACK_USER_TOKEN && !SLACK_EMOJI_NAME) {

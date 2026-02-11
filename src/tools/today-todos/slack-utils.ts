@@ -6,25 +6,29 @@ import { isActionCompleted } from "../../services/action-completion-store";
 import { SLACK_SAVED_MESSAGES } from "../../constants";
 
 /**
+ * Shape of a raw Slack message from the Search/Reactions APIs.
+ * Defined once here and reused across fetchSlackSavedMessages,
+ * searchMessages, deduplicateAndGroup, and fetchSlackMessages.
+ */
+interface SlackRawMessage {
+  type: string;
+  user: string;
+  username?: string;
+  ts: string;
+  text: string;
+  channel?: { id: string; name: string };
+  permalink?: string;
+  thread_ts?: string;
+}
+
+/**
  * Slack Search API response structure
  */
 interface SlackSearchResponse {
   ok: boolean;
   error?: string;
   messages?: {
-    matches?: Array<{
-      type: string;
-      user: string;
-      username?: string;
-      ts: string;
-      text: string;
-      channel?: {
-        id: string;
-        name: string;
-      };
-      permalink?: string;
-      thread_ts?: string;
-    }>;
+    matches?: SlackRawMessage[];
   };
 }
 
@@ -106,16 +110,7 @@ async function fetchSlackSavedMessages(
   emojiName: string,
   daysBack: number,
   maxResults: number
-): Promise<Array<{
-  type: string;
-  user: string;
-  username?: string;
-  ts: string;
-  text: string;
-  channel?: { id: string; name: string };
-  permalink?: string;
-  thread_ts?: string;
-}>> {
+): Promise<SlackRawMessage[]> {
   const url = new URL("https://slack.com/api/reactions.list");
   url.searchParams.set("limit", "100");
 
@@ -138,16 +133,7 @@ async function fetchSlackSavedMessages(
 
   const items = data.items || [];
   const cutoffTime = Date.now() / 1000 - daysBack * 24 * 60 * 60;
-  const filtered: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }> = [];
+  const filtered: SlackRawMessage[] = [];
 
   for (const item of items) {
     // Only process message items (skip files, file comments, etc.)
@@ -188,16 +174,7 @@ async function fetchSlackSavedMessages(
 async function searchMessages(
   accessToken: string,
   query: string
-): Promise<Array<{
-  type: string;
-  user: string;
-  username?: string;
-  ts: string;
-  text: string;
-  channel?: { id: string; name: string };
-  permalink?: string;
-  thread_ts?: string;
-}>> {
+): Promise<SlackRawMessage[]> {
   const url = new URL("https://slack.com/api/search.messages");
   url.searchParams.set("query", query);
   url.searchParams.set("count", "100"); // Max results per query
@@ -226,46 +203,10 @@ async function searchMessages(
  * Deduplicate and group search results
  */
 function deduplicateAndGroup(
-  mentions: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>,
-  threads: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>,
-  dms: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>,
-  saved: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>,
+  mentions: SlackRawMessage[],
+  threads: SlackRawMessage[],
+  dms: SlackRawMessage[],
+  saved: SlackRawMessage[],
   userId: string
 ): SlackMessageDetail[] {
   const seen = new Set<string>();
@@ -276,16 +217,7 @@ function deduplicateAndGroup(
    * Returns true if added, false if duplicate
    */
   const addIfNew = (
-    msg: {
-      type: string;
-      user: string;
-      username?: string;
-      ts: string;
-      text: string;
-      channel?: { id: string; name: string };
-      permalink?: string;
-      thread_ts?: string;
-    },
+    msg: SlackRawMessage,
     messageType: "saved" | "mention" | "thread" | "dm",
     additionalFields?: Partial<SlackMessageDetail>
   ): boolean => {
@@ -664,36 +596,9 @@ export async function fetchSlackMessages(
         : `${daysBack} days ago`;
 
   // Execute searches in parallel: @mentions, DMs, and saved messages
-  let mentions: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>;
-  let dms: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>;
-  let saved: Array<{
-    type: string;
-    user: string;
-    username?: string;
-    ts: string;
-    text: string;
-    channel?: { id: string; name: string };
-    permalink?: string;
-    thread_ts?: string;
-  }>;
+  let mentions: SlackRawMessage[];
+  let dms: SlackRawMessage[];
+  let saved: SlackRawMessage[];
 
   try {
     [mentions, dms, saved] = await Promise.all([

@@ -14,6 +14,7 @@ import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
+import { PATHS } from "./constants";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -42,7 +43,7 @@ function createMcpServerForSession(): McpServer {
   return mcpServer;
 }
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), 'data', 'latest-tasks.json');
+const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
 /** Remove a completed task from the cached tasks JSON file */
 async function removeTaskFromCache(taskId: string): Promise<void> {

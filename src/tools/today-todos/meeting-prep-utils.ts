@@ -45,6 +45,7 @@ export function generateMeetingContext(
   const context: MeetingContextMetadata = {
     relatedIssues: [],
     relatedPRs: [],
+    relatedGitHubIssues: [],
     relatedEmails: [],
     attendeeContext: [],
     hasSummary: false,
@@ -105,7 +106,7 @@ export function generateMeetingContext(
       .filter(k => issueKeywords.has(k));
 
     if (keywordOverlap.length >= 2) {
-      context.relatedPRs.push({
+      context.relatedGitHubIssues.push({
         number: issue.number,
         repo: issue.repo,
         title: issue.title,
@@ -131,7 +132,6 @@ export function generateMeetingContext(
   }
 
   // Count pending items per attendee (emails from them)
-  const attendeeItemCount = new Map<string, number>();
   for (const attendeeEmail of attendeeEmails) {
     const count = gmail.filter(e =>
       e.from.toLowerCase().includes(attendeeEmail)

@@ -739,20 +739,21 @@ export function calculateEmailPriority(email: GmailMessageDetail, now: Date): Pr
     reasons.push("Starred");
   }
 
-  // Recency boost
+  // Recency boost — branch on the shared label so threshold changes
+  // in calculateRecencyBoost propagate everywhere automatically.
   const ageHours = email.timestamp
     ? (now.getTime() - email.timestamp) / (1000 * 60 * 60)
     : 999;
 
   const recencyBoost = calculateRecencyBoost(ageHours);
 
-  if (ageHours < 1) {
+  if (recencyBoost === "very_recent") {
     score += 50;
     reasons.push("Very recent");
-  } else if (ageHours < 4) {
+  } else if (recencyBoost === "recent") {
     score += 30;
     reasons.push("Recent");
-  } else if (ageHours < 24) {
+  } else if (recencyBoost === "moderate") {
     score += 10;
   }
 

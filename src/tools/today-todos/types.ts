@@ -42,6 +42,12 @@ export interface MeetingContextMetadata {
     title: string;           // PR title
     reason: string;          // Match reason
   }>;
+  relatedGitHubIssues: Array<{
+    number: number;          // Issue number
+    repo: string;            // Repository name
+    title: string;           // Issue title
+    reason: string;          // Match reason
+  }>;
   relatedEmails: Array<{
     id: string;              // Gmail message ID
     subject: string;         // Email subject
