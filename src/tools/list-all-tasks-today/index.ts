@@ -143,6 +143,7 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
     ])),
     gmail: data.gmail.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "id", "subject", "from", "link", "needsReply", "hasActionItems", "taskId",
+      "threadMessageCount", "threadParticipants",
     ])),
     meetingSummaries: data.meetingSummaries.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "platform", "meetingTitle", "subject", "link", "recordingLink", "hasActionItems", "taskId",
@@ -159,7 +160,7 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
       ])),
     },
     slack: data.slack.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "text", "type", "userName", "permalink", "taskId",
+      "text", "type", "userName", "permalink", "dismissalId", "taskId",
     ])),
     meetingNotes: data.meetingNotes.map(e => stripItem(e as unknown as Record<string, unknown>, [
       "actionItem", "documentTitle", "documentLink", "assignee", "isUrgent", "taskId",

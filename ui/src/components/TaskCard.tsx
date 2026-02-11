@@ -68,7 +68,16 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
     }
 
     if (isGmailTask(task)) {
-      items.push(`From: ${task.from}`)
+      // Thread summary: "From: Alice +2 others" when multiple messages collapsed
+      if (task.threadParticipants && task.threadParticipants.length > 1) {
+        const othersCount = task.threadParticipants.length - 1
+        items.push(`From: ${task.threadParticipants[0]} +${othersCount} other${othersCount > 1 ? 's' : ''}`)
+      } else {
+        items.push(`From: ${task.from}`)
+      }
+      if (task.threadMessageCount && task.threadMessageCount > 1) {
+        items.push(`${task.threadMessageCount} messages`)
+      }
       items.push(formatSmartDate(task.timestamp))
     }
 

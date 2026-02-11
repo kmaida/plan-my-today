@@ -225,14 +225,16 @@ function deduplicateAndGroup(
     if (seen.has(key)) return false;
     seen.add(key);
 
+    const channelId = msg.channel?.id || "";
     results.push({
       text: msg.text || "",
       timestamp: msg.ts,
-      channel: msg.channel?.id || "",
+      channel: channelId,
       channelName: msg.channel?.name,
       user: msg.user,
       userName: msg.username,
       permalink: msg.permalink,
+      dismissalId: channelId && msg.ts ? `${channelId}:${msg.ts}` : undefined,
       threadTs: msg.thread_ts,
       type: messageType,
       ...additionalFields,
@@ -636,13 +638,19 @@ export async function fetchSlackMessages(
   const enrichedMessages = await resolveChannelNames(accessToken, messagesWithPermalinks);
 
   // Filter out non-emoji messages that have been locally dismissed.
-  // Uses the permalink as the stable identifier (unique per message, human-readable).
+  // Uses dismissalId (channel:ts) as the stable identifier — unlike permalinks,
+  // this never changes across fetches even when different thread messages are returned.
   // Emoji-saved messages are excluded from filtering because those are
   // dismissed in Slack itself (by removing the emoji reaction).
   const filteredMessages: SlackMessageDetail[] = [];
   for (const msg of enrichedMessages) {
-    if (msg.type !== "saved" && msg.permalink) {
-      if (await isActionCompleted("slack", msg.permalink)) {
+    if (msg.type !== "saved") {
+      if (msg.dismissalId && await isActionCompleted("slack", msg.dismissalId)) {
+        continue;
+      }
+      // Backward compat: check legacy permalink-based key for entries created
+      // before the switch to channel:ts identifiers. Will auto-expire via 30-day prune.
+      if (msg.permalink && await isActionCompleted("slack", msg.permalink)) {
         continue;
       }
     }

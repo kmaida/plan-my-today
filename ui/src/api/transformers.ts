@@ -70,6 +70,8 @@ function transformGmail(msg: ServerGmailMessage): GmailTask {
     isImportant: msg.isImportant,
     isStarred: msg.isStarred,
     needsReply: msg.needsReply,
+    threadMessageCount: msg.threadMessageCount,
+    threadParticipants: msg.threadParticipants,
     priorityMetadata: transformPriority(msg.priorityMetadata),
   }
 }
@@ -115,6 +117,7 @@ function transformSlack(msg: ServerSlackMessage): SlackTask {
     user: msg.userName || msg.user,
     type: msg.type,
     link: msg.permalink,
+    dismissalId: msg.dismissalId,
     priorityMetadata: transformPriority(msg.priorityMetadata),
   }
 }

@@ -174,6 +174,43 @@ export async function isActionCompleted(
 }
 
 /**
+ * Get all completed identifiers for a given source as a Set.
+ * Returns identifier strings (without the source prefix).
+ * Useful for bulk filtering without repeated file reads.
+ */
+export async function getCompletedBySource(
+  source: ActionSource
+): Promise<Set<string>> {
+  const result = await getCompletedBySources([source]);
+  return result.get(source) ?? new Set();
+}
+
+/**
+ * Get completed identifiers for multiple sources in a single file read.
+ * Returns a Map from source → Set of identifiers (without the source prefix).
+ */
+export async function getCompletedBySources(
+  sources: readonly ActionSource[]
+): Promise<Map<ActionSource, Set<string>>> {
+  const data = await readCompletionsFile();
+  const result = new Map<ActionSource, Set<string>>(
+    sources.map((s) => [s, new Set<string>()])
+  );
+
+  for (const key of Object.keys(data.completions)) {
+    for (const source of sources) {
+      const prefix = `${source}:`;
+      if (key.startsWith(prefix)) {
+        result.get(source)!.add(key.slice(prefix.length));
+        break; // A key can only match one source prefix
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Manually trigger pruning (for testing)
  */
 export async function forcePrune(daysBack: number = PRUNE_DAYS): Promise<number> {

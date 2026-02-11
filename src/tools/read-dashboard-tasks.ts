@@ -3,6 +3,7 @@ import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index
 import { z } from "zod/v3";
 import * as fs from "fs/promises";
 import { PATHS } from "../constants";
+import { filterCompletedTasks } from "../utils/filter-completed-tasks";
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
@@ -64,6 +65,9 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
         const raw = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
         const data = JSON.parse(raw) as Record<string, unknown>;
 
+        // Filter dismissed items so reads are consistent with the UI
+        await filterCompletedTasks(data);
+
         if (args.source) {
           // Return only the requested source + metadata for context
           const filtered = {
@@ -85,7 +89,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
           content: [
             {
               type: "text",
-              text: raw,
+              text: JSON.stringify(data),
             },
           ],
         };

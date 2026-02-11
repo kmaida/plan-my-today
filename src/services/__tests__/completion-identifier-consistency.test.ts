@@ -111,6 +111,48 @@ describe("Docs (Google Docs assigned actions) completion identifier consistency"
   });
 });
 
+describe("Slack completion identifier consistency", () => {
+  // UI sends: source="slack", identifier=dismissalId ("{channelId}:{messageTs}")
+  // Filter checks: isActionCompleted("slack", msg.dismissalId) first,
+  //   then falls back to isActionCompleted("slack", msg.permalink) for legacy entries.
+  const CHANNEL_ID = "C0123ABCDEF";
+  const MESSAGE_TS = "1234567890.123456";
+  const DISMISSAL_ID = `${CHANNEL_ID}:${MESSAGE_TS}`;
+  const PERMALINK =
+    "https://workspace.slack.com/archives/C0123ABCDEF/p1234567890123456";
+
+  it("should find a completed Slack message by channel:ts", async () => {
+    await markActionComplete("slack", DISMISSAL_ID);
+    const completed = await isActionCompleted("slack", DISMISSAL_ID);
+    expect(completed).toBe(true);
+  });
+
+  it("should NOT cross-match channel:ts with permalink", async () => {
+    // Old format stored permalink, new format stores channel:ts — different keys
+    await markActionComplete("slack", DISMISSAL_ID);
+    const wrongKey = await isActionCompleted("slack", PERMALINK);
+    expect(wrongKey).toBe(false);
+  });
+
+  it("different messages in same channel should have independent completions", async () => {
+    const otherTs = "1234567890.999999";
+    const otherId = `${CHANNEL_ID}:${otherTs}`;
+
+    await markActionComplete("slack", DISMISSAL_ID);
+    expect(await isActionCompleted("slack", DISMISSAL_ID)).toBe(true);
+    expect(await isActionCompleted("slack", otherId)).toBe(false);
+  });
+
+  it("same ts in different channels should have independent completions", async () => {
+    const otherChannel = "C9876ZYXWVU";
+    const otherId = `${otherChannel}:${MESSAGE_TS}`;
+
+    await markActionComplete("slack", DISMISSAL_ID);
+    expect(await isActionCompleted("slack", DISMISSAL_ID)).toBe(true);
+    expect(await isActionCompleted("slack", otherId)).toBe(false);
+  });
+});
+
 describe("Cross-source isolation", () => {
   // Completions for one source must never match another source.
   // The store key is "${source}:${identifier}", so "docs:foo" !== "meeting-note:foo".
@@ -121,6 +163,7 @@ describe("Cross-source isolation", () => {
 
     expect(await isActionCompleted("docs", IDENTIFIER)).toBe(true);
     expect(await isActionCompleted("meeting-note", IDENTIFIER)).toBe(false);
+    expect(await isActionCompleted("slack", IDENTIFIER)).toBe(false);
     expect(await isActionCompleted("adhoc", IDENTIFIER)).toBe(false);
   });
 });
@@ -129,7 +172,7 @@ describe("ActionSource type coverage", () => {
   // Every source in the mark-action-complete tool schema must be representable
   // in ActionSource. This test acts as a compile-time + runtime guard: if someone
   // adds a source to the tool but forgets ActionSource, this fails to compile.
-  const TOOL_SOURCES = ["meeting-note", "docs", "adhoc"] as const;
+  const TOOL_SOURCES = ["meeting-note", "slack", "docs", "adhoc"] as const;
 
   it.each(TOOL_SOURCES)(
     "should accept '%s' as a valid ActionSource for storage and lookup",

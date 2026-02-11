@@ -113,6 +113,7 @@ export interface LinearIssueDetail {
  */
 export interface GmailMessageDetail {
   id: string;
+  threadId?: string; // Gmail thread ID — shared by all messages in a conversation
   subject: string;
   from: string;
   link: string;
@@ -122,6 +123,8 @@ export interface GmailMessageDetail {
   isFromIndividual?: boolean; // Whether the email is from an individual (not automated)
   needsReply?: boolean; // Whether the email likely needs a reply
   hasActionItems?: boolean; // Whether the email contains action items
+  threadMessageCount?: number; // Number of messages collapsed from this thread
+  threadParticipants?: string[]; // Deduplicated sender names from all messages in the thread
   priorityMetadata?: PriorityMetadata;
 }
 
@@ -206,6 +209,7 @@ export interface SlackMessageDetail {
   user: string; // User who posted
   userName?: string; // Human-readable user name
   permalink?: string; // Slack permalink to message
+  dismissalId?: string; // Stable completion identifier: "{channelId}:{ts}"
   threadTs?: string; // Thread identifier
   type: "mention" | "thread" | "dm" | "saved"; // Message type
   replyCount?: number; // For threads

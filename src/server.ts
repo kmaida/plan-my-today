@@ -14,6 +14,7 @@ import { getLogger } from "./observability/logger";
 import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
+import { filterCompletedTasks } from "./utils/filter-completed-tasks";
 import { PATHS } from "./constants";
 
 // Create authentication middleware using the local SDK
@@ -394,15 +395,27 @@ export function createApp(): express.Application {
     return res.json({ success: true });
   });
 
-  // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today)
+  // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today).
+  // Filters against the completion store so dismissed items never reach the UI,
+  // even if the cache is stale or was overwritten by a fresh fetch.
   app.get('/api/tasks', async (_req: express.Request, res: express.Response) => {
+    let data: Record<string, unknown>;
     try {
       const content = await fs.readFile(TASKS_CACHE_PATH, 'utf-8');
-      res.setHeader('Content-Type', 'application/json');
-      res.send(content);
+      data = JSON.parse(content);
     } catch {
-      res.status(404).json({ error: 'No task data yet. Ask Claude to fetch your tasks first.' });
+      return res.status(404).json({ error: 'No task data yet. Ask Claude to fetch your tasks first.' });
     }
+
+    // Filter dismissed items; non-fatal if completion store is unreadable
+    try {
+      await filterCompletedTasks(data);
+    } catch {
+      // Serve unfiltered data rather than failing entirely
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(data));
   });
 
   // Proxy token exchange for the UI (adds client_secret server-side so the

@@ -579,6 +579,84 @@ export function filterEmails(emails: GmailMessageDetail[], strictFiltering: bool
 }
 
 /**
+ * Extract the display name from a Gmail "From" header.
+ * "Ben Ornstein <ben@example.com>" → "Ben Ornstein"
+ * "<ben@example.com>" → "ben@example.com"
+ * "ben@example.com" → "ben@example.com"
+ */
+export function extractSenderName(from: string): string {
+  // Match "Display Name <email>" format
+  const match = from.match(/^(.+?)\s*<[^>]+>/);
+  if (match) {
+    const name = match[1].replace(/^["']|["']$/g, "").trim();
+    if (name) return name;
+    // Empty display name (e.g. " <user@example.com>") — fall through to bare email
+  }
+  // Match bare "<email>" format
+  const bare = from.match(/<([^>]+)>/);
+  if (bare) return bare[1];
+  // Already just a name or email
+  return from.trim();
+}
+
+/**
+ * Collapse multiple messages from the same Gmail thread into one representative email.
+ * Keeps the most recent message per thread, attaches a participant list and message count.
+ * Messages without a threadId pass through unchanged.
+ */
+export function collapseByThread(
+  emails: GmailMessageDetail[]
+): GmailMessageDetail[] {
+  const threadGroups = new Map<string, GmailMessageDetail[]>();
+  const noThread: GmailMessageDetail[] = [];
+
+  for (const email of emails) {
+    if (email.threadId) {
+      const group = threadGroups.get(email.threadId);
+      if (group) {
+        group.push(email);
+      } else {
+        threadGroups.set(email.threadId, [email]);
+      }
+    } else {
+      noThread.push(email);
+    }
+  }
+
+  const collapsed: GmailMessageDetail[] = [];
+
+  for (const [threadId, group] of threadGroups) {
+    // Sort by timestamp descending — most recent first
+    group.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+    const latest = group[0];
+
+    // Collect unique sender names across all messages in the thread
+    const senderNames = new Set<string>();
+    for (const msg of group) {
+      senderNames.add(extractSenderName(msg.from));
+    }
+
+    // Build the representative message from the latest in the thread
+    collapsed.push({
+      ...latest,
+      // Use thread ID link so Gmail opens the full conversation
+      link: `https://mail.google.com/mail/u/0/#inbox/${threadId}`,
+      threadMessageCount: group.length,
+      threadParticipants: Array.from(senderNames),
+      // Merge boolean flags: true if ANY message in the thread has it
+      isImportant: group.some((m) => m.isImportant),
+      isStarred: group.some((m) => m.isStarred),
+      needsReply: group.some((m) => m.needsReply),
+      hasActionItems: group.some((m) => m.hasActionItems),
+      isFromIndividual: group.some((m) => m.isFromIndividual),
+    });
+  }
+
+  // Add back messages that had no threadId
+  return [...collapsed, ...noThread];
+}
+
+/**
  * Fetches Gmail todos
  * Expands date range to include individual emails from the past week
  *
@@ -666,6 +744,7 @@ export async function fetchGmailTodos(
     };
     snippet?: string;
     id: string;
+    threadId?: string;
     internalDate?: string;
     labelIds?: string[];
   }>;
@@ -685,6 +764,7 @@ export async function fetchGmailTodos(
 
       return {
         id: message.id,
+        threadId: message.threadId,
         subject,
         from,
         link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
@@ -697,8 +777,12 @@ export async function fetchGmailTodos(
       };
     });
 
+  // Collapse messages in the same thread into one representative email.
+  // Keeps the most recent message per thread, attaches participant list and count.
+  const collapsed = collapseByThread(emails);
+
   // Filter out unwanted emails (pass strictFiltering parameter)
-  return filterEmails(emails, strictFiltering);
+  return filterEmails(collapsed, strictFiltering);
 }
 
 /**

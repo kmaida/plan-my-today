@@ -95,6 +95,10 @@ export interface GmailTask {
   isStarred?: boolean
   needsReply?: boolean
 
+  // Thread collapsing — present when multiple messages share a threadId
+  threadMessageCount?: number // Total messages collapsed into this card
+  threadParticipants?: string[] // Deduplicated sender display names
+
   // Enrichment
   priorityMetadata: PriorityMetadata
   crossReferences?: CrossReferenceMetadata
@@ -126,6 +130,7 @@ export interface SlackTask {
   user: string
   type: 'mention' | 'thread' | 'dm' | 'saved'
   link?: string
+  dismissalId?: string // Stable completion identifier: "{channelId}:{ts}"
 
   // Enrichment
   priorityMetadata: PriorityMetadata
@@ -244,6 +249,8 @@ export interface ServerGmailMessage {
   isImportant?: boolean
   isStarred?: boolean
   needsReply?: boolean
+  threadMessageCount?: number
+  threadParticipants?: string[]
   priorityMetadata?: ServerPriorityMetadata
 }
 
@@ -284,6 +291,7 @@ export interface ServerSlackMessage {
   user: string
   userName?: string
   permalink?: string
+  dismissalId?: string // Stable completion identifier: "{channelId}:{ts}"
   threadTs?: string
   type: 'mention' | 'thread' | 'dm' | 'saved'
   replyCount?: number

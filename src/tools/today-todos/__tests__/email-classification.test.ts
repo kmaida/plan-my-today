@@ -11,6 +11,8 @@ import {
   isNewsletter,
   isLowImportance,
   filterEmails,
+  extractSenderName,
+  collapseByThread,
 } from "../email-utils";
 import type { GmailMessageDetail } from "../types";
 
@@ -195,5 +197,147 @@ describe("filterEmails", () => {
       ];
       expect(filterEmails(emails, false)).toHaveLength(1);
     });
+  });
+});
+
+// ── extractSenderName ──
+
+describe("extractSenderName", () => {
+  it("extracts display name from 'Name <email>' format", () => {
+    expect(extractSenderName("Ben Ornstein <ben@example.com>")).toBe("Ben Ornstein");
+    expect(extractSenderName("Kim Maida <kim@keycard.ai>")).toBe("Kim Maida");
+  });
+
+  it("strips surrounding quotes from display names", () => {
+    expect(extractSenderName('"Jane Doe" <jane@example.com>')).toBe("Jane Doe");
+    expect(extractSenderName("'Jane Doe' <jane@example.com>")).toBe("Jane Doe");
+  });
+
+  it("handles quoted names with commas (RFC 2822)", () => {
+    expect(extractSenderName('"Doe, Jane" <jane@example.com>')).toBe("Doe, Jane");
+  });
+
+  it("falls back to email for bare '<email>' format", () => {
+    expect(extractSenderName("<ben@example.com>")).toBe("ben@example.com");
+  });
+
+  it("falls back to email when display name is empty/whitespace", () => {
+    // Edge case: " <user@example.com>" — regex matches but name is empty after trim
+    expect(extractSenderName(" <user@example.com>")).toBe("user@example.com");
+    expect(extractSenderName("  <user@example.com>")).toBe("user@example.com");
+  });
+
+  it("returns bare email addresses as-is", () => {
+    expect(extractSenderName("ben@example.com")).toBe("ben@example.com");
+  });
+
+  it("trims whitespace from plain strings", () => {
+    expect(extractSenderName("  ben@example.com  ")).toBe("ben@example.com");
+  });
+});
+
+// ── collapseByThread ──
+
+describe("collapseByThread", () => {
+  function makeThreadEmail(overrides: Partial<GmailMessageDetail>): GmailMessageDetail {
+    return {
+      id: "msg-1",
+      subject: "Test subject",
+      from: "Jane Doe <jane.doe@company.com>",
+      link: "https://mail.google.com/mail/u/0/#inbox/msg-1",
+      ...overrides,
+    };
+  }
+
+  it("returns a single-message thread with thread metadata", () => {
+    const emails = [
+      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>" }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result).toHaveLength(1);
+    expect(result[0].threadMessageCount).toBe(1);
+    expect(result[0].threadParticipants).toEqual(["Alice"]);
+  });
+
+  it("collapses multiple messages from the same thread into one", () => {
+    const emails = [
+      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 1000 }),
+      makeThreadEmail({ id: "msg-2", threadId: "thread-1", from: "Bob <bob@example.com>", timestamp: 2000 }),
+      makeThreadEmail({ id: "msg-3", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 3000 }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("msg-3"); // Most recent message
+    expect(result[0].threadMessageCount).toBe(3);
+  });
+
+  it("deduplicates sender names within a thread", () => {
+    const emails = [
+      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 1000 }),
+      makeThreadEmail({ id: "msg-2", threadId: "thread-1", from: "Bob <bob@example.com>", timestamp: 2000 }),
+      makeThreadEmail({ id: "msg-3", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 3000 }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result[0].threadParticipants).toHaveLength(2);
+    expect(result[0].threadParticipants).toContain("Alice");
+    expect(result[0].threadParticipants).toContain("Bob");
+  });
+
+  it("keeps separate threads as separate items", () => {
+    const emails = [
+      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>" }),
+      makeThreadEmail({ id: "msg-2", threadId: "thread-2", from: "Bob <bob@example.com>" }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result).toHaveLength(2);
+  });
+
+  it("passes through messages without threadId unchanged", () => {
+    const emails = [
+      makeThreadEmail({ id: "msg-no-thread", from: "Alice <alice@example.com>" }),
+      makeThreadEmail({ id: "msg-2", threadId: "thread-1", from: "Bob <bob@example.com>" }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result).toHaveLength(2);
+    // No-thread message should not have thread metadata
+    const noThread = result.find(e => e.id === "msg-no-thread");
+    expect(noThread?.threadMessageCount).toBeUndefined();
+    expect(noThread?.threadParticipants).toBeUndefined();
+  });
+
+  it("merges boolean flags with OR logic", () => {
+    const emails = [
+      makeThreadEmail({
+        id: "msg-1", threadId: "thread-1", timestamp: 1000,
+        from: "Alice <alice@example.com>",
+        isImportant: false, needsReply: true, isStarred: false, hasActionItems: false,
+      }),
+      makeThreadEmail({
+        id: "msg-2", threadId: "thread-1", timestamp: 2000,
+        from: "Bob <bob@example.com>",
+        isImportant: true, needsReply: false, isStarred: false, hasActionItems: true,
+      }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result[0].isImportant).toBe(true); // true from msg-2
+    expect(result[0].needsReply).toBe(true); // true from msg-1
+    expect(result[0].isStarred).toBe(false); // false in both
+    expect(result[0].hasActionItems).toBe(true); // true from msg-2
+  });
+
+  it("rewrites link to thread URL format", () => {
+    const emails = [
+      makeThreadEmail({
+        id: "msg-1", threadId: "thread-abc",
+        from: "Alice <alice@example.com>",
+        link: "https://mail.google.com/mail/u/0/#inbox/msg-1",
+      }),
+    ];
+    const result = collapseByThread(emails);
+    expect(result[0].link).toBe("https://mail.google.com/mail/u/0/#inbox/thread-abc");
+  });
+
+  it("handles empty input", () => {
+    expect(collapseByThread([])).toEqual([]);
   });
 });

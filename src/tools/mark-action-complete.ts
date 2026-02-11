@@ -19,7 +19,9 @@ const markActionCompleteInputSchema = {
     .string()
     .describe(
       "The unique identifier for this action. Format varies by source: " +
-        "meeting-note uses '{docId}' or '{docId}:{hash}', slack uses the message permalink URL, docs uses the file link or file title, adhoc uses any custom ID"
+        "meeting-note uses '{docId}' or '{docId}:{hash}', " +
+        "slack uses '{channelId}:{messageTs}' (e.g., 'C0123ABCDEF:1234567890.123456'), " +
+        "docs uses the file link or file title, adhoc uses any custom ID"
     ),
   complete: z
     .boolean()
