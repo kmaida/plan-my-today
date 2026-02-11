@@ -12,8 +12,8 @@ import { Chevron } from './Chevron'
 import './TaskCard.css'
 
 // Sources that support mark-complete from the UI.
-// Meeting-notes and docs use the no-auth REST endpoint (local completion store).
-const COMPLETABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs']
+// Meeting-notes, docs, and slack (non-saved) use the no-auth REST endpoint (local completion store).
+const COMPLETABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs', 'slack']
 
 /** Parse Slack link markup (<url|label> or <url>) into React nodes with clickable links */
 function parseSlackLinks(text: string): ReactNode[] {
@@ -235,13 +235,14 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
             View in {getSourceLabel(task.source)} →
           </a>
         )}
-        {onMarkComplete && COMPLETABLE_SOURCES.includes(task.source) && (
+        {onMarkComplete && COMPLETABLE_SOURCES.includes(task.source)
+          && !(isSlackTask(task) && task.type === 'saved') && (
           <button
             className={`task-card__action task-card__action--complete${hasError ? ' task-card__action--error' : ''}`}
             onClick={handleMarkComplete}
             disabled={isCompleting}
           >
-            {isCompleting ? 'Completing...' : hasError ? 'Failed — Retry' : 'Mark Complete'}
+            {isCompleting ? 'Dismissing...' : hasError ? 'Failed — Retry' : isSlackTask(task) ? 'Dismiss' : 'Mark Complete'}
           </button>
         )}
       </div>

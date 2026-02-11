@@ -341,7 +341,7 @@ export function createApp(): express.Application {
   });
 
   // Mark an action as complete (no auth — writes to local completion store).
-  // Supports meeting-note, docs, and adhoc sources.
+  // Supports meeting-note, slack, docs, and adhoc sources.
   app.post('/api/mark-action-complete', async (req: express.Request, res: express.Response) => {
     try {
       const { source, identifier, complete = true, metadata, taskId } = req.body || {};
@@ -350,7 +350,7 @@ export function createApp(): express.Application {
         return res.status(400).json({ error: 'Missing required fields: source, identifier' });
       }
 
-      const validSources = ['meeting-note', 'docs', 'adhoc'];
+      const validSources = ['meeting-note', 'slack', 'docs', 'adhoc'];
       if (!validSources.includes(source)) {
         return res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
       }

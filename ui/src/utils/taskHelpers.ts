@@ -76,7 +76,7 @@ export function getTaskUrl(task: Task): string | undefined {
  */
 export function getTaskIdentifier(task: Task): string {
   if (isGmailTask(task)) return task.id
-  if (isSlackTask(task)) return task.link || task.timestamp
+  if (isSlackTask(task)) return task.link || ''
   if (isMeetingNotesTask(task)) return task.documentId
   if (isDocsActionTask(task)) return task.fileLink || task.fileTitle
   return ''

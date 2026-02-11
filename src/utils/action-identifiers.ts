@@ -1,9 +1,11 @@
 import { createHash } from "crypto";
 
 /**
- * Action source types - only for items without native completion tracking
+ * Action source types - only for items without native completion tracking.
+ * "slack" covers local dismissal of non-emoji messages (mentions, DMs, threads).
+ * Emoji-saved Slack messages are dismissed in Slack itself, not here.
  */
-export type ActionSource = "meeting-note" | "docs" | "adhoc";
+export type ActionSource = "meeting-note" | "slack" | "docs" | "adhoc";
 
 /**
  * Hash action text to create a short, stable identifier

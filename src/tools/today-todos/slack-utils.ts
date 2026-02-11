@@ -1,6 +1,7 @@
 import type { SlackMessageDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { getLogger } from "../../observability/logger";
+import { isActionCompleted } from "../../services/action-completion-store";
 
 import { SLACK_SAVED_MESSAGES } from "../../constants";
 
@@ -362,8 +363,46 @@ const ACTION_KEYWORDS = [
 ] as const;
 
 /**
- * Calculates a priority score for Slack messages based on type, content, and recency
- * Higher score = higher priority
+ * Shared analysis for Slack priority scoring.
+ * Computes keyword matches, score, and age once — avoids duplicating
+ * toLowerCase() + keyword scans across the score-only and metadata paths.
+ */
+function analyzeSlackMessage(message: SlackMessageDetail, now: Date) {
+  const text = message.text.toLowerCase();
+
+  const hasKeyword = (keywords: readonly string[]) =>
+    keywords.some(keyword => text.includes(keyword));
+
+  const hasUrgentKeywords = hasKeyword(URGENCY_KEYWORDS);
+  const hasQuestion = hasKeyword(QUESTION_KEYWORDS);
+  const hasActionRequest = hasKeyword(ACTION_KEYWORDS);
+
+  const ageHours = (now.getTime() - parseFloat(message.timestamp) * 1000) / (1000 * 60 * 60);
+
+  // Compute score
+  let score = 0;
+  const typeScores: Record<string, number> = {
+    saved: PRIORITY_WEIGHTS.TYPE.SAVED,
+    mention: PRIORITY_WEIGHTS.TYPE.MENTION,
+    dm: PRIORITY_WEIGHTS.TYPE.DM,
+  };
+  score += typeScores[message.type] || 0;
+
+  if (hasUrgentKeywords) score += PRIORITY_WEIGHTS.CONTENT.URGENT;
+  else if (hasQuestion) score += PRIORITY_WEIGHTS.CONTENT.QUESTION;
+  else if (hasActionRequest) score += PRIORITY_WEIGHTS.CONTENT.ACTION;
+
+  if (ageHours < 1) score += PRIORITY_WEIGHTS.RECENCY.VERY_RECENT;
+  else if (ageHours < 4) score += PRIORITY_WEIGHTS.RECENCY.RECENT;
+  else if (ageHours < 12) score += PRIORITY_WEIGHTS.RECENCY.MODERATE;
+  else if (ageHours < 24) score += PRIORITY_WEIGHTS.RECENCY.STALE;
+
+  return { score, ageHours, hasUrgentKeywords, hasQuestion, hasActionRequest };
+}
+
+/**
+ * Calculates a priority score for Slack messages based on type, content, and recency.
+ * Higher score = higher priority.
  *
  * @param message - The Slack message to score
  * @param now - Current timestamp for recency calculation
@@ -373,40 +412,12 @@ export function calculateSlackPriority(
   message: SlackMessageDetail,
   now: Date
 ): number {
-  let score = 0;
-  const text = message.text.toLowerCase();
-
-  // Base priority by message type
-  const typeScores: Record<string, number> = {
-    saved: PRIORITY_WEIGHTS.TYPE.SAVED,
-    mention: PRIORITY_WEIGHTS.TYPE.MENTION,
-    dm: PRIORITY_WEIGHTS.TYPE.DM,
-  };
-  score += typeScores[message.type] || 0;
-
-  // Content analysis - only apply first matching boost per category
-  const hasKeyword = (keywords: readonly string[]) =>
-    keywords.some(keyword => text.includes(keyword));
-
-  if (hasKeyword(URGENCY_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.URGENT;
-  else if (hasKeyword(QUESTION_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.QUESTION;
-  else if (hasKeyword(ACTION_KEYWORDS)) score += PRIORITY_WEIGHTS.CONTENT.ACTION;
-
-  // Recency boost - more recent messages get higher priority
-  const msgTime = new Date(parseFloat(message.timestamp) * 1000);
-  const hoursAgo = (now.getTime() - msgTime.getTime()) / (1000 * 60 * 60);
-
-  if (hoursAgo < 1) score += PRIORITY_WEIGHTS.RECENCY.VERY_RECENT;
-  else if (hoursAgo < 4) score += PRIORITY_WEIGHTS.RECENCY.RECENT;
-  else if (hoursAgo < 12) score += PRIORITY_WEIGHTS.RECENCY.MODERATE;
-  else if (hoursAgo < 24) score += PRIORITY_WEIGHTS.RECENCY.STALE;
-
-  return score;
+  return analyzeSlackMessage(message, now).score;
 }
 
 /**
- * Calculates priority metadata for Slack messages
- * Extends calculateSlackPriority with structured signals for debugging/display
+ * Calculates priority metadata for Slack messages.
+ * Returns the score plus structured signals and human-readable reasons.
  *
  * @param message - The Slack message to score
  * @param now - Current timestamp for recency calculation
@@ -416,20 +427,9 @@ export function calculateSlackPriorityWithMetadata(
   message: SlackMessageDetail,
   now: Date
 ): PriorityMetadata {
-  const score = calculateSlackPriority(message, now);
-  const text = message.text.toLowerCase();
+  const { score, ageHours, hasUrgentKeywords, hasQuestion, hasActionRequest } =
+    analyzeSlackMessage(message, now);
 
-  // Check for content signals using shared keyword constants
-  const hasKeyword = (keywords: readonly string[]) =>
-    keywords.some(k => text.includes(k));
-
-  const hasUrgentKeywords = hasKeyword(URGENCY_KEYWORDS);
-  const hasQuestion = hasKeyword(QUESTION_KEYWORDS);
-  const hasActionRequest = hasKeyword(ACTION_KEYWORDS);
-
-  const ageHours = (now.getTime() - parseFloat(message.timestamp) * 1000) / (1000 * 60 * 60);
-
-  // Build human-readable reasons for priority score
   const reasons: string[] = [];
   if (message.type === "saved") reasons.push("Saved with emoji");
   if (message.type === "mention") reasons.push("@Mention");
@@ -730,5 +730,19 @@ export async function fetchSlackMessages(
   ]);
   const enrichedMessages = await resolveChannelNames(accessToken, messagesWithPermalinks);
 
-  return enrichedMessages;
+  // Filter out non-emoji messages that have been locally dismissed.
+  // Uses the permalink as the stable identifier (unique per message, human-readable).
+  // Emoji-saved messages are excluded from filtering because those are
+  // dismissed in Slack itself (by removing the emoji reaction).
+  const filteredMessages: SlackMessageDetail[] = [];
+  for (const msg of enrichedMessages) {
+    if (msg.type !== "saved" && msg.permalink) {
+      if (await isActionCompleted("slack", msg.permalink)) {
+        continue;
+      }
+    }
+    filteredMessages.push(msg);
+  }
+
+  return filteredMessages;
 }
