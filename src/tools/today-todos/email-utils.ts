@@ -2,6 +2,144 @@ import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
 import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 
+// ── Shared patterns for email classification ──────────────────────────────────
+// Defined once, reused across isFromIndividual, isNewsletter, isLowImportance,
+// and filterEmails to avoid duplication and keep detection logic consistent.
+
+const AUTOMATED_FROM_PATTERNS = [
+  /noreply/i,
+  /no-reply/i,
+  /donotreply/i,
+  /don't reply/i,
+  /do-not-reply/i,
+  /notifications?@/i,
+  /notify@/i,
+  /automated@/i,
+  /system@/i,
+  /mailer-daemon/i,
+  /postmaster@/i,
+  /support@/i,
+  /billing@/i,
+  /accounts?@/i,
+  /security@/i,
+  /alerts?@/i,
+  /updates?@/i,
+  /receipts?@/i,
+  /orders?@/i,
+  /subscriptions?@/i,
+  /feedback@/i,
+];
+
+const AUTOMATED_DOMAINS = [
+  'linear.app',
+  'github.com',
+  'zoom.us',
+  'figma.com',
+  'render.com',
+  'n8n.cloud',
+  'granola.so',
+  'instatunnel.my',
+  'google.com',
+  'googlemail.com',
+  'atlassian.net',
+  'jira.com',
+  'slack.com',
+  'notion.so',
+  'vercel.com',
+  'netlify.com',
+  'stripe.com',
+  'intercom.io',
+  'hubspot.com',
+  'mailchimp.com',
+  'sendgrid.net',
+  'amazonses.com',
+  'postmarkapp.com',
+];
+
+const AUTOMATED_SUBJECT_PATTERNS = [
+  /your (trial|subscription|account|order|payment|invoice|receipt|password|plan)/i,
+  /trial (end|expir|cancel)/i,
+  /subscription (end|expir|cancel|renew)/i,
+  /password (reset|changed|expired)/i,
+  /verify your/i,
+  /confirm your/i,
+  /welcome to/i,
+  /thanks for (signing|registering|subscribing|joining|purchasing|ordering)/i,
+  /thank you for your (order|purchase|payment)/i,
+  /has been (shipped|delivered|processed|approved|declined|canceled|cancelled)/i,
+  /security alert/i,
+  /login attempt/i,
+  /sign.?in (from|attempt|notification)/i,
+  /new device/i,
+  /two.?factor/i,
+  /verification code/i,
+  /notification/i,
+  /has joined your meeting/i,
+  /has invited you/i,
+];
+
+const CALENDAR_SUBJECT_PATTERNS = [
+  /^accepted:/i,
+  /^invitation:/i,
+  /^canceled event:/i,
+  /^declined:/i,
+  /^tentative:/i,
+  /google calendar/i,
+  /calendar event/i,
+];
+
+const NEWSLETTER_SUBJECT_PATTERNS = [
+  /newsletter/i,
+  /weekly digest/i,
+  /monthly digest/i,
+  /daily digest/i,
+  /roundup/i,
+  /round-up/i,
+  /unsubscribe/i,
+  /view in browser/i,
+  /view this email/i,
+  /marketing/i,
+  /promotion/i,
+  /special offer/i,
+  /limited time/i,
+  /act now/i,
+  /don't miss/i,
+  /exclusive/i,
+  /sale/i,
+  /discount/i,
+  /coupon/i,
+];
+
+const NEWSLETTER_FROM_PATTERNS = [
+  /newsletter/i,
+  /marketing/i,
+  /news@/i,
+  /info@/i,
+  /team@/i,
+  /hello@/i,
+  /hi@/i,
+];
+
+/**
+ * Checks if the from address is from a calendar notification
+ */
+function isCalendarEmail(fromLower: string, subjectLower: string): boolean {
+  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification')) {
+    return true;
+  }
+  if (subjectLower.includes('calendar') && fromLower.includes('google')) {
+    return true;
+  }
+  return CALENDAR_SUBJECT_PATTERNS.some(p => p.test(subjectLower));
+}
+
+/**
+ * Extracts the email domain from a "from" string
+ */
+function extractDomain(fromLower: string): string | undefined {
+  return fromLower.match(/@([^\s>]+)/)?.[1];
+}
+
 /**
  * Determines if an email is from an individual (not an automated system).
  * Errs on the side of "not individual" to avoid flagging automated messages
@@ -11,101 +149,24 @@ export function isFromIndividual(from: string, subject: string): boolean {
   const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
 
-  // ── Definite automated senders ────────────────────────────────────────────
-  const automatedFromPatterns = [
-    /noreply/i,
-    /no-reply/i,
-    /donotreply/i,
-    /don't reply/i,
-    /notifications?@/i,
-    /notify@/i,
-    /automated@/i,
-    /system@/i,
-    /mailer-daemon/i,
-    /postmaster@/i,
-    /support@/i,
-    /billing@/i,
-    /accounts?@/i,
-    /security@/i,
-    /alerts?@/i,
-    /updates?@/i,
-    /receipts?@/i,
-    /orders?@/i,
-    /subscriptions?@/i,
-    /feedback@/i,
-    /do-not-reply/i,
-  ];
-
-  if (automatedFromPatterns.some(pattern => pattern.test(fromLower))) {
+  // Automated sender address patterns
+  if (AUTOMATED_FROM_PATTERNS.some(pattern => pattern.test(fromLower))) {
     return false;
   }
-
-  // ── Known automated service domains ───────────────────────────────────────
-  const automatedDomains = [
-    'linear.app',
-    'github.com',
-    'zoom.us',
-    'figma.com',
-    'render.com',
-    'n8n.cloud',
-    'granola.so',
-    'instatunnel.my',
-    'google.com',
-    'googlemail.com',
-    'atlassian.net',
-    'jira.com',
-    'slack.com',
-    'notion.so',
-    'vercel.com',
-    'netlify.com',
-    'stripe.com',
-    'intercom.io',
-    'hubspot.com',
-    'mailchimp.com',
-    'sendgrid.net',
-    'amazonses.com',
-    'postmarkapp.com',
-  ];
 
   // Calendar emails are always automated
-  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification') ||
-      subjectLower.includes('google calendar') || subjectLower.includes('calendar event')) {
+  if (isCalendarEmail(fromLower, subjectLower)) {
     return false;
   }
 
-  const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
-  if (emailDomain && automatedDomains.some(domain => emailDomain.includes(domain))) {
+  // Known automated service domains
+  const emailDomain = extractDomain(fromLower);
+  if (emailDomain && AUTOMATED_DOMAINS.some(domain => emailDomain.includes(domain))) {
     return false;
   }
 
-  // ── Subject patterns that indicate automated/transactional email ──────────
-  const automatedSubjectPatterns = [
-    /your (trial|subscription|account|order|payment|invoice|receipt|password|plan)/i,
-    /trial (end|expir|cancel)/i,
-    /subscription (end|expir|cancel|renew)/i,
-    /password (reset|changed|expired)/i,
-    /verify your/i,
-    /confirm your/i,
-    /welcome to/i,
-    /thanks for (signing|registering|subscribing|joining|purchasing|ordering)/i,
-    /thank you for your (order|purchase|payment)/i,
-    /has been (shipped|delivered|processed|approved|declined|canceled|cancelled)/i,
-    /security alert/i,
-    /login attempt/i,
-    /sign.?in (from|attempt|notification)/i,
-    /new device/i,
-    /two.?factor/i,
-    /verification code/i,
-    /invitation:/i,
-    /accepted:/i,
-    /canceled event:/i,
-    /declined:/i,
-    /notification/i,
-    /has joined your meeting/i,
-    /has invited you/i,
-  ];
-
-  if (automatedSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+  // Automated subject patterns
+  if (AUTOMATED_SUBJECT_PATTERNS.some(pattern => pattern.test(subjectLower))) {
     return false;
   }
 
@@ -180,82 +241,45 @@ export function emailHasActionItems(subject: string): boolean {
 }
 
 /**
- * Determines if an email is a newsletter or marketing email
+ * Determines if an email is a newsletter or marketing email.
+ * Uses the shared pattern lists defined at the top of this file.
  */
 export function isNewsletter(from: string, subject: string): boolean {
   const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
-  
-  // Newsletter/marketing patterns in subject
-  const newsletterSubjectPatterns = [
-    /newsletter/i,
-    /weekly digest/i,
-    /monthly digest/i,
-    /daily digest/i,
-    /roundup/i,
-    /round-up/i,
-    /unsubscribe/i,
-    /view in browser/i,
-    /view this email/i,
-    /marketing/i,
-    /promotion/i,
-    /special offer/i,
-    /limited time/i,
-    /act now/i,
-    /don't miss/i,
-    /exclusive/i,
-    /sale/i,
-    /discount/i,
-    /coupon/i,
-  ];
-  
-  // Newsletter/marketing patterns in from field
-  const newsletterFromPatterns = [
-    /newsletter/i,
-    /marketing/i,
-    /noreply/i,
-    /no-reply/i,
-    /donotreply/i,
-    /updates@/i,
-    /news@/i,
-    /info@/i,
-    /team@/i,
-    /hello@/i,
-    /hi@/i,
-  ];
-  
-  // Check subject
-  if (newsletterSubjectPatterns.some(pattern => pattern.test(subjectLower))) {
+
+  if (NEWSLETTER_SUBJECT_PATTERNS.some(p => p.test(subjectLower))) {
     return true;
   }
-  
-  // Check from field
-  if (newsletterFromPatterns.some(pattern => pattern.test(fromLower))) {
+
+  // Note: noreply/no-reply/donotreply are already caught by AUTOMATED_FROM_PATTERNS
+  // in isFromIndividual. NEWSLETTER_FROM_PATTERNS only adds newsletter-specific senders.
+  if (NEWSLETTER_FROM_PATTERNS.some(p => p.test(fromLower))) {
     return true;
   }
-  
+
   return false;
 }
 
 /**
- * Determines if an email looks unimportant (low priority)
+ * Determines if an email looks unimportant (low priority).
+ * Patterns like "automated" and "auto-reply" that also indicate non-individual
+ * senders are intentionally duplicated here because this function serves a
+ * different purpose: even if an email made it past the individual check,
+ * these subject-line signals still indicate low importance.
  */
 export function isLowImportance(from: string, subject: string, isImportant: boolean): boolean {
   // If marked as important by Gmail, keep it
   if (isImportant) {
     return false;
   }
-  
-  const fromLower = from.toLowerCase();
+
   const subjectLower = subject.toLowerCase();
-  
-  // Low importance patterns
+
   const lowImportancePatterns = [
-    /^re:/i, // Replies that might be low priority
+    /^re:/i,
     /^fwd:/i,
     /^fw:/i,
-    /automated/i,
-    /system notification/i,
     /no action required/i,
     /for your information/i,
     /fyi/i,
@@ -266,16 +290,15 @@ export function isLowImportance(from: string, subject: string, isImportant: bool
     /auto-reply/i,
     /automatic reply/i,
   ];
-  
-  // Check subject for low importance patterns
-  if (lowImportancePatterns.some(pattern => pattern.test(subjectLower))) {
+
+  if (lowImportancePatterns.some(p => p.test(subjectLower))) {
     // But allow if it's from an individual and has action items
     if (isFromIndividual(from, subject) && emailHasActionItems(subject)) {
-      return false; // Keep it if it has action items
+      return false;
     }
     return true;
   }
-  
+
   return false;
 }
 
@@ -517,7 +540,9 @@ export async function fetchMeetingSummaries(
 }
 
 /**
- * Filters out unwanted emails (calendar, Linear automated, newsletters, low importance)
+ * Filters out unwanted emails (calendar, Linear automated, newsletters, low importance).
+ * Uses shared pattern constants and helpers defined at the top of this file.
+ *
  * @param strictFiltering - If false, only excludes calendar and Linear automation (for agent use)
  */
 export function filterEmails(emails: GmailMessageDetail[], strictFiltering: boolean = true): GmailMessageDetail[] {
@@ -525,96 +550,25 @@ export function filterEmails(emails: GmailMessageDetail[], strictFiltering: bool
     const fromLower = email.from.toLowerCase();
     const subjectLower = email.subject.toLowerCase();
 
-    // ALWAYS exclude Google Calendar automated emails (already integrated)
-    if (fromLower.includes('calendar') ||
-        fromLower.includes('calendar-notification') ||
-        fromLower.includes('noreply@calendar.google.com') ||
-        fromLower.includes('calendar@google.com') ||
-        (subjectLower.includes('calendar') && fromLower.includes('google'))) {
+    // ALWAYS exclude calendar emails (already integrated via calendar tool)
+    if (isCalendarEmail(fromLower, subjectLower)) {
       return false;
     }
 
-    // ALWAYS exclude calendar notification patterns in subject (even from individuals)
-    // These are typically automated calendar notifications
-    const calendarNotificationPatterns = [
-      /^accepted:/i,
-      /^invitation:/i,
-      /^canceled event:/i,
-      /^declined:/i,
-      /^tentative:/i,
-      /google calendar/i,
-      /calendar event/i,
-    ];
-
-    if (calendarNotificationPatterns.some(pattern => pattern.test(subjectLower))) {
+    // ALWAYS exclude Linear emails (already integrated via Linear tool).
+    // All linear.app emails are automated notifications — there's no real
+    // "personal email from linear.app" use case worth the fragile heuristic.
+    const emailDomain = extractDomain(fromLower);
+    if (emailDomain?.includes('linear.app')) {
       return false;
-    }
-
-    // ALWAYS exclude Linear automated emails (already integrated)
-    if (fromLower.includes('linear.app') ||
-        fromLower.includes('notifications@linear.app') ||
-        fromLower.includes('noreply@linear.app')) {
-      // But allow if it's from an individual at Linear (e.g., name@linear.app)
-      const emailDomain = fromLower.match(/@([^\s>]+)/)?.[1];
-      if (emailDomain && emailDomain.includes('linear.app')) {
-        const localPart = fromLower.split('@')[0];
-        // If it looks like a personal name (has dot or is long), might be individual
-        if (localPart.includes('.') || localPart.length > 8) {
-          // Check if subject looks automated (comprehensive Linear patterns)
-          const linearAutomatedPatterns = [
-            // Existing patterns
-            /notification/i,
-            /reminder/i,
-            /unread notifications/i,
-            /^\[Linear\]/i,
-
-            // Overdue/Due date patterns
-            /overdue/i,
-            /due today/i,
-            /due tomorrow/i,
-            /due in \d+ day/i,
-            /due:/i,
-
-            // Assignment patterns
-            /assigned:/i,
-            /assigned to/i,
-            /you've been assigned/i,
-            /you have been assigned/i,
-
-            // Status change patterns
-            /moved to/i,
-            /status changed/i,
-            /updated:/i,
-
-            // Issue identifier patterns (Linear uses ABC-123 format)
-            // Only match if it's the main subject component, not just mentioned in passing
-            /^[A-Z]{2,10}-\d+/i,  // Starts with issue ID like "ABC-123: Task name"
-            /^⚠️\s*[A-Z]{2,10}-\d+/i,  // Urgent icon + issue ID
-
-            // Comment/mention patterns
-            /commented on/i,
-            /mentioned you/i,
-            /new comment/i,
-          ];
-          if (linearAutomatedPatterns.some(pattern => pattern.test(subjectLower))) {
-            return false; // Automated Linear notification
-          }
-        } else {
-          return false; // Likely automated
-        }
-      } else {
-        return false; // Linear automated
-      }
     }
 
     // Only apply these filters if strictFiltering is enabled
     if (strictFiltering) {
-      // Exclude newsletters and marketing emails
       if (isNewsletter(email.from, email.subject)) {
         return false;
       }
 
-      // Exclude low importance emails (unless from individual with action items)
       if (isLowImportance(email.from, email.subject, email.isImportant ?? false)) {
         return false;
       }

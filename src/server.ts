@@ -234,8 +234,25 @@ export function createApp(): express.Application {
   // Handle DELETE requests for session termination
   app.delete("/mcp", authMiddleware, handleSessionRequest);
 
-  // Simple REST API endpoint for calling tools directly (convenience layer)
-  // This allows easier access to tools without full MCP protocol
+  // Simple REST API endpoint for calling tools via MCP protocol (convenience layer).
+  // Reuses a single stateless MCP server instead of creating one per request.
+  let restMcpServer: McpServer | null = null;
+  let restTransport: InstanceType<typeof StreamableHTTPServerTransportImpl> | null = null;
+
+  async function getRestMcpServer(): Promise<{
+    server: McpServer;
+    transport: InstanceType<typeof StreamableHTTPServerTransportImpl>;
+  }> {
+    if (!restMcpServer || !restTransport) {
+      restMcpServer = createMcpServerForSession();
+      restTransport = new StreamableHTTPServerTransportImpl({
+        sessionIdGenerator: undefined,
+      });
+      await restMcpServer.connect(restTransport);
+    }
+    return { server: restMcpServer, transport: restTransport };
+  }
+
   app.post('/api/tools/:toolName', authMiddleware, async (req: express.Request, res: express.Response) => {
     const { toolName } = req.params;
     const { logger } = req.context;
@@ -253,15 +270,10 @@ export function createApp(): express.Application {
         });
       }
 
-      // Create MCP server and transport to handle the tool call via MCP protocol
-      const tempServer = createMcpServerForSession();
-      const transport = new StreamableHTTPServerTransportImpl({
-        sessionIdGenerator: undefined,
-      });
+      const { transport } = await getRestMcpServer();
 
-      await tempServer.connect(transport);
-
-      // Create MCP protocol request
+      // Route through MCP protocol (tools are registered as closures, so
+      // we can't call them directly without refactoring every tool file)
       const callRequest = {
         jsonrpc: "2.0" as const,
         id: 1,
@@ -272,29 +284,23 @@ export function createApp(): express.Application {
         },
       };
 
-      // Create a response collector
       let responseData: Record<string, unknown> | null = null;
       let responseStatus = 200;
 
       const mockRes = {
         json: (data: Record<string, unknown>) => {
           responseData = data;
-          if (data.error) {
-            responseStatus = 500;
-          }
+          if (data.error) responseStatus = 500;
         },
         status: (code: number) => {
           responseStatus = code;
           return {
-            json: (data: Record<string, unknown>) => {
-              responseData = data;
-            },
+            json: (data: Record<string, unknown>) => { responseData = data; },
           };
         },
         headersSent: false,
       } as express.Response;
 
-      // Copy context to mock request
       const mockReq = {
         ...req,
         body: callRequest,
@@ -303,9 +309,6 @@ export function createApp(): express.Application {
 
       await transport.handleRequest(mockReq, mockRes, callRequest);
 
-      await tempServer.close();
-
-      // Return the response
       if (responseData) {
         return res.status(responseStatus).json(responseData);
       } else {
@@ -316,6 +319,10 @@ export function createApp(): express.Application {
         toolName,
         error: error instanceof Error ? error.message : String(error),
       });
+
+      // If the shared server is in a bad state, reset it
+      restMcpServer = null;
+      restTransport = null;
 
       res.status(500).json({
         error: "Tool execution failed",

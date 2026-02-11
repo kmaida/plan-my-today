@@ -1,5 +1,4 @@
 import type { McpServer } from "../types/index";
-import { getLogger } from "../observability/logger";
 import { registerCalendarTool } from "./calendar";
 import { registerLinearTool } from "./linear";
 import { registerAssignedActionsTool } from "./assigned-actions";
@@ -47,12 +46,7 @@ export function getAvailableToolNames(): string[] {
  */
 export function registerAllTools(mcpServer: McpServer): void {
   // Register all tools from the registry
-  TOOL_REGISTRY.forEach(({ name, register }) => {
+  TOOL_REGISTRY.forEach(({ register }) => {
     register(mcpServer);
-    // Debug logging to verify each tool is registered
-    if (name === "list-github-todos") {
-      const logger = getLogger();
-      logger.debug("GitHub tool registered successfully", { toolName: name });
-    }
   });
 }
