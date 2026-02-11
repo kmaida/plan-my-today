@@ -1,4 +1,11 @@
-import type { CrossReferenceMetadata, GmailMessageDetail, SlackMessageDetail, MeetingSummaryDetail, MeetingNoteActionDetail, CalendarEventDetail } from "./types";
+import type {
+  CalendarEventDetail,
+  CrossReferenceMetadata,
+  GmailMessageDetail,
+  MeetingNoteActionDetail,
+  MeetingSummaryDetail,
+  SlackMessageDetail,
+} from "./types";
 
 /**
  * Detects mentions of a Linear issue across email and Slack

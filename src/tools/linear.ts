@@ -1,20 +1,16 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
-import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
+import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
 import type { LinearIssueDetail } from "./today-todos/types";
 
 const LINEAR_RESOURCE = "https://api.linear.app";
 const LINEAR_SCOPES = ["read"];
 
 const linearIssuesInputSchema = {
-  includeCompleted: z.boolean()
-    .describe("Include completed issues (default: false)")
-    .optional(),
-  limit: z.number()
-    .describe("Maximum number of issues to return (default: 20)")
-    .optional(),
+  includeCompleted: z.boolean().describe("Include completed issues (default: false)").optional(),
+  limit: z.number().describe("Maximum number of issues to return (default: 20)").optional(),
 };
 
 /**
@@ -36,11 +32,11 @@ function formatPriority(priority: number, priorityLabel: string): string {
  */
 function formatDueDate(dueDate: string | null): string {
   if (!dueDate) return "";
-  
+
   const due = new Date(dueDate);
   const now = new Date();
   const daysUntilDue = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  
+
   let urgency = "";
   if (daysUntilDue < 0) {
     urgency = "⚠️ OVERDUE";
@@ -53,7 +49,7 @@ function formatDueDate(dueDate: string | null): string {
   } else {
     urgency = `📅 Due ${due.toLocaleDateString()}`;
   }
-  
+
   return urgency;
 }
 
@@ -65,16 +61,19 @@ export function registerLinearTool(mcpServer: McpServer): void {
     "list-linear-issues",
     {
       title: "List Linear Issues",
-      description: "Get issues assigned to you from Linear. Use this when the user asks about their tasks, issues, tickets, work items, or what they need to work on.",
+      description:
+        "Get issues assigned to you from Linear. Use this when the user asks about their tasks, issues, tickets, work items, or what they need to work on.",
       inputSchema: linearIssuesInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
@@ -97,10 +96,12 @@ export function registerLinearTool(mcpServer: McpServer): void {
 
         if (issues.length === 0) {
           return {
-            content: [{
-              type: "text",
-              text: "📋 No issues assigned to you right now. Nice work! 🎉"
-            }]
+            content: [
+              {
+                type: "text",
+                text: "📋 No issues assigned to you right now. Nice work! 🎉",
+              },
+            ],
           };
         }
 
@@ -150,15 +151,16 @@ export function registerLinearTool(mcpServer: McpServer): void {
           }
         }
 
-        const output = lines.join('\n');
+        const output = lines.join("\n");
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(error, LINEAR_RESOURCE, LINEAR_SCOPES);
       }

@@ -1,8 +1,8 @@
-import * as path from "path";
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { z } from "zod/v3";
-import * as fs from "fs/promises";
 import { PATHS } from "../constants";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { filterCompletedTasks } from "../utils/filter-completed-tasks";
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
@@ -111,8 +111,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
           };
         }
 
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
+        const message = error instanceof Error ? error.message : "Unknown error";
         return {
           content: [
             {
@@ -122,8 +121,6 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
           ],
         };
       }
-    }) satisfies AuthenticatedToolHandlerWithArgs<
-      typeof readDashboardTasksInputSchema
-    >
+    }) satisfies AuthenticatedToolHandlerWithArgs<typeof readDashboardTasksInputSchema>
   );
 }

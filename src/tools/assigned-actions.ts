@@ -1,8 +1,8 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
-import { fetchAssignedActions } from "./today-todos/docs-utils";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
+import { fetchAssignedActions } from "./today-todos/docs-utils";
 import type { AssignedActionDetail } from "./today-todos/types";
 
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
@@ -12,10 +12,12 @@ const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.r
  * Input schema for the list-assigned-actions tool
  */
 const assignedActionsInputSchema = {
-  daysBack: z.number()
+  daysBack: z
+    .number()
     .describe("Number of days to look back for assignments (default: 7)")
     .optional(),
-  maxResults: z.number()
+  maxResults: z
+    .number()
     .describe("Maximum number of action items to return (default: 20)")
     .optional(),
 };
@@ -34,7 +36,7 @@ function formatActionDetail(action: AssignedActionDetail): string {
       month: "short",
       day: "numeric",
       hour: "numeric",
-      minute: "2-digit"
+      minute: "2-digit",
     });
     output += ` • ${dateStr}`;
   }
@@ -59,16 +61,19 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
     "list-assigned-actions",
     {
       title: "List Assigned Actions",
-      description: "Get action items assigned to you in Google Docs via @mentions and comment assignments. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Docs.",
+      description:
+        "Get action items assigned to you in Google Docs via @mentions and comment assignments. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Docs.",
       inputSchema: assignedActionsInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
@@ -85,10 +90,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
         const maxResults = args.maxResults || 20;
 
         // Fetch assigned actions using utility function
-        const actions = await fetchAssignedActions(
-          tokenResponse.access_token,
-          daysBack
-        );
+        const actions = await fetchAssignedActions(tokenResponse.access_token, daysBack);
 
         // Apply maxResults limit
         const limitedActions = actions.slice(0, maxResults);
@@ -98,22 +100,25 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
 
         if (actionItems.length === 0) {
           return {
-            content: [{
-              type: "text",
-              text: `📋 No action items assigned to you in the last ${daysBack} days.`
-            }]
+            content: [
+              {
+                type: "text",
+                text: `📋 No action items assigned to you in the last ${daysBack} days.`,
+              },
+            ],
           };
         }
 
         const output = `📋 **Action Items Assigned to You** (${actionItems.length}):\n\n${actionItems.join("\n\n")}`;
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(error, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
       }

@@ -1,6 +1,6 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
@@ -12,21 +12,17 @@ const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.r
  * Input schema for the list-drive-activity tool
  */
 const driveActivityInputSchema = {
-  daysBack: z.number()
-    .describe("Number of days to look back for activity (default: 7)")
-    .optional(),
-  maxResults: z.number()
-    .describe("Maximum number of files to return (default: 10)")
-    .optional(),
-  fileType: z.enum(["all", "documents", "spreadsheets", "presentations"])
+  daysBack: z.number().describe("Number of days to look back for activity (default: 7)").optional(),
+  maxResults: z.number().describe("Maximum number of files to return (default: 10)").optional(),
+  fileType: z
+    .enum(["all", "documents", "spreadsheets", "presentations"])
     .describe("Filter by file type (default: all)")
     .optional(),
-  includeComments: z.boolean()
+  includeComments: z
+    .boolean()
     .describe("Include unresolved comments on files (default: true)")
     .optional(),
-  ownedOnly: z.boolean()
-    .describe("Only show files owned by you (default: true)")
-    .optional(),
+  ownedOnly: z.boolean().describe("Only show files owned by you (default: true)").optional(),
 };
 
 /**
@@ -122,16 +118,14 @@ function formatFileType(mimeType?: string): string {
 /**
  * Fetches unresolved comments for a file
  */
-async function getUnresolvedComments(
-  fileId: string,
-  accessToken: string
-): Promise<DriveComment[]> {
+async function getUnresolvedComments(fileId: string, accessToken: string): Promise<DriveComment[]> {
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}/comments?` +
-    new URLSearchParams({
-      fields: "comments(id,content,author/displayName,createdTime,resolved,quotedFileContent/value)",
-      pageSize: "10",
-    }),
+      new URLSearchParams({
+        fields:
+          "comments(id,content,author/displayName,createdTime,resolved,quotedFileContent/value)",
+        pageSize: "10",
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -143,9 +137,9 @@ async function getUnresolvedComments(
     return [];
   }
 
-  const data = await response.json() as DriveCommentsResponse;
+  const data = (await response.json()) as DriveCommentsResponse;
   // Filter to only unresolved comments
-  return (data.comments || []).filter(c => !c.resolved);
+  return (data.comments || []).filter((c) => !c.resolved);
 }
 
 /**
@@ -154,16 +148,16 @@ async function getUnresolvedComments(
 function formatComment(comment: DriveComment, isMentioned: boolean = false): string {
   const author = comment.author?.displayName || "Unknown";
   const content = comment.content || "(no content)";
-  const date = comment.createdTime 
+  const date = comment.createdTime
     ? new Date(comment.createdTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : "";
-  
+
   const mentionPrefix = isMentioned ? "🔔 " : "";
   let output = `    ${mentionPrefix}💬 ${author}`;
   if (date) output += ` (${date})`;
   if (isMentioned) output += ` **mentioned you**`;
   output += `: ${content.substring(0, 100)}${content.length > 100 ? "..." : ""}`;
-  
+
   return output;
 }
 
@@ -193,12 +187,12 @@ async function findFilesWithUnresolvedComments(
   // Query for files the user owns (most recently modified first)
   const filesResponse = await fetch(
     `https://www.googleapis.com/drive/v3/files?` +
-    new URLSearchParams({
-      q: query,
-      pageSize: maxFilesToCheck.toString(),
-      orderBy: "modifiedTime desc",
-      fields: "files(id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName)",
-    }),
+      new URLSearchParams({
+        q: query,
+        pageSize: maxFilesToCheck.toString(),
+        orderBy: "modifiedTime desc",
+        fields: "files(id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName)",
+      }),
     {
       headers: {
         Authorization: `Bearer ${driveToken}`,
@@ -210,7 +204,7 @@ async function findFilesWithUnresolvedComments(
     return [];
   }
 
-  const data = await filesResponse.json() as DriveFilesResponse;
+  const data = (await filesResponse.json()) as DriveFilesResponse;
   const allFiles = data.files || [];
 
   // Check each file for unresolved comments in parallel
@@ -230,40 +224,40 @@ async function findFilesWithUnresolvedComments(
 async function getFilesWithMentions(
   accessToken: string,
   daysBack: number,
-  fileType: string
+  _fileType: string
 ): Promise<Map<string, { fileId: string; fileTitle: string; mentionedAt: string }>> {
   const startTime = new Date();
   startTime.setDate(startTime.getDate() - daysBack);
 
-  const response = await fetch(
-    "https://driveactivity.googleapis.com/v2/activity:query",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        pageSize: 50,
-        filter: `time >= "${startTime.toISOString()}" AND detail.action_detail_case:COMMENT`,
-      }),
-    }
-  );
+  const response = await fetch("https://driveactivity.googleapis.com/v2/activity:query", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      pageSize: 50,
+      filter: `time >= "${startTime.toISOString()}" AND detail.action_detail_case:COMMENT`,
+    }),
+  });
 
   if (!response.ok) {
     return new Map();
   }
 
-  const data = await response.json() as DriveActivityResponse;
+  const data = (await response.json()) as DriveActivityResponse;
   const activities = data.activities || [];
-  const mentionedFiles = new Map<string, { fileId: string; fileTitle: string; mentionedAt: string }>();
+  const mentionedFiles = new Map<
+    string,
+    { fileId: string; fileTitle: string; mentionedAt: string }
+  >();
 
   for (const activity of activities) {
     const comment = activity.primaryActionDetail?.comment;
     if (!comment) continue;
 
     // Check if current user was mentioned
-    const wasMentioned = comment.mentionedUsers?.some(u => u.knownUser?.isCurrentUser);
+    const wasMentioned = comment.mentionedUsers?.some((u) => u.knownUser?.isCurrentUser);
     if (!wasMentioned) continue;
 
     const target = activity.targets?.[0];
@@ -296,16 +290,19 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
     "list-drive-activity",
     {
       title: "List Drive Activity",
-      description: "Get Google Drive files you own with unresolved comments, including recently modified files, files where you were mentioned in comments, and files with unresolved comments. Use this when the user asks about recent documents, active files, or wants to see what's been worked on recently.",
+      description:
+        "Get Google Drive files you own with unresolved comments, including recently modified files, files where you were mentioned in comments, and files with unresolved comments. Use this when the user asks about recent documents, active files, or wants to see what's been worked on recently.",
       inputSchema: driveActivityInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
@@ -313,7 +310,9 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         // Exchange user's JWT for Drive and Drive Activity access tokens
         const [tokenResponse, activityTokenResponse] = await Promise.all([
           keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
-          keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES).catch(() => null),
+          keycardClient
+            .exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES)
+            .catch(() => null),
         ]);
 
         // Build query parameters
@@ -333,12 +332,13 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         // Query Drive API for recently modified files
         const filesResponse = await fetch(
           `https://www.googleapis.com/drive/v3/files?` +
-          new URLSearchParams({
-            q: query,
-            pageSize: maxResults.toString(),
-            orderBy: "modifiedTime desc",
-            fields: "files(id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName)",
-          }),
+            new URLSearchParams({
+              q: query,
+              pageSize: maxResults.toString(),
+              orderBy: "modifiedTime desc",
+              fields:
+                "files(id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName)",
+            }),
           {
             headers: {
               Authorization: `Bearer ${tokenResponse.access_token}`,
@@ -349,14 +349,16 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         if (!filesResponse.ok) {
           const error = await filesResponse.text();
           return {
-            content: [{
-              type: "text",
-              text: `❌ Google Drive API error: ${filesResponse.status} - ${error}`
-            }]
+            content: [
+              {
+                type: "text",
+                text: `❌ Google Drive API error: ${filesResponse.status} - ${error}`,
+              },
+            ],
           };
         }
 
-        const data = await filesResponse.json() as DriveFilesResponse;
+        const data = (await filesResponse.json()) as DriveFilesResponse;
         const files = data.files || [];
 
         // Get files where user was mentioned in comments
@@ -365,18 +367,21 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
           : new Map();
 
         // Find files with unresolved comments (even if not recently modified)
-        const filesWithUnresolvedComments = includeComments && ownedOnly
-          ? await findFilesWithUnresolvedComments(
-              tokenResponse.access_token,
-              fileType,
-              ownedOnly,
-              Math.max(maxResults * 3, 50) // Check more files to find ones with comments
-            )
-          : [];
+        const filesWithUnresolvedComments =
+          includeComments && ownedOnly
+            ? await findFilesWithUnresolvedComments(
+                tokenResponse.access_token,
+                fileType,
+                ownedOnly,
+                Math.max(maxResults * 3, 50) // Check more files to find ones with comments
+              )
+            : [];
 
         // Fetch file details for mentioned files that aren't already in the list
-        const existingFileIds = new Set(files.map(f => f.id));
-        const mentionedFileIds = Array.from(mentionedFilesMap.keys()).filter(id => !existingFileIds.has(id));
+        const existingFileIds = new Set(files.map((f) => f.id));
+        const mentionedFileIds = Array.from(mentionedFilesMap.keys()).filter(
+          (id) => !existingFileIds.has(id)
+        );
 
         if (mentionedFileIds.length > 0) {
           // Fetch file details for mentioned files
@@ -384,9 +389,10 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
             try {
               const fileResponse = await fetch(
                 `https://www.googleapis.com/drive/v3/files/${fileId}?` +
-                new URLSearchParams({
-                  fields: "id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName",
-                }),
+                  new URLSearchParams({
+                    fields:
+                      "id,name,mimeType,modifiedTime,webViewLink,lastModifyingUser/displayName",
+                  }),
                 {
                   headers: {
                     Authorization: `Bearer ${tokenResponse.access_token}`,
@@ -395,14 +401,18 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
               );
 
               if (fileResponse.ok) {
-                const file = await fileResponse.json() as DriveFile;
+                const file = (await fileResponse.json()) as DriveFile;
                 // Check if file type matches filter
                 const mimeTypes = {
                   documents: "application/vnd.google-apps.document",
                   spreadsheets: "application/vnd.google-apps.spreadsheet",
                   presentations: "application/vnd.google-apps.presentation",
                 };
-                if (fileType === "all" || (fileType in mimeTypes && file.mimeType === mimeTypes[fileType as keyof typeof mimeTypes])) {
+                if (
+                  fileType === "all" ||
+                  (fileType in mimeTypes &&
+                    file.mimeType === mimeTypes[fileType as keyof typeof mimeTypes])
+                ) {
                   return file;
                 }
               }
@@ -412,7 +422,9 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
             return null;
           });
 
-          const mentionedFiles = (await Promise.all(mentionedFilesPromises)).filter((f): f is DriveFile => f !== null);
+          const mentionedFiles = (await Promise.all(mentionedFilesPromises)).filter(
+            (f): f is DriveFile => f !== null
+          );
           files.push(...mentionedFiles);
         }
 
@@ -427,17 +439,19 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         if (files.length === 0) {
           const ownershipText = ownedOnly ? "that you own " : "";
           return {
-            content: [{
-              type: "text",
-              text: `📁 No ${fileType === "all" ? "" : fileType + " "}files ${ownershipText}modified in the last ${daysBack} days.`
-            }]
+            content: [
+              {
+                type: "text",
+                text: `📁 No ${fileType === "all" ? "" : `${fileType} `}files ${ownershipText}modified in the last ${daysBack} days.`,
+              },
+            ],
           };
         }
 
         // Build output with optional comments
         const outputParts: string[] = [];
         const filesWithMentions = new Set(mentionedFilesMap.keys());
-        const filesWithCommentsSet = new Set(filesWithUnresolvedComments.map(f => f.id));
+        const filesWithCommentsSet = new Set(filesWithUnresolvedComments.map((f) => f.id));
 
         // Sort files: recently modified first, then files with comments, then mentioned files
         const sortedFiles = [...files].sort((a, b) => {
@@ -445,28 +459,30 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
           const bIsRecent = b.modifiedTime && new Date(b.modifiedTime) > modifiedAfter;
           if (aIsRecent && !bIsRecent) return -1;
           if (!aIsRecent && bIsRecent) return 1;
-          
+
           const aHasComments = a.id && filesWithCommentsSet.has(a.id);
           const bHasComments = b.id && filesWithCommentsSet.has(b.id);
           if (aHasComments && !bHasComments) return -1;
           if (!aHasComments && bHasComments) return 1;
-          
+
           return 0;
         });
 
         for (const file of sortedFiles) {
           const typeLabel = formatFileType(file.mimeType);
           const modifiedDate = file.modifiedTime
-            ? new Date(file.modifiedTime).toLocaleDateString("en-US", { 
-                weekday: "short", 
-                month: "short", 
-                day: "numeric" 
+            ? new Date(file.modifiedTime).toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
               })
             : "";
           const modifier = file.lastModifyingUser?.displayName || "";
           const hasMentions = !!(file.id && filesWithMentions.has(file.id));
           const hasUnresolvedComments = !!(file.id && filesWithCommentsSet.has(file.id));
-          const isRecentlyModified = !!(file.modifiedTime && new Date(file.modifiedTime) > modifiedAfter);
+          const isRecentlyModified = !!(
+            file.modifiedTime && new Date(file.modifiedTime) > modifiedAfter
+          );
 
           let fileOutput = `• ${typeLabel} **${file.name}**`;
           if (hasMentions) {
@@ -485,7 +501,8 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
             const comments = await getUnresolvedComments(file.id, tokenResponse.access_token);
             if (comments.length > 0) {
               fileOutput += `\n  **${comments.length} unresolved comment${comments.length > 1 ? "s" : ""}:**`;
-              for (const comment of comments.slice(0, 3)) { // Limit to 3 comments per file
+              for (const comment of comments.slice(0, 3)) {
+                // Limit to 3 comments per file
                 // Mark comments where user was mentioned
                 const isMentioned = hasMentions; // Simplified: if file has mentions, mark all comments
                 // In a more sophisticated implementation, we could check individual comments
@@ -513,17 +530,18 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         const output = header + outputParts.join("\n\n");
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(
           error,
           [DRIVE_RESOURCE, DRIVE_ACTIVITY_RESOURCE],
-          [DRIVE_SCOPES, DRIVE_ACTIVITY_SCOPES],
+          [DRIVE_SCOPES, DRIVE_ACTIVITY_SCOPES]
         );
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof driveActivityInputSchema>

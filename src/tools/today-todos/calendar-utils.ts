@@ -1,7 +1,7 @@
-import type { CalendarEventDetail, TimeBlock } from "./types";
-import { PriorityMetadata, categorizeScore, calculateProximity } from "./priority-utils";
 import { CALENDAR } from "../../constants";
 import { AuthenticationError } from "../../utils/error-utils";
+import { calculateProximity, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { CalendarEventDetail, TimeBlock } from "./types";
 
 /**
  * Fetches calendar events within a specified time range
@@ -20,13 +20,13 @@ export async function fetchCalendarEvents(
 ): Promise<CalendarEventDetail[]> {
   const response = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-    new URLSearchParams({
-      maxResults: String(options.maxResults || CALENDAR.MAX_RESULTS),
-      timeMin: options.timeMin,
-      timeMax: options.timeMax,
-      singleEvents: "true",
-      orderBy: "startTime",
-    }),
+      new URLSearchParams({
+        maxResults: String(options.maxResults || CALENDAR.MAX_RESULTS),
+        timeMin: options.timeMin,
+        timeMax: options.timeMax,
+        singleEvents: "true",
+        orderBy: "startTime",
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -41,7 +41,7 @@ export async function fetchCalendarEvents(
     return [];
   }
 
-  const data = await response.json() as { items?: CalendarEventDetail[] };
+  const data = (await response.json()) as { items?: CalendarEventDetail[] };
   return data.items || [];
 }
 
@@ -51,7 +51,9 @@ export async function fetchCalendarEvents(
  * @param accessToken - Google Calendar API access token
  * @returns Array of today's calendar event details
  */
-export async function fetchTodayCalendarEvents(accessToken: string): Promise<CalendarEventDetail[]> {
+export async function fetchTodayCalendarEvents(
+  accessToken: string
+): Promise<CalendarEventDetail[]> {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfDay = new Date(startOfDay);
@@ -72,13 +74,19 @@ export function findAvailableTimeBlocks(
   workEndHour: number = CALENDAR.WORK_END_HOUR
 ): TimeBlock[] {
   const today = new Date();
-  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), workStartHour, 0);
+  const startOfDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    workStartHour,
+    0
+  );
   const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), workEndHour, 0);
 
   // Sort events by start time
   const sortedEvents = calendarEvents
-    .filter(e => e.start?.dateTime && e.end?.dateTime) // Only timed events with both start and end
-    .map(e => ({
+    .filter((e) => e.start?.dateTime && e.end?.dateTime) // Only timed events with both start and end
+    .map((e) => ({
       start: new Date(e.start!.dateTime!),
       end: new Date(e.end!.dateTime!),
     }))
@@ -90,8 +98,11 @@ export function findAvailableTimeBlocks(
   for (const event of sortedEvents) {
     // If there's a gap before this event
     if (currentTime < event.start) {
-      const durationMinutes = Math.floor((event.start.getTime() - currentTime.getTime()) / (1000 * 60));
-      if (durationMinutes >= CALENDAR.MIN_TIME_BLOCK_MINUTES) { // Only suggest blocks of 15+ minutes
+      const durationMinutes = Math.floor(
+        (event.start.getTime() - currentTime.getTime()) / (1000 * 60)
+      );
+      if (durationMinutes >= CALENDAR.MIN_TIME_BLOCK_MINUTES) {
+        // Only suggest blocks of 15+ minutes
         blocks.push({
           start: new Date(currentTime),
           end: new Date(event.start),
@@ -125,21 +136,14 @@ export function findAvailableTimeBlocks(
  * @param now - Current date/time for proximity calculations
  * @returns Priority metadata
  */
-export function calculateCalendarPriority(
-  event: CalendarEventDetail,
-  now: Date
-): PriorityMetadata {
+export function calculateCalendarPriority(event: CalendarEventDetail, now: Date): PriorityMetadata {
   let score = 50; // Base
   const reasons: string[] = [];
 
   const startTime = event.start?.dateTime ? new Date(event.start.dateTime) : null;
   const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
-  const minutesUntilStart = startTime
-    ? (startTime.getTime() - now.getTime()) / (1000 * 60)
-    : 999;
-  const minutesUntilEnd = endTime
-    ? (endTime.getTime() - now.getTime()) / (1000 * 60)
-    : undefined;
+  const minutesUntilStart = startTime ? (startTime.getTime() - now.getTime()) / (1000 * 60) : 999;
+  const minutesUntilEnd = endTime ? (endTime.getTime() - now.getTime()) / (1000 * 60) : undefined;
 
   const proximity = calculateProximity(minutesUntilStart, minutesUntilEnd);
 
@@ -180,8 +184,8 @@ export function calculateCalendarPriority(
       attendeeCount,
       isSoloFocusBlock,
       minutesUntilStart,
-      proximity
+      proximity,
     },
-    reasons
+    reasons,
   };
 }

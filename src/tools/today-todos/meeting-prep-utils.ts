@@ -1,11 +1,11 @@
 import type {
   CalendarEventDetail,
-  MeetingContextMetadata,
-  LinearIssueDetail,
-  GitHubPRDetail,
   GitHubIssueDetail,
+  GitHubPRDetail,
   GmailMessageDetail,
-  MeetingSummaryDetail
+  LinearIssueDetail,
+  MeetingContextMetadata,
+  MeetingSummaryDetail,
 } from "./types";
 
 /**
@@ -17,12 +17,28 @@ import type {
 function extractKeywords(text: string): Set<string> {
   const words = text.toLowerCase().split(/\W+/);
   const stopWords = new Set([
-    "the", "and", "for", "with", "this", "that", "from", "have", "will", "can",
-    "are", "was", "were", "been", "has", "had", "but", "not", "you", "all"
+    "the",
+    "and",
+    "for",
+    "with",
+    "this",
+    "that",
+    "from",
+    "have",
+    "will",
+    "can",
+    "are",
+    "was",
+    "were",
+    "been",
+    "has",
+    "had",
+    "but",
+    "not",
+    "you",
+    "all",
   ]);
-  return new Set(
-    words.filter(w => w.length > 3 && !stopWords.has(w))
-  );
+  return new Set(words.filter((w) => w.length > 3 && !stopWords.has(w)));
 }
 
 /**
@@ -38,7 +54,7 @@ function extractKeywords(text: string): Set<string> {
 export function generateMeetingContext(
   meeting: CalendarEventDetail,
   linear: LinearIssueDetail[],
-  github: { prs: GitHubPRDetail[], issues: GitHubIssueDetail[] },
+  github: { prs: GitHubPRDetail[]; issues: GitHubIssueDetail[] },
   gmail: GmailMessageDetail[],
   meetingSummaries: MeetingSummaryDetail[]
 ): MeetingContextMetadata {
@@ -56,9 +72,7 @@ export function generateMeetingContext(
 
   const meetingKeywords = extractKeywords(meeting.summary);
   const attendeeEmails = new Set(
-    (meeting.attendees || [])
-      .map(a => a.email?.toLowerCase())
-      .filter(Boolean) as string[]
+    (meeting.attendees || []).map((a) => a.email?.toLowerCase()).filter(Boolean) as string[]
   );
 
   // Match Linear issues by keywords or project name
@@ -68,17 +82,16 @@ export function generateMeetingContext(
       ? extractKeywords(issue.project.name)
       : new Set<string>();
 
-    const keywordOverlap = Array.from(meetingKeywords)
-      .filter(k => issueKeywords.has(k) || projectKeywords.has(k));
+    const keywordOverlap = Array.from(meetingKeywords).filter(
+      (k) => issueKeywords.has(k) || projectKeywords.has(k)
+    );
 
     // Require at least 2 keyword matches to avoid false positives
     if (keywordOverlap.length >= 2) {
       context.relatedIssues.push({
         identifier: issue.identifier,
         title: issue.title,
-        reason: projectKeywords.has(keywordOverlap[0])
-          ? "project_match"
-          : "keyword_match",
+        reason: projectKeywords.has(keywordOverlap[0]) ? "project_match" : "keyword_match",
       });
     }
   }
@@ -86,8 +99,7 @@ export function generateMeetingContext(
   // Match GitHub PRs by keywords
   for (const pr of github.prs) {
     const prKeywords = extractKeywords(pr.title);
-    const keywordOverlap = Array.from(meetingKeywords)
-      .filter(k => prKeywords.has(k));
+    const keywordOverlap = Array.from(meetingKeywords).filter((k) => prKeywords.has(k));
 
     if (keywordOverlap.length >= 2) {
       context.relatedPRs.push({
@@ -102,8 +114,7 @@ export function generateMeetingContext(
   // Match GitHub issues by keywords
   for (const issue of github.issues) {
     const issueKeywords = extractKeywords(issue.title);
-    const keywordOverlap = Array.from(meetingKeywords)
-      .filter(k => issueKeywords.has(k));
+    const keywordOverlap = Array.from(meetingKeywords).filter((k) => issueKeywords.has(k));
 
     if (keywordOverlap.length >= 2) {
       context.relatedGitHubIssues.push({
@@ -118,8 +129,9 @@ export function generateMeetingContext(
   // Match emails from attendees that need a reply
   for (const email of gmail) {
     const senderEmail = email.from.toLowerCase();
-    const senderInMeeting = Array.from(attendeeEmails)
-      .some(attendee => senderEmail.includes(attendee));
+    const senderInMeeting = Array.from(attendeeEmails).some((attendee) =>
+      senderEmail.includes(attendee)
+    );
 
     if (senderInMeeting && email.needsReply) {
       context.relatedEmails.push({
@@ -133,9 +145,7 @@ export function generateMeetingContext(
 
   // Count pending items per attendee (emails from them)
   for (const attendeeEmail of attendeeEmails) {
-    const count = gmail.filter(e =>
-      e.from.toLowerCase().includes(attendeeEmail)
-    ).length;
+    const count = gmail.filter((e) => e.from.toLowerCase().includes(attendeeEmail)).length;
 
     if (count > 0) {
       context.attendeeContext.push({
@@ -151,8 +161,7 @@ export function generateMeetingContext(
     const meetingTitle = meeting.summary.toLowerCase();
     const summaryLower = summaryTitle.toLowerCase();
 
-    if (summaryLower.includes(meetingTitle) ||
-        meetingTitle.includes(summaryLower)) {
+    if (summaryLower.includes(meetingTitle) || meetingTitle.includes(summaryLower)) {
       context.hasSummary = true;
       context.summaryLink = summary.recordingLink || summary.link;
       break; // Only need one match

@@ -1,44 +1,53 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../../types/index";
 import { z } from "zod/v3";
-import { keycardClient } from "../../services/keycard-client";
-import { fetchTodayCalendarEvents, calculateCalendarPriority } from "../today-todos/calendar-utils";
-import { fetchLinearIssues, calculateLinearPriority } from "../today-todos/linear-utils";
-import { fetchGmailTodos, fetchMeetingSummaries, calculateEmailPriority, calculateMeetingSummaryPriority } from "../today-todos/email-utils";
-import { fetchAssignedActions, calculateDocsPriority } from "../today-todos/docs-utils";
-import { fetchGitHubTodos, calculateGitHubPriority } from "../today-todos/github-utils";
-import { fetchSlackMessages, calculateSlackPriorityWithMetadata } from "../today-todos/slack-utils";
-import { fetchMeetingNoteActions } from "../today-todos/granola-utils";
-import { parseDependencies } from "../today-todos/dependency-utils";
-import { detectLinearMentions, detectGitHubMentions, linkMeetingAssets } from "../today-todos/cross-reference-utils";
-import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import { config } from "../../config";
+import { DISPLAY_LIMITS, FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
+import { keycardClient } from "../../services/keycard-client";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
-import { TIME_WINDOWS, FETCH_LIMITS, DISPLAY_LIMITS } from "../../constants";
-import type {
-  CalendarEventDetail,
-  LinearIssueDetail,
-  GmailMessageDetail,
-  MeetingSummaryDetail,
-  AssignedActionDetail,
-  GitHubPRDetail,
-  GitHubIssueDetail,
-  SlackMessageDetail,
-  MeetingNoteActionDetail,
-  EnrichedCalendarEvent,
-  EnrichedLinearIssue,
-  EnrichedGmailMessage,
-  EnrichedMeetingSummary,
-  EnrichedAssignedAction,
-  EnrichedGitHubPR,
-  EnrichedGitHubIssue,
-  EnrichedSlackMessage,
-  EnrichedMeetingNote,
-  ListAllTasksResponse,
-} from "../today-todos/types";
+import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
+import {
+  detectGitHubMentions,
+  detectLinearMentions,
+  linkMeetingAssets,
+} from "../today-todos/cross-reference-utils";
+import { parseDependencies } from "../today-todos/dependency-utils";
+import { calculateDocsPriority, fetchAssignedActions } from "../today-todos/docs-utils";
+import {
+  calculateEmailPriority,
+  calculateMeetingSummaryPriority,
+  fetchGmailTodos,
+  fetchMeetingSummaries,
+} from "../today-todos/email-utils";
+import { calculateGitHubPriority, fetchGitHubTodos } from "../today-todos/github-utils";
+import { fetchMeetingNoteActions } from "../today-todos/granola-utils";
+import { calculateLinearPriority, fetchLinearIssues } from "../today-todos/linear-utils";
+import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import type { PriorityMetadata } from "../today-todos/priority-utils";
+import { calculateSlackPriorityWithMetadata, fetchSlackMessages } from "../today-todos/slack-utils";
+import type {
+  AssignedActionDetail,
+  CalendarEventDetail,
+  EnrichedAssignedAction,
+  EnrichedCalendarEvent,
+  EnrichedGitHubIssue,
+  EnrichedGitHubPR,
+  EnrichedGmailMessage,
+  EnrichedLinearIssue,
+  EnrichedMeetingNote,
+  EnrichedMeetingSummary,
+  EnrichedSlackMessage,
+  GitHubIssueDetail,
+  GitHubPRDetail,
+  GmailMessageDetail,
+  LinearIssueDetail,
+  ListAllTasksResponse,
+  MeetingNoteActionDetail,
+  MeetingSummaryDetail,
+  SlackMessageDetail,
+} from "../today-todos/types";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -62,7 +71,12 @@ const SLACK_TITLE_MAX_LENGTH = 80;
  */
 function summarizeSlackMessage(text: string, type: string, userName: string): string {
   if (!text) {
-    const labels: Record<string, string> = { mention: "Mention", dm: "Direct message", saved: "Saved message", thread: "Thread reply" };
+    const labels: Record<string, string> = {
+      mention: "Mention",
+      dm: "Direct message",
+      saved: "Saved message",
+      thread: "Thread reply",
+    };
     return `${labels[type] || "Message"} from ${userName}`;
   }
 
@@ -86,21 +100,26 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
 
   // If first line is empty after stripping, fall back to type label
   if (!title) {
-    const labels: Record<string, string> = { mention: "Mention", dm: "Direct message", saved: "Saved message", thread: "Thread reply" };
+    const labels: Record<string, string> = {
+      mention: "Mention",
+      dm: "Direct message",
+      saved: "Saved message",
+      thread: "Thread reply",
+    };
     return `${labels[type] || "Message"} from ${userName}`;
   }
 
   // Truncate based on visible text length (excluding link URL markup).
   // "Visible" means what the user sees: link labels instead of full <url|label> markup.
   const visibleText = title
-    .replace(/<https?:\/\/[^|>]+\|([^>]+)>/g, "$1")  // <url|label> → label
-    .replace(/<https?:\/\/[^>]+>/g, "link");           // <url> → "link"
+    .replace(/<https?:\/\/[^|>]+\|([^>]+)>/g, "$1") // <url|label> → label
+    .replace(/<https?:\/\/[^>]+>/g, "link"); // <url> → "link"
   if (visibleText.length > SLACK_TITLE_MAX_LENGTH) {
     // Estimate a proportional cut point in the raw string.
     // The ratio of raw length to visible length accounts for link markup overhead.
     const ratio = title.length / Math.max(visibleText.length, 1);
     const cutAt = Math.floor((SLACK_TITLE_MAX_LENGTH - 1) * ratio);
-    title = title.substring(0, cutAt).trimEnd() + "\u2026";
+    title = `${title.substring(0, cutAt).trimEnd()}\u2026`;
   }
 
   return title;
@@ -135,36 +154,106 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
   }
 
   return {
-    calendar: data.calendar.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "summary", "start", "end", "htmlLink", "hangoutLink", "attendees", "taskId",
-    ])),
-    linear: data.linear.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "identifier", "title", "priority", "priorityLabel", "url", "state", "dueDate", "estimate", "project", "taskId",
-    ])),
-    gmail: data.gmail.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "id", "subject", "from", "link", "needsReply", "hasActionItems", "taskId",
-      "threadMessageCount", "threadParticipants",
-    ])),
-    meetingSummaries: data.meetingSummaries.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "platform", "meetingTitle", "subject", "link", "recordingLink", "hasActionItems", "taskId",
-    ])),
-    docs: data.docs.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "fileTitle", "actionType", "fileLink", "taskId",
-    ])),
+    calendar: data.calendar.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "summary",
+        "start",
+        "end",
+        "htmlLink",
+        "hangoutLink",
+        "attendees",
+        "taskId",
+      ])
+    ),
+    linear: data.linear.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "identifier",
+        "title",
+        "priority",
+        "priorityLabel",
+        "url",
+        "state",
+        "dueDate",
+        "estimate",
+        "project",
+        "taskId",
+      ])
+    ),
+    gmail: data.gmail.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "id",
+        "subject",
+        "from",
+        "link",
+        "needsReply",
+        "hasActionItems",
+        "taskId",
+        "threadMessageCount",
+        "threadParticipants",
+      ])
+    ),
+    meetingSummaries: data.meetingSummaries.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "platform",
+        "meetingTitle",
+        "subject",
+        "link",
+        "recordingLink",
+        "hasActionItems",
+        "taskId",
+      ])
+    ),
+    docs: data.docs.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "fileTitle",
+        "actionType",
+        "fileLink",
+        "taskId",
+      ])
+    ),
     github: {
-      prs: data.github.prs.map(e => stripItem(e as unknown as Record<string, unknown>, [
-        "number", "title", "url", "repo", "type", "isDraft", "taskId",
-      ])),
-      issues: data.github.issues.map(e => stripItem(e as unknown as Record<string, unknown>, [
-        "number", "title", "url", "repo", "labels", "taskId",
-      ])),
+      prs: data.github.prs.map((e) =>
+        stripItem(e as unknown as Record<string, unknown>, [
+          "number",
+          "title",
+          "url",
+          "repo",
+          "type",
+          "isDraft",
+          "taskId",
+        ])
+      ),
+      issues: data.github.issues.map((e) =>
+        stripItem(e as unknown as Record<string, unknown>, [
+          "number",
+          "title",
+          "url",
+          "repo",
+          "labels",
+          "taskId",
+        ])
+      ),
     },
-    slack: data.slack.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "text", "type", "userName", "permalink", "dismissalId", "taskId",
-    ])),
-    meetingNotes: data.meetingNotes.map(e => stripItem(e as unknown as Record<string, unknown>, [
-      "actionItem", "documentTitle", "documentLink", "assignee", "isUrgent", "taskId",
-    ])),
+    slack: data.slack.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "text",
+        "type",
+        "userName",
+        "permalink",
+        "dismissalId",
+        "taskId",
+      ])
+    ),
+    meetingNotes: data.meetingNotes.map((e) =>
+      stripItem(e as unknown as Record<string, unknown>, [
+        "actionItem",
+        "documentTitle",
+        "documentLink",
+        "assignee",
+        "isUrgent",
+        "taskId",
+      ])
+    ),
     metadata: data.metadata,
   };
 }
@@ -173,11 +262,12 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
  * Input schema for the list-all-tasks-today tool
  */
 const listAllTasksTodayInputSchema = {
-  includeGithub: z.boolean()
-    .describe("Include GitHub PRs and issues (default: true)")
-    .optional(),
-  compact: z.boolean()
-    .describe("Return a compact response with only essential fields per item. Recommended for chat agents to reduce token usage. (default: false)")
+  includeGithub: z.boolean().describe("Include GitHub PRs and issues (default: true)").optional(),
+  compact: z
+    .boolean()
+    .describe(
+      "Return a compact response with only essential fields per item. Recommended for chat agents to reduce token usage. (default: false)"
+    )
     .optional(),
 };
 
@@ -201,19 +291,26 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
     "list-all-tasks-today",
     {
       title: "List All Tasks Today (Raw Data)",
-      description: "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
+      description:
+        "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
       inputSchema: listAllTasksTodayInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              error: "No authentication information available",
-              message: "Please ensure you're properly authenticated."
-            }, null, 2)
-          }]
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  error: "No authentication information available",
+                  message: "Please ensure you're properly authenticated.",
+                },
+                null,
+                2
+              ),
+            },
+          ],
         };
       }
 
@@ -261,19 +358,23 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
               maxResults: FETCH_LIMITS.GMAIL,
               includeRead: true,
-              strictFiltering: false
+              strictFiltering: false,
             }),
             fetchMeetingSummaries(token.access_token, {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
-              maxResults: FETCH_LIMITS.MEETINGS
-            })
+              maxResults: FETCH_LIMITS.MEETINGS,
+            }),
           ]);
           return { todos, summaries };
         })(),
 
         // 3: Google Drive Activity (assigned actions)
         (async () => {
-          const token = await keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
+          const token = await keycardClient.exchange(
+            authInfo,
+            DRIVE_ACTIVITY_RESOURCE,
+            DRIVE_ACTIVITY_SCOPES
+          );
           return fetchAssignedActions(token.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
         })(),
 
@@ -293,7 +394,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           if (!slackToken) return [];
           return fetchSlackMessages(slackToken, {
             daysBack: TIME_WINDOWS.SLACK_DAYS_BACK,
-            maxMessages: FETCH_LIMITS.SLACK
+            maxMessages: FETCH_LIMITS.SLACK,
           });
         })(),
 
@@ -302,7 +403,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
           return fetchMeetingNoteActions(token.access_token, {
             daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
-            maxResults: FETCH_LIMITS.MEETINGS
+            maxResults: FETCH_LIMITS.MEETINGS,
           });
         })(),
       ]);
@@ -356,60 +457,62 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const now = new Date();
 
       // Remove calendar events that have already ended (keep all-day events)
-      const activeCalendar = rawCalendar.filter(event => {
+      const activeCalendar = rawCalendar.filter((event) => {
         const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
         return !endTime || endTime > now;
       });
 
-      let calendarEvents: EnrichedCalendarEvent[] = activeCalendar.map(event => ({
+      const calendarEvents: EnrichedCalendarEvent[] = activeCalendar.map((event) => ({
         ...event,
         taskId: randomUUID(),
-        priorityMetadata: calculateCalendarPriority(event, now)
+        priorityMetadata: calculateCalendarPriority(event, now),
       }));
 
-      let linearIssues: EnrichedLinearIssue[] = rawLinear.map(issue => ({
+      let linearIssues: EnrichedLinearIssue[] = rawLinear.map((issue) => ({
         ...issue,
         taskId: randomUUID(),
-        priorityMetadata: calculateLinearPriority(issue, now)
+        priorityMetadata: calculateLinearPriority(issue, now),
       }));
 
-      let gmailTodos: EnrichedGmailMessage[] = rawGmail.map(email => ({
+      let gmailTodos: EnrichedGmailMessage[] = rawGmail.map((email) => ({
         ...email,
         taskId: randomUUID(),
-        priorityMetadata: calculateEmailPriority(email, now)
+        priorityMetadata: calculateEmailPriority(email, now),
       }));
 
-      let meetingSummaries: EnrichedMeetingSummary[] = rawMeetingSummaries.map(summary => ({
+      let meetingSummaries: EnrichedMeetingSummary[] = rawMeetingSummaries.map((summary) => ({
         ...summary,
         taskId: randomUUID(),
-        priorityMetadata: calculateMeetingSummaryPriority(summary, now)
+        priorityMetadata: calculateMeetingSummaryPriority(summary, now),
       }));
 
-      let assignedActions: EnrichedAssignedAction[] = rawAssignedActions.map(action => ({
+      let assignedActions: EnrichedAssignedAction[] = rawAssignedActions.map((action) => ({
         ...action,
         taskId: randomUUID(),
-        priorityMetadata: calculateDocsPriority(action, now)
+        priorityMetadata: calculateDocsPriority(action, now),
       }));
 
-      let githubPRs: EnrichedGitHubPR[] = rawGithubPRs.map(pr => ({
+      let githubPRs: EnrichedGitHubPR[] = rawGithubPRs.map((pr) => ({
         ...pr,
         taskId: randomUUID(),
-        priorityMetadata: calculateGitHubPriority(pr, now)
+        priorityMetadata: calculateGitHubPriority(pr, now),
       }));
 
-      let githubIssues: EnrichedGitHubIssue[] = rawGithubIssues.map(issue => ({
+      let githubIssues: EnrichedGitHubIssue[] = rawGithubIssues.map((issue) => ({
         ...issue,
         taskId: randomUUID(),
-        priorityMetadata: calculateGitHubPriority(issue, now)
+        priorityMetadata: calculateGitHubPriority(issue, now),
       }));
 
-      let slackMessages: EnrichedSlackMessage[] = rawSlack.map(msg => {
+      let slackMessages: EnrichedSlackMessage[] = rawSlack.map((msg) => {
         // Priority must be calculated BEFORE we convert the timestamp,
         // since calculateSlackPriorityWithMetadata expects epoch seconds
         const priorityMetadata = calculateSlackPriorityWithMetadata(msg, now);
         // Convert Slack epoch seconds (e.g., "1770390352.498779") to ISO string
         const epochMs = parseFloat(msg.timestamp) * 1000;
-        const isoTimestamp = isNaN(epochMs) ? msg.timestamp : new Date(epochMs).toISOString();
+        const isoTimestamp = Number.isNaN(epochMs)
+          ? msg.timestamp
+          : new Date(epochMs).toISOString();
         return {
           ...msg,
           taskId: randomUUID(),
@@ -420,15 +523,17 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       });
 
       // Add taskId to meeting notes
-      let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map(note => ({
+      let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map((note) => ({
         ...note,
         taskId: randomUUID(),
       }));
 
       // Sort by priority score (highest first) and cap each source
       // Done BEFORE cross-reference enrichment so less work to do
-      const byPriority = (a: { priorityMetadata?: PriorityMetadata }, b: { priorityMetadata?: PriorityMetadata }) =>
-        (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0);
+      const byPriority = (
+        a: { priorityMetadata?: PriorityMetadata },
+        b: { priorityMetadata?: PriorityMetadata }
+      ) => (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0);
 
       // Calendar is uncapped (you need to see all your meetings)
       linearIssues = linearIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.LINEAR);
@@ -437,7 +542,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       githubPRs = githubPRs.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_PRS);
       githubIssues = githubIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_ISSUES);
       assignedActions = assignedActions.sort(byPriority).slice(0, DISPLAY_LIMITS.DOCS);
-      meetingSummaries = meetingSummaries.sort(byPriority).slice(0, DISPLAY_LIMITS.MEETING_SUMMARIES);
+      meetingSummaries = meetingSummaries
+        .sort(byPriority)
+        .slice(0, DISPLAY_LIMITS.MEETING_SUMMARIES);
       meetingNoteActions = meetingNoteActions.slice(0, DISPLAY_LIMITS.MEETING_NOTES);
 
       // ============================================
@@ -528,15 +635,15 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         docs: assignedActions,
         github: {
           prs: githubPRs,
-          issues: githubIssues
+          issues: githubIssues,
         },
         slack: slackMessages,
         meetingNotes: meetingNoteActions,
         metadata: {
           fetched_at: new Date().toISOString(),
           date: today.toISOString(),
-          errors: errors.length > 0 ? errors : undefined
-        }
+          errors: errors.length > 0 ? errors : undefined,
+        },
       };
 
       // Write full data to local file so the UI can read it without auth.
@@ -557,10 +664,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // Return JSON string
       return {
-        content: [{
-          type: "text",
-          text: JSON.stringify(outputData)
-        }]
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(outputData),
+          },
+        ],
       };
     }) as AuthenticatedToolHandlerWithArgs<typeof listAllTasksTodayInputSchema>
   );

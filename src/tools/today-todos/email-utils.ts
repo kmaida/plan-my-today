@@ -1,6 +1,6 @@
-import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
-import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { AuthenticationError } from "../../utils/error-utils";
+import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
 
 // ── Shared patterns for email classification ──────────────────────────────────
 // Defined once, reused across isFromIndividual, isNewsletter, isLowImportance,
@@ -31,29 +31,29 @@ const AUTOMATED_FROM_PATTERNS = [
 ];
 
 const AUTOMATED_DOMAINS = [
-  'linear.app',
-  'github.com',
-  'zoom.us',
-  'figma.com',
-  'render.com',
-  'n8n.cloud',
-  'granola.so',
-  'instatunnel.my',
-  'google.com',
-  'googlemail.com',
-  'atlassian.net',
-  'jira.com',
-  'slack.com',
-  'notion.so',
-  'vercel.com',
-  'netlify.com',
-  'stripe.com',
-  'intercom.io',
-  'hubspot.com',
-  'mailchimp.com',
-  'sendgrid.net',
-  'amazonses.com',
-  'postmarkapp.com',
+  "linear.app",
+  "github.com",
+  "zoom.us",
+  "figma.com",
+  "render.com",
+  "n8n.cloud",
+  "granola.so",
+  "instatunnel.my",
+  "google.com",
+  "googlemail.com",
+  "atlassian.net",
+  "jira.com",
+  "slack.com",
+  "notion.so",
+  "vercel.com",
+  "netlify.com",
+  "stripe.com",
+  "intercom.io",
+  "hubspot.com",
+  "mailchimp.com",
+  "sendgrid.net",
+  "amazonses.com",
+  "postmarkapp.com",
 ];
 
 const AUTOMATED_SUBJECT_PATTERNS = [
@@ -124,13 +124,13 @@ const NEWSLETTER_FROM_PATTERNS = [
  * Checks if the from address is from a calendar notification
  */
 function isCalendarEmail(fromLower: string, subjectLower: string): boolean {
-  if (fromLower.includes('calendar') || fromLower.includes('calendar-notification')) {
+  if (fromLower.includes("calendar") || fromLower.includes("calendar-notification")) {
     return true;
   }
-  if (subjectLower.includes('calendar') && fromLower.includes('google')) {
+  if (subjectLower.includes("calendar") && fromLower.includes("google")) {
     return true;
   }
-  return CALENDAR_SUBJECT_PATTERNS.some(p => p.test(subjectLower));
+  return CALENDAR_SUBJECT_PATTERNS.some((p) => p.test(subjectLower));
 }
 
 /**
@@ -150,7 +150,7 @@ export function isFromIndividual(from: string, subject: string): boolean {
   const subjectLower = subject.toLowerCase();
 
   // Automated sender address patterns
-  if (AUTOMATED_FROM_PATTERNS.some(pattern => pattern.test(fromLower))) {
+  if (AUTOMATED_FROM_PATTERNS.some((pattern) => pattern.test(fromLower))) {
     return false;
   }
 
@@ -161,12 +161,12 @@ export function isFromIndividual(from: string, subject: string): boolean {
 
   // Known automated service domains
   const emailDomain = extractDomain(fromLower);
-  if (emailDomain && AUTOMATED_DOMAINS.some(domain => emailDomain.includes(domain))) {
+  if (emailDomain && AUTOMATED_DOMAINS.some((domain) => emailDomain.includes(domain))) {
     return false;
   }
 
   // Automated subject patterns
-  if (AUTOMATED_SUBJECT_PATTERNS.some(pattern => pattern.test(subjectLower))) {
+  if (AUTOMATED_SUBJECT_PATTERNS.some((pattern) => pattern.test(subjectLower))) {
     return false;
   }
 
@@ -201,18 +201,18 @@ export function emailNeedsReply(subject: string, from: string, isUnread: boolean
 
   // Direct ask keywords in subject from an individual
   const actionKeywords = [
-    'action items',
-    'action item',
-    'can you',
-    'could you',
-    'would you',
-    'follow up',
-    'follow-up',
-    'question',
-    '?',
+    "action items",
+    "action item",
+    "can you",
+    "could you",
+    "would you",
+    "follow up",
+    "follow-up",
+    "question",
+    "?",
   ];
 
-  if (actionKeywords.some(keyword => subjectLower.includes(keyword))) {
+  if (actionKeywords.some((keyword) => subjectLower.includes(keyword))) {
     return true;
   }
 
@@ -237,7 +237,7 @@ export function emailHasActionItems(subject: string): boolean {
     /urgent/i,
     /asap/i,
   ];
-  return actionItemPatterns.some(pattern => pattern.test(subjectLower));
+  return actionItemPatterns.some((pattern) => pattern.test(subjectLower));
 }
 
 /**
@@ -248,13 +248,13 @@ export function isNewsletter(from: string, subject: string): boolean {
   const fromLower = from.toLowerCase();
   const subjectLower = subject.toLowerCase();
 
-  if (NEWSLETTER_SUBJECT_PATTERNS.some(p => p.test(subjectLower))) {
+  if (NEWSLETTER_SUBJECT_PATTERNS.some((p) => p.test(subjectLower))) {
     return true;
   }
 
   // Note: noreply/no-reply/donotreply are already caught by AUTOMATED_FROM_PATTERNS
   // in isFromIndividual. NEWSLETTER_FROM_PATTERNS only adds newsletter-specific senders.
-  if (NEWSLETTER_FROM_PATTERNS.some(p => p.test(fromLower))) {
+  if (NEWSLETTER_FROM_PATTERNS.some((p) => p.test(fromLower))) {
     return true;
   }
 
@@ -291,7 +291,7 @@ export function isLowImportance(from: string, subject: string, isImportant: bool
     /automatic reply/i,
   ];
 
-  if (lowImportancePatterns.some(p => p.test(subjectLower))) {
+  if (lowImportancePatterns.some((p) => p.test(subjectLower))) {
     // But allow if it's from an individual and has action items
     if (isFromIndividual(from, subject) && emailHasActionItems(subject)) {
       return false;
@@ -310,7 +310,7 @@ export function isZoomMeetingNote(from: string, subject: string): boolean {
   const subjectLower = subject.toLowerCase();
 
   // Check from address
-  if (!fromLower.includes('zoom.us') || !fromLower.includes('no-reply')) {
+  if (!fromLower.includes("zoom.us") || !fromLower.includes("no-reply")) {
     return false;
   }
 
@@ -320,7 +320,7 @@ export function isZoomMeetingNote(from: string, subject: string): boolean {
     /meeting notes for .+/i,
   ];
 
-  return meetingNotePatterns.some(pattern => pattern.test(subjectLower));
+  return meetingNotePatterns.some((pattern) => pattern.test(subjectLower));
 }
 
 /**
@@ -333,16 +333,16 @@ export function snippetHasActionItems(snippet: string | undefined): boolean {
 
   // Action item keywords
   const actionKeywords = [
-    'action item',
-    'todo',
-    'to do',
-    'follow up',
-    'follow-up',
-    'assigned to',
-    '@', // Mentions often indicate assignments
+    "action item",
+    "todo",
+    "to do",
+    "follow up",
+    "follow-up",
+    "assigned to",
+    "@", // Mentions often indicate assignments
   ];
 
-  return actionKeywords.some(keyword => snippetLower.includes(keyword));
+  return actionKeywords.some((keyword) => snippetLower.includes(keyword));
 }
 
 /**
@@ -389,13 +389,13 @@ export function extractEmailBody(payload?: {
 
   // Check for plain text part
   if (payload.parts) {
-    const textPart = payload.parts.find(p => p.mimeType === "text/plain");
+    const textPart = payload.parts.find((p) => p.mimeType === "text/plain");
     if (textPart?.body?.data) {
       return Buffer.from(textPart.body.data, "base64").toString("utf-8");
     }
 
     // Check for HTML part if no plain text
-    const htmlPart = payload.parts.find(p => p.mimeType === "text/html");
+    const htmlPart = payload.parts.find((p) => p.mimeType === "text/html");
     if (htmlPart?.body?.data) {
       return Buffer.from(htmlPart.body.data, "base64").toString("utf-8");
     }
@@ -403,11 +403,11 @@ export function extractEmailBody(payload?: {
     // Check nested parts (multipart/alternative)
     for (const part of payload.parts) {
       if (part.parts) {
-        const nestedText = part.parts.find(p => p.mimeType === "text/plain");
+        const nestedText = part.parts.find((p) => p.mimeType === "text/plain");
         if (nestedText?.body?.data) {
           return Buffer.from(nestedText.body.data, "base64").toString("utf-8");
         }
-        const nestedHtml = part.parts.find(p => p.mimeType === "text/html");
+        const nestedHtml = part.parts.find((p) => p.mimeType === "text/html");
         if (nestedHtml?.body?.data) {
           return Buffer.from(nestedHtml.body.data, "base64").toString("utf-8");
         }
@@ -448,10 +448,10 @@ export async function fetchMeetingSummaries(
 
   const messagesResponse = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?` +
-    new URLSearchParams({
-      q: query,
-      maxResults: maxResults.toString(),
-    }),
+      new URLSearchParams({
+        q: query,
+        maxResults: maxResults.toString(),
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -466,21 +466,18 @@ export async function fetchMeetingSummaries(
     return [];
   }
 
-  const messagesData = await messagesResponse.json() as { messages?: Array<{ id: string }> };
+  const messagesData = (await messagesResponse.json()) as { messages?: Array<{ id: string }> };
   if (!messagesData.messages || messagesData.messages.length === 0) {
     return [];
   }
 
   // Fetch message details WITH FULL BODY to extract recording links
-  const messagePromises = messagesData.messages.slice(0, maxResults).map(msg =>
-    fetch(
-      `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    ).then(r => r.ok ? r.json() : null)
+  const messagePromises = messagesData.messages.slice(0, maxResults).map((msg) =>
+    fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }).then((r) => (r.ok ? r.json() : null))
   );
 
   const messages = (await Promise.all(messagePromises)).filter(Boolean) as Array<{
@@ -503,11 +500,11 @@ export async function fetchMeetingSummaries(
   for (const message of messages) {
     const headers = message.payload?.headers || [];
     const getHeader = (name: string) =>
-      headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
+      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value;
 
     const subject = getHeader("subject") || "";
     const from = getHeader("from") || "";
-    const snippet = message.snippet || '';
+    const snippet = message.snippet || "";
 
     // Check if this is a Zoom meeting note
     if (!isZoomMeetingNote(from, subject)) {
@@ -545,8 +542,11 @@ export async function fetchMeetingSummaries(
  *
  * @param strictFiltering - If false, only excludes calendar and Linear automation (for agent use)
  */
-export function filterEmails(emails: GmailMessageDetail[], strictFiltering: boolean = true): GmailMessageDetail[] {
-  return emails.filter(email => {
+export function filterEmails(
+  emails: GmailMessageDetail[],
+  strictFiltering: boolean = true
+): GmailMessageDetail[] {
+  return emails.filter((email) => {
     const fromLower = email.from.toLowerCase();
     const subjectLower = email.subject.toLowerCase();
 
@@ -559,7 +559,7 @@ export function filterEmails(emails: GmailMessageDetail[], strictFiltering: bool
     // All linear.app emails are automated notifications — there's no real
     // "personal email from linear.app" use case worth the fragile heuristic.
     const emailDomain = extractDomain(fromLower);
-    if (emailDomain?.includes('linear.app')) {
+    if (emailDomain?.includes("linear.app")) {
       return false;
     }
 
@@ -604,9 +604,7 @@ export function extractSenderName(from: string): string {
  * Keeps the most recent message per thread, attaches a participant list and message count.
  * Messages without a threadId pass through unchanged.
  */
-export function collapseByThread(
-  emails: GmailMessageDetail[]
-): GmailMessageDetail[] {
+export function collapseByThread(emails: GmailMessageDetail[]): GmailMessageDetail[] {
   const threadGroups = new Map<string, GmailMessageDetail[]>();
   const noThread: GmailMessageDetail[] = [];
 
@@ -703,10 +701,10 @@ export async function fetchGmailTodos(
 
   const messagesResponse = await fetch(
     `https://www.googleapis.com/gmail/v1/users/me/messages?` +
-    new URLSearchParams({
-      q: query,
-      maxResults: maxResults.toString(),
-    }),
+      new URLSearchParams({
+        q: query,
+        maxResults: maxResults.toString(),
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -721,21 +719,18 @@ export async function fetchGmailTodos(
     return [];
   }
 
-  const messagesData = await messagesResponse.json() as { messages?: Array<{ id: string }> };
+  const messagesData = (await messagesResponse.json()) as { messages?: Array<{ id: string }> };
   if (!messagesData.messages || messagesData.messages.length === 0) {
     return [];
   }
 
   // Fetch message details (use maxResults limit)
-  const messagePromises = messagesData.messages.slice(0, maxResults).map(msg =>
-    fetch(
-      `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    ).then(r => r.ok ? r.json() : null)
+  const messagePromises = messagesData.messages.slice(0, maxResults).map((msg) =>
+    fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }).then((r) => (r.ok ? r.json() : null))
   );
 
   const messages = (await Promise.all(messagePromises)).filter(Boolean) as Array<{
@@ -749,33 +744,32 @@ export async function fetchGmailTodos(
     labelIds?: string[];
   }>;
 
-  const emails = messages
-    .map(message => {
-      const headers = message.payload?.headers || [];
-      const getHeader = (name: string) =>
-        headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value;
+  const emails = messages.map((message) => {
+    const headers = message.payload?.headers || [];
+    const getHeader = (name: string) =>
+      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value;
 
-      const subject = getHeader("subject") || "(No subject)";
-      const from = getHeader("from") || "Unknown";
-      const isUnread = message.labelIds?.includes("UNREAD") ?? false;
-      const fromIndividual = isFromIndividual(from, subject);
-      const needsReply = emailNeedsReply(subject, from, isUnread);
-      const hasActionItems = emailHasActionItems(subject);
+    const subject = getHeader("subject") || "(No subject)";
+    const from = getHeader("from") || "Unknown";
+    const isUnread = message.labelIds?.includes("UNREAD") ?? false;
+    const fromIndividual = isFromIndividual(from, subject);
+    const needsReply = emailNeedsReply(subject, from, isUnread);
+    const hasActionItems = emailHasActionItems(subject);
 
-      return {
-        id: message.id,
-        threadId: message.threadId,
-        subject,
-        from,
-        link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
-        timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
-        isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
-        isStarred: message.labelIds?.includes("STARRED") ?? false,
-        isFromIndividual: fromIndividual,
-        needsReply,
-        hasActionItems,
-      };
-    });
+    return {
+      id: message.id,
+      threadId: message.threadId,
+      subject,
+      from,
+      link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+      timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
+      isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
+      isStarred: message.labelIds?.includes("STARRED") ?? false,
+      isFromIndividual: fromIndividual,
+      needsReply,
+      hasActionItems,
+    };
+  });
 
   // Collapse messages in the same thread into one representative email.
   // Keeps the most recent message per thread, attaches participant list and count.
@@ -825,9 +819,7 @@ export function calculateEmailPriority(email: GmailMessageDetail, now: Date): Pr
 
   // Recency boost — branch on the shared label so threshold changes
   // in calculateRecencyBoost propagate everywhere automatically.
-  const ageHours = email.timestamp
-    ? (now.getTime() - email.timestamp) / (1000 * 60 * 60)
-    : 999;
+  const ageHours = email.timestamp ? (now.getTime() - email.timestamp) / (1000 * 60 * 60) : 999;
 
   const recencyBoost = calculateRecencyBoost(ageHours);
 
@@ -851,9 +843,9 @@ export function calculateEmailPriority(email: GmailMessageDetail, now: Date): Pr
       isImportant: email.isImportant ?? false,
       isStarred: email.isStarred ?? false,
       ageHours,
-      recencyBoost
+      recencyBoost,
     },
-    reasons
+    reasons,
   };
 }
 
@@ -902,8 +894,8 @@ export function calculateMeetingSummaryPriority(
       hasActionItems: summary.hasActionItems,
       hasRecording: !!summary.recordingLink,
       ageHours,
-      recencyBoost
+      recencyBoost,
     },
-    reasons
+    reasons,
   };
 }

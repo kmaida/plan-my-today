@@ -10,7 +10,7 @@ import { PRIORITY_THRESHOLDS } from "../../constants";
 export interface PriorityMetadata {
   score: number; // 0-300 scale, higher = more urgent
   category: "critical" | "high" | "medium" | "low";
-  signals: Record<string, any>; // Type-specific signals
+  signals: Record<string, string | number | boolean | null>; // Type-specific signals
   reasons: string[]; // Human-readable explanations
 }
 
@@ -33,7 +33,9 @@ export function categorizeScore(score: number): "critical" | "high" | "medium" |
  * @param ageHours - Age of the item in hours
  * @returns Recency boost label
  */
-export function calculateRecencyBoost(ageHours: number): "very_recent" | "recent" | "moderate" | "old" {
+export function calculateRecencyBoost(
+  ageHours: number
+): "very_recent" | "recent" | "moderate" | "old" {
   if (ageHours < 1) return "very_recent";
   if (ageHours < 4) return "recent";
   if (ageHours < 24) return "moderate";

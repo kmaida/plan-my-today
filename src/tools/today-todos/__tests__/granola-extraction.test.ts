@@ -160,16 +160,11 @@ describe("next steps section extraction", () => {
 describe("deduplication", () => {
   it("should not duplicate items that match multiple patterns", () => {
     // This text matches both checkbox pattern AND could be in an action items section
-    const content = [
-      "Action Items:",
-      "- Fix the login bug",
-      "",
-      "[ ] Fix the login bug",
-    ].join("\n");
-    const items = extractActionItemsFromContent(content);
-    const fixBugItems = items.filter((i) =>
-      i.text.toLowerCase().includes("fix the login bug")
+    const content = ["Action Items:", "- Fix the login bug", "", "[ ] Fix the login bug"].join(
+      "\n"
     );
+    const items = extractActionItemsFromContent(content);
+    const fixBugItems = items.filter((i) => i.text.toLowerCase().includes("fix the login bug"));
     expect(fixBugItems).toHaveLength(1);
   });
 

@@ -1,9 +1,9 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
-import { fetchGitHubTodos } from "./today-todos/github-utils";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
-import type { GitHubPRDetail, GitHubIssueDetail } from "./today-todos/types";
+import { fetchGitHubTodos } from "./today-todos/github-utils";
+import type { GitHubIssueDetail, GitHubPRDetail } from "./today-todos/types";
 
 const GITHUB_RESOURCE = "https://api.github.com";
 
@@ -11,13 +11,13 @@ const GITHUB_RESOURCE = "https://api.github.com";
  * Input schema for the list-github-todos tool
  */
 const githubTodosInputSchema = {
-  includePRs: z.boolean()
+  includePRs: z
+    .boolean()
     .describe("Include pull requests assigned to you or requesting your review (default: true)")
     .optional(),
-  includeIssues: z.boolean()
-    .describe("Include issues assigned to you (default: true)")
-    .optional(),
-  limit: z.number()
+  includeIssues: z.boolean().describe("Include issues assigned to you (default: true)").optional(),
+  limit: z
+    .number()
     .describe("Maximum number of items to return per category (default: 10)")
     .optional(),
 };
@@ -41,19 +41,23 @@ function formatPRDetail(pr: GitHubPRDetail): string {
   const emoji = pr.type === "review" ? "👀" : "🔀";
   const label = pr.type === "review" ? "Review requested" : "Assigned";
 
-  return `• ${emoji} **${draft}[${pr.repo}#${pr.number}](${pr.url})**: ${pr.title}\n` +
-    `  ${label} • Updated ${formatTimeAgo(pr.updatedAt)}`;
+  return (
+    `• ${emoji} **${draft}[${pr.repo}#${pr.number}](${pr.url})**: ${pr.title}\n` +
+    `  ${label} • Updated ${formatTimeAgo(pr.updatedAt)}`
+  );
 }
 
 /**
  * Formats an issue detail for display
  */
 function formatIssueDetail(issue: GitHubIssueDetail): string {
-  const labels = issue.labels?.map(l => `\`${l}\``).join(", ") || "";
+  const labels = issue.labels?.map((l) => `\`${l}\``).join(", ") || "";
   const labelsText = labels ? ` • ${labels}` : "";
 
-  return `• 🐛 **[${issue.repo}#${issue.number}](${issue.url})**: ${issue.title}\n` +
-    `  Updated ${formatTimeAgo(issue.updatedAt)}${labelsText}`;
+  return (
+    `• 🐛 **[${issue.repo}#${issue.number}](${issue.url})**: ${issue.title}\n` +
+    `  Updated ${formatTimeAgo(issue.updatedAt)}${labelsText}`
+  );
 }
 
 /**
@@ -64,25 +68,25 @@ export function registerGithubTool(mcpServer: McpServer): void {
     "list-github-todos",
     {
       title: "List GitHub Todos",
-      description: "Get pull requests and issues assigned to you from GitHub. Use this when the user asks about their GitHub tasks, PRs, code reviews, or issues.",
+      description:
+        "Get pull requests and issues assigned to you from GitHub. Use this when the user asks about their GitHub tasks, PRs, code reviews, or issues.",
       inputSchema: githubTodosInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
       try {
         // Exchange user's JWT for a GitHub access token
-        const tokenResponse = await keycardClient.exchange(
-          authInfo,
-          GITHUB_RESOURCE
-        );
+        const tokenResponse = await keycardClient.exchange(authInfo, GITHUB_RESOURCE);
 
         const includePRs = args.includePRs !== false; // default true
         const includeIssues = args.includeIssues !== false; // default true
@@ -101,13 +105,15 @@ export function registerGithubTool(mcpServer: McpServer): void {
         // Fetch PRs
         if (includePRs) {
           // Separate PRs by type
-          const reviewRequested = limitedPRs.filter(pr => pr.type === "review");
-          const assigned = limitedPRs.filter(pr => pr.type === "assigned");
+          const reviewRequested = limitedPRs.filter((pr) => pr.type === "review");
+          const assigned = limitedPRs.filter((pr) => pr.type === "assigned");
 
           // Show review-requested PRs first (usually more urgent)
           if (reviewRequested.length > 0) {
             hasItems = true;
-            outputParts.push(`## 👀 Pull Requests Requesting Review (${reviewRequested.length})\n\n`);
+            outputParts.push(
+              `## 👀 Pull Requests Requesting Review (${reviewRequested.length})\n\n`
+            );
             for (const pr of reviewRequested) {
               outputParts.push(formatPRDetail(pr));
               outputParts.push("\n");
@@ -141,22 +147,25 @@ export function registerGithubTool(mcpServer: McpServer): void {
 
         if (!hasItems) {
           return {
-            content: [{
-              type: "text",
-              text: "✅ No GitHub PRs or issues assigned to you right now. Nice work! 🎉"
-            }]
+            content: [
+              {
+                type: "text",
+                text: "✅ No GitHub PRs or issues assigned to you right now. Nice work! 🎉",
+              },
+            ],
           };
         }
 
         const output = `🔷 **Your GitHub Todos**\n\n${outputParts.join("")}`;
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(error, GITHUB_RESOURCE, []);
       }

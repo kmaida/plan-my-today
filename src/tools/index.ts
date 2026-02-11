@@ -1,15 +1,15 @@
 import type { McpServer } from "../types/index";
-import { registerCalendarTool } from "./calendar";
-import { registerLinearTool } from "./linear";
 import { registerAssignedActionsTool } from "./assigned-actions";
+import { registerCalendarTool } from "./calendar";
 import { registerDriveActivityTool } from "./drive-activity";
-import { registerGmailTool } from "./gmail";
 import { registerGithubTool } from "./github";
+import { registerGmailTool } from "./gmail";
+import { registerLinearTool } from "./linear";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
-import { registerSlackListTool } from "./slack-list";
 import { registerMarkActionCompleteTool } from "./mark-action-complete";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
+import { registerSlackListTool } from "./slack-list";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -32,7 +32,7 @@ export const TOOL_REGISTRY = [
  * Get list of all available tool names
  */
 export function getAvailableToolNames(): string[] {
-  return TOOL_REGISTRY.map(tool => tool.name);
+  return TOOL_REGISTRY.map((tool) => tool.name);
 }
 
 /**

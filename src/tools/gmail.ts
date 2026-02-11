@@ -1,8 +1,8 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
-import { fetchGmailTodos } from "./today-todos/email-utils";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
+import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { GmailMessageDetail } from "./today-todos/types";
 
 const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
@@ -12,22 +12,16 @@ const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
  * Input schema for the list-gmail-todos tool
  */
 const gmailTodosInputSchema = {
-  maxResults: z.number()
-    .describe("Maximum number of emails to return (default: 20)")
-    .optional(),
-  daysBack: z.number()
-    .describe("Number of days to look back (default: 7)")
-    .optional(),
-  includeUnread: z.boolean()
-    .describe("Include unread emails (default: true)")
-    .optional(),
-  includeImportant: z.boolean()
-    .describe("Include important emails (default: true)")
-    .optional(),
-  includeNeedsReply: z.boolean()
+  maxResults: z.number().describe("Maximum number of emails to return (default: 20)").optional(),
+  daysBack: z.number().describe("Number of days to look back (default: 7)").optional(),
+  includeUnread: z.boolean().describe("Include unread emails (default: true)").optional(),
+  includeImportant: z.boolean().describe("Include important emails (default: true)").optional(),
+  includeNeedsReply: z
+    .boolean()
     .describe("Include emails that likely need a reply (default: true)")
     .optional(),
-  searchQuery: z.string()
+  searchQuery: z
+    .string()
     .describe("Custom Gmail search query (e.g., 'is:unread from:example@email.com')")
     .optional(),
 };
@@ -65,30 +59,29 @@ export function registerGmailTool(mcpServer: McpServer): void {
     "list-gmail-todos",
     {
       title: "List Gmail Todos",
-      description: "Get emails from Gmail that might be todos, need replies, or need attention. Use this when the user asks about their email, emails they need to reply to, or emails they need to catch up on.",
+      description:
+        "Get emails from Gmail that might be todos, need replies, or need attention. Use this when the user asks about their email, emails they need to reply to, or emails they need to catch up on.",
       inputSchema: gmailTodosInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
       try {
         // Exchange user's JWT for a Gmail access token
-        const tokenResponse = await keycardClient.exchange(
-          authInfo,
-          GMAIL_RESOURCE,
-          GMAIL_SCOPES
-        );
+        const tokenResponse = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
 
         const maxResults = args.maxResults || 20;
         const daysBack = args.daysBack || 7;
-        const includeUnread = args.includeUnread ?? true;
+        const _includeUnread = args.includeUnread ?? true;
         const includeImportant = args.includeImportant ?? true;
         const includeNeedsReply = args.includeNeedsReply ?? true;
 
@@ -105,10 +98,12 @@ export function registerGmailTool(mcpServer: McpServer): void {
 
         if (emails.length === 0) {
           return {
-            content: [{
-              type: "text",
-              text: `📧 No emails found matching your criteria in the last ${daysBack} days.`
-            }]
+            content: [
+              {
+                type: "text",
+                text: `📧 No emails found matching your criteria in the last ${daysBack} days.`,
+              },
+            ],
           };
         }
 
@@ -116,7 +111,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
         const todos: GmailMessageDetail[] = [];
         const needsReplyList: GmailMessageDetail[] = [];
         const important: GmailMessageDetail[] = [];
-        const unread: GmailMessageDetail[] = [];
+        const _unread: GmailMessageDetail[] = [];
 
         for (const email of emails) {
           // Use metadata from utility function
@@ -180,18 +175,19 @@ export function registerGmailTool(mcpServer: McpServer): void {
           }
         }
 
-        let output = lines.join('\n');
+        let output = lines.join("\n");
         if (output === `📧 **Gmail - Emails Needing Attention**\n\n`) {
           output += "No emails found matching the criteria.";
         }
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(error, GMAIL_RESOURCE, GMAIL_SCOPES, [
           "Ensure your Gmail credential provider is configured in Keycard.",

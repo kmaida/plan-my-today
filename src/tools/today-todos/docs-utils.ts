@@ -1,7 +1,7 @@
-import type { AssignedActionDetail } from "./types";
-import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
-import { AuthenticationError } from "../../utils/error-utils";
 import { isActionCompleted } from "../../services/action-completion-store";
+import { AuthenticationError } from "../../utils/error-utils";
+import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { AssignedActionDetail } from "./types";
 
 /**
  * Fetches assigned actions from Google Docs
@@ -18,20 +18,17 @@ export async function fetchAssignedActions(
   const startTime = new Date();
   startTime.setDate(startTime.getDate() - daysBack);
 
-  const response = await fetch(
-    "https://driveactivity.googleapis.com/v2/activity:query",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        pageSize: maxResults,
-        filter: `time >= "${startTime.toISOString()}" AND detail.action_detail_case:COMMENT`,
-      }),
-    }
-  );
+  const response = await fetch("https://driveactivity.googleapis.com/v2/activity:query", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      pageSize: maxResults,
+      filter: `time >= "${startTime.toISOString()}" AND detail.action_detail_case:COMMENT`,
+    }),
+  });
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
@@ -64,7 +61,7 @@ export async function fetchAssignedActions(
     activities?: Activity[];
   };
 
-  const data = await response.json() as DriveActivityResponse;
+  const data = (await response.json()) as DriveActivityResponse;
 
   const activities = data.activities || [];
   const actionItems: AssignedActionDetail[] = [];
@@ -74,7 +71,7 @@ export async function fetchAssignedActions(
     if (!comment) continue;
 
     const wasAssigned = comment.assignment?.assignedUser?.knownUser?.isCurrentUser;
-    const wasMentioned = comment.mentionedUsers?.some(u => u.knownUser?.isCurrentUser);
+    const wasMentioned = comment.mentionedUsers?.some((u) => u.knownUser?.isCurrentUser);
 
     if (wasAssigned || wasMentioned) {
       const target = activity.targets?.[0];
@@ -105,7 +102,7 @@ export async function fetchAssignedActions(
   const filteredActions: AssignedActionDetail[] = [];
   for (const action of actionItems) {
     const identifier = action.fileLink || action.fileTitle;
-    if (identifier && await isActionCompleted("docs", identifier)) {
+    if (identifier && (await isActionCompleted("docs", identifier))) {
       continue;
     }
     filteredActions.push(action);
@@ -121,10 +118,7 @@ export async function fetchAssignedActions(
  * @param now - Current date/time for recency calculations
  * @returns Priority metadata
  */
-export function calculateDocsPriority(
-  item: AssignedActionDetail,
-  now: Date
-): PriorityMetadata {
+export function calculateDocsPriority(item: AssignedActionDetail, now: Date): PriorityMetadata {
   let score = item.isAssignment ? 140 : 100;
   const reasons: string[] = [];
 
@@ -135,9 +129,7 @@ export function calculateDocsPriority(
   }
 
   const timestamp = item.timestamp ? new Date(item.timestamp) : null;
-  const ageHours = timestamp
-    ? (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60)
-    : 999;
+  const ageHours = timestamp ? (now.getTime() - timestamp.getTime()) / (1000 * 60 * 60) : 999;
 
   if (ageHours < 1) {
     score += 50;
@@ -155,8 +147,8 @@ export function calculateDocsPriority(
     signals: {
       isAssignment: item.isAssignment ?? false,
       ageHours,
-      recencyBoost: calculateRecencyBoost(ageHours)
+      recencyBoost: calculateRecencyBoost(ageHours),
     },
-    reasons
+    reasons,
   };
 }

@@ -1,21 +1,15 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
-import { fetchCalendarEvents } from "./today-todos/calendar-utils";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
+import { fetchCalendarEvents } from "./today-todos/calendar-utils";
 
 const CALENDAR_RESOURCE = "https://www.googleapis.com/calendar/v3";
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 const calendarInputSchema = {
-  maxResults: z.number()
-    .describe("Maximum number of events to return (default: 10)")
-    .optional(),
-  timeMin: z.string()
-    .describe("Start time in ISO format (default: now)")
-    .optional(),
-  timeMax: z.string()
-    .describe("End time in ISO format (default: 7 days from now)")
-    .optional(),
+  maxResults: z.number().describe("Maximum number of events to return (default: 10)").optional(),
+  timeMin: z.string().describe("Start time in ISO format (default: now)").optional(),
+  timeMax: z.string().describe("End time in ISO format (default: 7 days from now)").optional(),
 };
 
 export function registerCalendarTool(mcpServer: McpServer): void {
@@ -23,16 +17,19 @@ export function registerCalendarTool(mcpServer: McpServer): void {
     "list-calendar-events",
     {
       title: "List Calendar Events",
-      description: "Get upcoming events from the user's Google Calendar. Use this when the user asks about their schedule, calendar, meetings, appointments, or what they have coming up.",
+      description:
+        "Get upcoming events from the user's Google Calendar. Use this when the user asks about their schedule, calendar, meetings, appointments, or what they have coming up.",
       inputSchema: calendarInputSchema,
     },
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
@@ -47,7 +44,8 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         // Set default time range
         const now = new Date();
         const timeMin = args.timeMin || now.toISOString();
-        const timeMax = args.timeMax || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const timeMax =
+          args.timeMax || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const maxResults = args.maxResults || 10;
 
         // Fetch calendar events using utility function
@@ -59,10 +57,12 @@ export function registerCalendarTool(mcpServer: McpServer): void {
 
         if (events.length === 0) {
           return {
-            content: [{
-              type: "text",
-              text: "📅 No upcoming events found in the specified time range."
-            }]
+            content: [
+              {
+                type: "text",
+                text: "📅 No upcoming events found in the specified time range.",
+              },
+            ],
           };
         }
 
@@ -83,7 +83,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
             timeStr = startDate.toLocaleTimeString("en-US", {
               hour: "numeric",
               minute: "2-digit",
-              hour12: true
+              hour12: true,
             });
           }
 
@@ -91,7 +91,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
           let meetingLink = "";
           if (event.conferenceData?.entryPoints) {
             const videoEntry = event.conferenceData.entryPoints.find(
-              ep => ep.entryPointType === "video"
+              (ep) => ep.entryPointType === "video"
             );
             if (videoEntry?.uri) {
               meetingLink = videoEntry.uri;
@@ -101,13 +101,11 @@ export function registerCalendarTool(mcpServer: McpServer): void {
           }
 
           // Get attendees (exclude self, limit to 3)
-          const otherAttendees = (event.attendees || [])
-            .filter(a => !a.self)
-            .slice(0, 3);
+          const otherAttendees = (event.attendees || []).filter((a) => !a.self).slice(0, 3);
           const attendeeNames = otherAttendees
-            .map(a => a.displayName || a.email?.split("@")[0] || "")
+            .map((a) => a.displayName || a.email?.split("@")[0] || "")
             .filter(Boolean);
-          const hasMoreAttendees = (event.attendees || []).filter(a => !a.self).length > 3;
+          const hasMoreAttendees = (event.attendees || []).filter((a) => !a.self).length > 3;
 
           // Build event entry
           let eventLine = `• 📅 **${title}**\n  ${timeStr}`;
@@ -134,15 +132,16 @@ export function registerCalendarTool(mcpServer: McpServer): void {
           lines.push(""); // Empty line between events
         }
 
-        const output = lines.join('\n');
+        const output = lines.join("\n");
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         return handleToolError(error, CALENDAR_RESOURCE, CALENDAR_SCOPES);
       }

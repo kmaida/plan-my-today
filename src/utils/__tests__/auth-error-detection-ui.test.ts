@@ -178,7 +178,7 @@ describe("extractToolCallAuthErrors", () => {
     });
 
     it("should truncate long error results to 200 chars", () => {
-      const longError = "Error: " + "x".repeat(300);
+      const longError = `Error: ${"x".repeat(300)}`;
       const errors = extractToolCallAuthErrors({
         id: "tc_2",
         name: "list-linear-issues",
@@ -188,9 +188,7 @@ describe("extractToolCallAuthErrors", () => {
       });
 
       expect(errors).toHaveLength(1);
-      expect(errors[0].length).toBeLessThanOrEqual(
-        "list-linear-issues: ".length + 200
-      );
+      expect(errors[0].length).toBeLessThanOrEqual("list-linear-issues: ".length + 200);
     });
   });
 

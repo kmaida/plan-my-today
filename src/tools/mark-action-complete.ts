@@ -1,9 +1,9 @@
-import type { McpServer, AuthenticatedToolHandlerWithArgs } from "../types/index";
 import { z } from "zod/v3";
 import {
   markActionComplete as storeMarkComplete,
   markActionIncomplete as storeMarkIncomplete,
 } from "../services/action-completion-store";
+import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import type { ActionSource } from "../utils/action-identifiers";
 
 /**
@@ -29,9 +29,7 @@ const markActionCompleteInputSchema = {
     .optional(),
   metadata: z
     .record(z.any())
-    .describe(
-      "Optional metadata to store with the completion (e.g., title, context)"
-    )
+    .describe("Optional metadata to store with the completion (e.g., title, context)")
     .optional(),
 };
 
@@ -91,8 +89,6 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
           ],
         };
       }
-    }) satisfies AuthenticatedToolHandlerWithArgs<
-      typeof markActionCompleteInputSchema
-    >
+    }) satisfies AuthenticatedToolHandlerWithArgs<typeof markActionCompleteInputSchema>
   );
 }

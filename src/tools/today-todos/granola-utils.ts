@@ -1,10 +1,10 @@
-import type { MeetingNoteActionDetail } from "./types";
-import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
-import { PRIORITY_THRESHOLDS, TIME_WINDOWS, FETCH_LIMITS } from "../../constants";
+import { config } from "../../config";
+import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { hashActionText } from "../../utils/action-identifiers";
-import { parseDateFromFilename, isWithinBusinessDays } from "../../utils/date-utils";
-import { config } from "../../config";
+import { isWithinBusinessDays, parseDateFromFilename } from "../../utils/date-utils";
+import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { MeetingNoteActionDetail } from "./types";
 
 /**
  * Google Drive API types
@@ -41,7 +41,7 @@ export interface FetchMeetingNotesOptions {
 }
 
 const DEFAULT_FOLDER_NAME = "Meeting Notes";
-const DEFAULT_DAYS_BACK = TIME_WINDOWS.DEFAULT_DAYS_BACK;
+const _DEFAULT_DAYS_BACK = TIME_WINDOWS.DEFAULT_DAYS_BACK;
 const DEFAULT_MAX_RESULTS = FETCH_LIMITS.MEETINGS;
 const BUSINESS_DAYS_LOOKBACK = 10;
 
@@ -56,11 +56,11 @@ export async function findFolderByName(
 
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files?` +
-    new URLSearchParams({
-      q: query,
-      fields: "files(id,name)",
-      pageSize: "1",
-    }),
+      new URLSearchParams({
+        q: query,
+        fields: "files(id,name)",
+        pageSize: "1",
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -73,7 +73,7 @@ export async function findFolderByName(
     throw new Error(`Failed to search for folder: ${response.status} ${errorText}`);
   }
 
-  const data = await response.json() as DriveFilesResponse;
+  const data = (await response.json()) as DriveFilesResponse;
   return data.files?.[0]?.id || null;
 }
 
@@ -93,12 +93,12 @@ export async function fetchDocsFromFolder(
 
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files?` +
-    new URLSearchParams({
-      q: query,
-      fields: "files(id,name,mimeType,modifiedTime,webViewLink)",
-      pageSize: String(maxResults),
-      orderBy: "modifiedTime desc",
-    }),
+      new URLSearchParams({
+        q: query,
+        fields: "files(id,name,mimeType,modifiedTime,webViewLink)",
+        pageSize: String(maxResults),
+        orderBy: "modifiedTime desc",
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -111,22 +111,19 @@ export async function fetchDocsFromFolder(
     throw new Error(`Failed to list files: ${response.status} ${errorText}`);
   }
 
-  const data = await response.json() as DriveFilesResponse;
+  const data = (await response.json()) as DriveFilesResponse;
   return data.files || [];
 }
 
 /**
  * Exports a Google Doc as plain text
  */
-export async function exportDocAsText(
-  accessToken: string,
-  fileId: string
-): Promise<string> {
+export async function exportDocAsText(accessToken: string, fileId: string): Promise<string> {
   const response = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}/export?` +
-    new URLSearchParams({
-      mimeType: "text/plain",
-    }),
+      new URLSearchParams({
+        mimeType: "text/plain",
+      }),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -154,8 +151,8 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
 
   // Pattern 1: Checkbox items [ ] or - [ ]
   const checkboxPattern = /^[\s-]*\[\s?\]\s*(.+)$/gm;
-  let match;
-  while ((match = checkboxPattern.exec(content)) !== null) {
+  let match: RegExpExecArray | null = checkboxPattern.exec(content);
+  while (match !== null) {
     const text = match[1].trim();
     if (text && !seenItems.has(text.toLowerCase())) {
       seenItems.add(text.toLowerCase());
@@ -166,15 +163,17 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
         isUrgent: urgencyPattern.test(text),
       });
     }
+    match = checkboxPattern.exec(content);
   }
 
   // Pattern 2: Action Items section header followed by bullet points
   const sectionPattern = /action items?:?\s*\n((?:[\s]*[-•*]\s*.+\n?)+)/gi;
-  while ((match = sectionPattern.exec(content)) !== null) {
+  match = sectionPattern.exec(content);
+  while (match !== null) {
     const section = match[1];
     const bulletPattern = /[-•*]\s*(.+)/g;
-    let bulletMatch;
-    while ((bulletMatch = bulletPattern.exec(section)) !== null) {
+    let bulletMatch: RegExpExecArray | null = bulletPattern.exec(section);
+    while (bulletMatch !== null) {
       const text = bulletMatch[1].trim();
       // Skip if it's a checkbox item (already captured)
       if (text && !text.startsWith("[") && !seenItems.has(text.toLowerCase())) {
@@ -186,12 +185,15 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
           isUrgent: urgencyPattern.test(text),
         });
       }
+      bulletMatch = bulletPattern.exec(section);
     }
+    match = sectionPattern.exec(content);
   }
 
   // Pattern 3: TODO/ACTION/FIXME markers
   const todoPattern = /(?:TODO|ACTION|FIXME):\s*(.+)/gi;
-  while ((match = todoPattern.exec(content)) !== null) {
+  match = todoPattern.exec(content);
+  while (match !== null) {
     const text = match[1].trim();
     if (text && !seenItems.has(text.toLowerCase())) {
       seenItems.add(text.toLowerCase());
@@ -202,11 +204,13 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
         isUrgent: urgencyPattern.test(text),
       });
     }
+    match = todoPattern.exec(content);
   }
 
   // Pattern 4: @mentions followed by action verbs
   const mentionActionPattern = /@(\w+)\s+(?:please|should|will|needs? to|to)\s+(.+?)(?:\.|$)/gi;
-  while ((match = mentionActionPattern.exec(content)) !== null) {
+  match = mentionActionPattern.exec(content);
+  while (match !== null) {
     const assignee = match[1];
     const action = match[2].trim();
     const text = `@${assignee} ${action}`;
@@ -218,15 +222,17 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
         isUrgent: urgencyPattern.test(action),
       });
     }
+    match = mentionActionPattern.exec(content);
   }
 
   // Pattern 5: Next steps section
   const nextStepsPattern = /next steps?:?\s*\n((?:[\s]*[-•*\d.]\s*.+\n?)+)/gi;
-  while ((match = nextStepsPattern.exec(content)) !== null) {
+  match = nextStepsPattern.exec(content);
+  while (match !== null) {
     const section = match[1];
     const stepPattern = /[-•*\d.]\s*(.+)/g;
-    let stepMatch;
-    while ((stepMatch = stepPattern.exec(section)) !== null) {
+    let stepMatch: RegExpExecArray | null = stepPattern.exec(section);
+    while (stepMatch !== null) {
       const text = stepMatch[1].trim();
       if (text && !seenItems.has(text.toLowerCase())) {
         seenItems.add(text.toLowerCase());
@@ -237,7 +243,9 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
           isUrgent: urgencyPattern.test(text),
         });
       }
+      stepMatch = stepPattern.exec(section);
     }
+    match = nextStepsPattern.exec(content);
   }
 
   return actionItems;
@@ -271,7 +279,7 @@ export function calculateMeetingNotePriority(
 ): PriorityMetadata {
   let score = 80; // Base score for meeting notes (inherently actionable)
   const reasons: string[] = [];
-  const signals: Record<string, any> = {};
+  const signals: Record<string, string | number | boolean | null> = {};
 
   // Recency boost - use meetingDate if available, otherwise fall back to timestamp
   const relevantTimestamp = actionItem.meetingDate
@@ -344,7 +352,7 @@ export async function fetchMeetingNoteActions(
 
   // Filter documents by meeting date (last 10 business days)
   const now = new Date();
-  const eligibleDocs = docs.filter(doc => {
+  const eligibleDocs = docs.filter((doc) => {
     if (!doc.name) return false;
 
     const meetingDate = parseDateFromFilename(doc.name);
@@ -376,22 +384,21 @@ export async function fetchMeetingNoteActions(
         try {
           const content = await exportDocAsText(accessToken, doc.id);
           const extractedItems = extractActionItemsFromContent(content);
-          const timestamp = doc.modifiedTime
-            ? new Date(doc.modifiedTime).getTime()
-            : now.getTime();
+          const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
 
           // Filter to items relevant to the current user (if configured)
           const userNames = config.userDisplayNames;
-          const relevantItems = userNames.length > 0
-            ? extractedItems.filter(item => {
-                if (!item.assignee) return true; // Keep unassigned items
-                const assigneeLower = item.assignee.toLowerCase();
-                const textLower = item.text.toLowerCase();
-                return userNames.some(name =>
-                  assigneeLower.includes(name) || textLower.includes(name)
-                );
-              })
-            : extractedItems;
+          const relevantItems =
+            userNames.length > 0
+              ? extractedItems.filter((item) => {
+                  if (!item.assignee) return true; // Keep unassigned items
+                  const assigneeLower = item.assignee.toLowerCase();
+                  const textLower = item.text.toLowerCase();
+                  return userNames.some(
+                    (name) => assigneeLower.includes(name) || textLower.includes(name)
+                  );
+                })
+              : extractedItems;
 
           return relevantItems.map((item) => {
             const actionDetail: MeetingNoteActionDetail = {

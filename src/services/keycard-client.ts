@@ -115,11 +115,11 @@ export class KeycardClient {
       throw new TokenExchangeError(
         `Token exchange failed: ${response.status} - ${body}`,
         response.status,
-        description,
+        description
       );
     }
 
-    return await response.json() as TokenExchangeResponse;
+    return (await response.json()) as TokenExchangeResponse;
   }
 }
 

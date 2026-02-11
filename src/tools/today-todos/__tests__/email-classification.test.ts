@@ -7,12 +7,12 @@
  */
 
 import {
-  isFromIndividual,
-  isNewsletter,
-  isLowImportance,
-  filterEmails,
-  extractSenderName,
   collapseByThread,
+  extractSenderName,
+  filterEmails,
+  isFromIndividual,
+  isLowImportance,
+  isNewsletter,
 } from "../email-utils";
 import type { GmailMessageDetail } from "../types";
 
@@ -87,7 +87,9 @@ describe("isNewsletter", () => {
   });
 
   it("does not flag normal emails from individuals", () => {
-    expect(isNewsletter("Jane Doe <jane.doe@company.com>", "Quick question about the API")).toBe(false);
+    expect(isNewsletter("Jane Doe <jane.doe@company.com>", "Quick question about the API")).toBe(
+      false
+    );
   });
 });
 
@@ -96,7 +98,9 @@ describe("isNewsletter", () => {
 describe("isLowImportance", () => {
   it("flags auto-replies", () => {
     expect(isLowImportance("someone@company.com", "Auto-Reply: Out of Office", false)).toBe(true);
-    expect(isLowImportance("someone@company.com", "Automatic Reply: On vacation", false)).toBe(true);
+    expect(isLowImportance("someone@company.com", "Automatic Reply: On vacation", false)).toBe(
+      true
+    );
     expect(isLowImportance("someone@company.com", "Out of office until Monday", false)).toBe(true);
   });
 
@@ -112,7 +116,13 @@ describe("isLowImportance", () => {
 
   it("keeps emails from individuals with action items", () => {
     // "Re:" matches low-importance pattern, but from individual + action items = keep
-    expect(isLowImportance("Jane Doe <jane.doe@company.com>", "Re: Action Required - please review", false)).toBe(false);
+    expect(
+      isLowImportance(
+        "Jane Doe <jane.doe@company.com>",
+        "Re: Action Required - please review",
+        false
+      )
+    ).toBe(false);
   });
 });
 
@@ -132,7 +142,10 @@ describe("filterEmails", () => {
   describe("always-excluded emails", () => {
     it("excludes calendar notifications", () => {
       const emails = [
-        makeEmail({ from: "calendar-notification@google.com", subject: "Invitation: Team standup" }),
+        makeEmail({
+          from: "calendar-notification@google.com",
+          subject: "Invitation: Team standup",
+        }),
         makeEmail({ subject: "Accepted: Design review" }),
         makeEmail({ subject: "Canceled event: Sprint retro" }),
       ];
@@ -169,7 +182,10 @@ describe("filterEmails", () => {
 
     it("keeps emails from individuals with normal subjects", () => {
       const emails = [
-        makeEmail({ from: "Jane Doe <jane.doe@company.com>", subject: "Quick question about the API" }),
+        makeEmail({
+          from: "Jane Doe <jane.doe@company.com>",
+          subject: "Quick question about the API",
+        }),
       ];
       expect(filterEmails(emails, true)).toHaveLength(1);
     });
@@ -185,16 +201,12 @@ describe("filterEmails", () => {
     });
 
     it("keeps newsletters when strict filtering is off", () => {
-      const emails = [
-        makeEmail({ from: "newsletter@techsite.com", subject: "This Week in Tech" }),
-      ];
+      const emails = [makeEmail({ from: "newsletter@techsite.com", subject: "This Week in Tech" })];
       expect(filterEmails(emails, false)).toHaveLength(1);
     });
 
     it("keeps low importance emails when strict filtering is off", () => {
-      const emails = [
-        makeEmail({ from: "someone@company.com", subject: "FYI: Team update" }),
-      ];
+      const emails = [makeEmail({ from: "someone@company.com", subject: "FYI: Team update" })];
       expect(filterEmails(emails, false)).toHaveLength(1);
     });
   });
@@ -261,9 +273,24 @@ describe("collapseByThread", () => {
 
   it("collapses multiple messages from the same thread into one", () => {
     const emails = [
-      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 1000 }),
-      makeThreadEmail({ id: "msg-2", threadId: "thread-1", from: "Bob <bob@example.com>", timestamp: 2000 }),
-      makeThreadEmail({ id: "msg-3", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 3000 }),
+      makeThreadEmail({
+        id: "msg-1",
+        threadId: "thread-1",
+        from: "Alice <alice@example.com>",
+        timestamp: 1000,
+      }),
+      makeThreadEmail({
+        id: "msg-2",
+        threadId: "thread-1",
+        from: "Bob <bob@example.com>",
+        timestamp: 2000,
+      }),
+      makeThreadEmail({
+        id: "msg-3",
+        threadId: "thread-1",
+        from: "Alice <alice@example.com>",
+        timestamp: 3000,
+      }),
     ];
     const result = collapseByThread(emails);
     expect(result).toHaveLength(1);
@@ -273,9 +300,24 @@ describe("collapseByThread", () => {
 
   it("deduplicates sender names within a thread", () => {
     const emails = [
-      makeThreadEmail({ id: "msg-1", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 1000 }),
-      makeThreadEmail({ id: "msg-2", threadId: "thread-1", from: "Bob <bob@example.com>", timestamp: 2000 }),
-      makeThreadEmail({ id: "msg-3", threadId: "thread-1", from: "Alice <alice@example.com>", timestamp: 3000 }),
+      makeThreadEmail({
+        id: "msg-1",
+        threadId: "thread-1",
+        from: "Alice <alice@example.com>",
+        timestamp: 1000,
+      }),
+      makeThreadEmail({
+        id: "msg-2",
+        threadId: "thread-1",
+        from: "Bob <bob@example.com>",
+        timestamp: 2000,
+      }),
+      makeThreadEmail({
+        id: "msg-3",
+        threadId: "thread-1",
+        from: "Alice <alice@example.com>",
+        timestamp: 3000,
+      }),
     ];
     const result = collapseByThread(emails);
     expect(result[0].threadParticipants).toHaveLength(2);
@@ -300,7 +342,7 @@ describe("collapseByThread", () => {
     const result = collapseByThread(emails);
     expect(result).toHaveLength(2);
     // No-thread message should not have thread metadata
-    const noThread = result.find(e => e.id === "msg-no-thread");
+    const noThread = result.find((e) => e.id === "msg-no-thread");
     expect(noThread?.threadMessageCount).toBeUndefined();
     expect(noThread?.threadParticipants).toBeUndefined();
   });
@@ -308,14 +350,24 @@ describe("collapseByThread", () => {
   it("merges boolean flags with OR logic", () => {
     const emails = [
       makeThreadEmail({
-        id: "msg-1", threadId: "thread-1", timestamp: 1000,
+        id: "msg-1",
+        threadId: "thread-1",
+        timestamp: 1000,
         from: "Alice <alice@example.com>",
-        isImportant: false, needsReply: true, isStarred: false, hasActionItems: false,
+        isImportant: false,
+        needsReply: true,
+        isStarred: false,
+        hasActionItems: false,
       }),
       makeThreadEmail({
-        id: "msg-2", threadId: "thread-1", timestamp: 2000,
+        id: "msg-2",
+        threadId: "thread-1",
+        timestamp: 2000,
         from: "Bob <bob@example.com>",
-        isImportant: true, needsReply: false, isStarred: false, hasActionItems: true,
+        isImportant: true,
+        needsReply: false,
+        isStarred: false,
+        hasActionItems: true,
       }),
     ];
     const result = collapseByThread(emails);
@@ -328,7 +380,8 @@ describe("collapseByThread", () => {
   it("rewrites link to thread URL format", () => {
     const emails = [
       makeThreadEmail({
-        id: "msg-1", threadId: "thread-abc",
+        id: "msg-1",
+        threadId: "thread-abc",
         from: "Alice <alice@example.com>",
         link: "https://mail.google.com/mail/u/0/#inbox/msg-1",
       }),

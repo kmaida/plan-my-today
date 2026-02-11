@@ -1,7 +1,7 @@
-import type { CalendarEventDetail, LinearIssueDetail, CategorizedIssues } from "./types";
-import { PriorityMetadata, categorizeScore } from "./priority-utils";
 import { FETCH_LIMITS } from "../../constants";
 import { AuthenticationError } from "../../utils/error-utils";
+import { categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { CalendarEventDetail, CategorizedIssues, LinearIssueDetail } from "./types";
 
 /**
  * Fetches all Linear issues assigned to the user
@@ -47,9 +47,11 @@ export async function fetchAllAssignedIssues(
     }
   `;
 
-  const filter = includeCompleted ? {} : {
-    state: { type: { nin: ["completed", "canceled"] } }
-  };
+  const filter = includeCompleted
+    ? {}
+    : {
+        state: { type: { nin: ["completed", "canceled"] } },
+      };
 
   const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",
@@ -70,7 +72,7 @@ export async function fetchAllAssignedIssues(
     return [];
   }
 
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     data?: {
       viewer?: {
         assignedIssues?: {
@@ -102,7 +104,11 @@ export async function fetchLinearIssues(
   } = {}
 ): Promise<LinearIssueDetail[]> {
   // Defaults: backward compatible with existing behavior
-  const { includeRecentlyCompleted = false, completedDaysBack = 0 } = options;
+  // TODO: implement recently-completed filtering when agent requests it
+  const {
+    includeRecentlyCompleted: _includeRecentlyCompleted = false,
+    completedDaysBack: _completedDaysBack = 0,
+  } = options;
 
   // Fetch open issues (excludes completed and canceled at GraphQL level)
   const issues = await fetchAllAssignedIssues(accessToken, {
@@ -117,7 +123,7 @@ export async function fetchLinearIssues(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return issues.filter(issue => {
+  return issues.filter((issue) => {
     // In-progress issues always included (started, blocked, in review, etc.)
     if (issue.state?.type === "started") return true;
 
@@ -151,7 +157,7 @@ export function categorizeIssues(issues: LinearIssueDetail[], today: Date): Cate
       const due = new Date(issue.dueDate);
       due.setHours(0, 0, 0, 0);
       const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       if (daysUntilDue < 0) {
         overdue.push(issue);
       } else if (daysUntilDue === 0) {
@@ -181,7 +187,7 @@ export function detectThemes(
   linearIssues: LinearIssueDetail[]
 ): { theme: string; items: string[]; isMainFocus: boolean }[] {
   const themes: Map<string, Set<string>> = new Map();
-  
+
   // Common keywords to look for (lowercase)
   const keywordPatterns = [
     { pattern: /messaging\s*framework/i, theme: "Messaging Framework" },
@@ -193,12 +199,12 @@ export function detectThemes(
     { pattern: /docs|documentation/i, theme: "Documentation" },
     { pattern: /rsa|conference|booth/i, theme: "RSA Conference" },
   ];
-  
+
   // Helper to check if text matches any keyword pattern
   const matchesKeywordPattern = (text: string): boolean => {
     return keywordPatterns.some(({ pattern }) => pattern.test(text));
   };
-  
+
   // Scan calendar events
   for (const event of calendarEvents) {
     const title = event.summary || "";
@@ -209,20 +215,20 @@ export function detectThemes(
       }
     }
   }
-  
+
   // Scan Linear issues
   for (const issue of linearIssues) {
     const text = `${issue.title} ${issue.project?.name || ""}`;
-    let matchedKeyword = false;
-    
+    let _matchedKeyword = false;
+
     for (const { pattern, theme } of keywordPatterns) {
       if (pattern.test(text)) {
         if (!themes.has(theme)) themes.set(theme, new Set());
         themes.get(theme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
-        matchedKeyword = true;
+        _matchedKeyword = true;
       }
     }
-    
+
     // Only add project theme if it doesn't overlap with keyword patterns
     // This prevents "Messaging Framework v0.1" duplicating "Messaging Framework"
     if (issue.project?.name && !matchesKeywordPattern(issue.project.name)) {
@@ -231,7 +237,7 @@ export function detectThemes(
       themes.get(projectTheme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
     }
   }
-  
+
   // Convert to array and sort by item count
   const themeArray = Array.from(themes.entries())
     .map(([theme, items]) => ({
@@ -240,7 +246,7 @@ export function detectThemes(
       isMainFocus: items.size >= 2, // 2+ items = significant theme
     }))
     .sort((a, b) => b.items.length - a.items.length);
-  
+
   return themeArray;
 }
 
@@ -251,10 +257,7 @@ export function detectThemes(
  * @param now - Current date/time for temporal calculations
  * @returns Priority metadata
  */
-export function calculateLinearPriority(
-  issue: LinearIssueDetail,
-  now: Date
-): PriorityMetadata {
+export function calculateLinearPriority(issue: LinearIssueDetail, now: Date): PriorityMetadata {
   // Linear uses categorical priority, not numerical
   // Score based on temporal urgency + priority level
   let score = 70; // Base
@@ -322,10 +325,12 @@ export function calculateLinearPriority(
       if (ageHours <= 24) {
         score += 30;
         reasons.push("Updated in last 24 hours");
-      } else if (ageHours <= 72) { // 3 days
+      } else if (ageHours <= 72) {
+        // 3 days
         score += 20;
         reasons.push("Updated recently");
-      } else if (ageHours <= 168) { // 7 days
+      } else if (ageHours <= 168) {
+        // 7 days
         score += 10;
         reasons.push("Updated this week");
       }
@@ -348,8 +353,8 @@ export function calculateLinearPriority(
       hasEstimate: issue.estimate !== null,
       estimatePoints: issue.estimate,
       ageHours,
-      recentlyUpdated: ageHours !== null && ageHours <= 168 // Updated in last week
+      recentlyUpdated: ageHours !== null && ageHours <= 168, // Updated in last week
     },
-    reasons
+    reasons,
   };
 }

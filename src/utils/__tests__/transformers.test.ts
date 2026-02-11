@@ -149,7 +149,8 @@ describe("transformPriority", () => {
           score: 100,
           category: "medium",
           signals: {},
-          reasons: "Already a string" as any, // compact mode sends string
+          // biome-ignore lint/suspicious/noExplicitAny: testing compact mode fallback where server sends string instead of array
+          reasons: "Already a string" as any,
         },
       },
     ];

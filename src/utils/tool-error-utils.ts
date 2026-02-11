@@ -53,9 +53,7 @@ export function handleToolError(
       }
     }
 
-    lines.push(
-      "- Ensure the Keycard issuer/zone matches the one that issued your MCP token."
-    );
+    lines.push("- Ensure the Keycard issuer/zone matches the one that issued your MCP token.");
 
     return { content: [{ type: "text", text: lines.join("\n") }], isError: true };
   }

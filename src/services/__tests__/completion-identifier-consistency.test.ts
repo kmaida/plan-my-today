@@ -16,11 +16,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  markActionComplete,
-  isActionCompleted,
-} from "../action-completion-store";
 import { hashActionText } from "../../utils/action-identifiers";
+import { isActionCompleted, markActionComplete } from "../action-completion-store";
 
 // The store computes COMPLETIONS_FILE_PATH once at module load using process.cwd(),
 // so we reset the actual file between tests instead of changing cwd.
@@ -118,8 +115,7 @@ describe("Slack completion identifier consistency", () => {
   const CHANNEL_ID = "C0123ABCDEF";
   const MESSAGE_TS = "1234567890.123456";
   const DISMISSAL_ID = `${CHANNEL_ID}:${MESSAGE_TS}`;
-  const PERMALINK =
-    "https://workspace.slack.com/archives/C0123ABCDEF/p1234567890123456";
+  const PERMALINK = "https://workspace.slack.com/archives/C0123ABCDEF/p1234567890123456";
 
   it("should find a completed Slack message by channel:ts", async () => {
     await markActionComplete("slack", DISMISSAL_ID);

@@ -1,7 +1,7 @@
-import type { GitHubPRDetail, GitHubIssueDetail } from "./types";
-import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
 import { TIME_WINDOWS } from "../../constants";
 import { AuthenticationError } from "../../utils/error-utils";
+import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { GitHubIssueDetail, GitHubPRDetail } from "./types";
 
 /**
  * Gets the authenticated user's GitHub username
@@ -22,7 +22,7 @@ async function getGitHubUsername(accessToken: string): Promise<string | null> {
     return null;
   }
 
-  const user = await response.json() as { login: string };
+  const user = (await response.json()) as { login: string };
   return user.login;
 }
 
@@ -61,21 +61,29 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     );
 
     // Fetch full PR details
-    if (!assignedPRResponse.ok && (assignedPRResponse.status === 401 || assignedPRResponse.status === 403)) {
+    if (
+      !assignedPRResponse.ok &&
+      (assignedPRResponse.status === 401 || assignedPRResponse.status === 403)
+    ) {
       throw new AuthenticationError("GitHub", assignedPRResponse.status);
     }
-    if (!reviewPRResponse.ok && (reviewPRResponse.status === 401 || reviewPRResponse.status === 403)) {
+    if (
+      !reviewPRResponse.ok &&
+      (reviewPRResponse.status === 401 || reviewPRResponse.status === 403)
+    ) {
       throw new AuthenticationError("GitHub", reviewPRResponse.status);
     }
 
     if (assignedPRResponse.ok) {
-      const assignedData = await assignedPRResponse.json() as { items: Array<{ pull_request?: { url: string } }> };
+      const assignedData = (await assignedPRResponse.json()) as {
+        items: Array<{ pull_request?: { url: string } }>;
+      };
       const prPromises = assignedData.items
-        .filter(item => item.pull_request)
-        .map(item => {
+        .filter((item) => item.pull_request)
+        .map((item) => {
           const prUrl = item.pull_request!.url.replace("https://api.github.com/repos/", "");
           return fetch(`https://api.github.com/repos/${prUrl}`, { headers })
-            .then(r => r.ok ? r.json() : null)
+            .then((r) => (r.ok ? r.json() : null))
             .catch(() => null);
         });
       const assignedPRs = (await Promise.all(prPromises)).filter(Boolean) as Array<{
@@ -99,10 +107,10 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
           repo = pr.head.repo.full_name;
         }
         if (!repo && pr.html_url) {
-          const match = pr.html_url.match(/github\.com\/([^\/]+\/[^\/]+)(?:\/pull|\/pulls)/);
+          const match = pr.html_url.match(/github\.com\/([^/]+\/[^/]+)(?:\/pull|\/pulls)/);
           repo = match ? match[1] : "unknown";
         }
-        
+
         prs.push({
           id: pr.number,
           number: pr.number,
@@ -117,13 +125,15 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     }
 
     if (reviewPRResponse.ok) {
-      const reviewData = await reviewPRResponse.json() as { items: Array<{ pull_request?: { url: string } }> };
+      const reviewData = (await reviewPRResponse.json()) as {
+        items: Array<{ pull_request?: { url: string } }>;
+      };
       const prPromises = reviewData.items
-        .filter(item => item.pull_request)
-        .map(item => {
+        .filter((item) => item.pull_request)
+        .map((item) => {
           const prUrl = item.pull_request!.url.replace("https://api.github.com/repos/", "");
           return fetch(`https://api.github.com/repos/${prUrl}`, { headers })
-            .then(r => r.ok ? r.json() : null)
+            .then((r) => (r.ok ? r.json() : null))
             .catch(() => null);
         });
       const reviewPRs = (await Promise.all(prPromises)).filter(Boolean) as Array<{
@@ -147,10 +157,10 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
           repo = pr.head.repo.full_name;
         }
         if (!repo && pr.html_url) {
-          const match = pr.html_url.match(/github\.com\/([^\/]+\/[^\/]+)(?:\/pull|\/pulls)/);
+          const match = pr.html_url.match(/github\.com\/([^/]+\/[^/]+)(?:\/pull|\/pulls)/);
           repo = match ? match[1] : "unknown";
         }
-        
+
         prs.push({
           id: pr.number,
           number: pr.number,
@@ -175,7 +185,7 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     }
 
     if (issuesResponse.ok) {
-      const issuesData = await issuesResponse.json() as {
+      const issuesData = (await issuesResponse.json()) as {
         items: Array<{
           number: number;
           title: string;
@@ -196,7 +206,7 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
           url: issue.html_url,
           repo,
           updatedAt: issue.updated_at,
-          labels: issue.labels?.map(l => l.name),
+          labels: issue.labels?.map((l) => l.name),
         });
       }
     }
@@ -210,12 +220,12 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - TIME_WINDOWS.GITHUB_DAYS);
   const thirtyDaysAgoTime = thirtyDaysAgo.getTime();
 
-  const recentPRs = prs.filter(pr => {
+  const recentPRs = prs.filter((pr) => {
     const updatedAt = new Date(pr.updatedAt).getTime();
     return updatedAt >= thirtyDaysAgoTime;
   });
 
-  const recentIssues = issues.filter(issue => {
+  const recentIssues = issues.filter((issue) => {
     const updatedAt = new Date(issue.updatedAt).getTime();
     return updatedAt >= thirtyDaysAgoTime;
   });
@@ -236,7 +246,7 @@ export function calculateGitHubPriority(
 ): PriorityMetadata {
   let score = 50; // Base
   const reasons: string[] = [];
-  const isPR = 'isDraft' in item;
+  const isPR = "isDraft" in item;
 
   if (isPR) {
     const pr = item as GitHubPRDetail;
@@ -273,11 +283,15 @@ export function calculateGitHubPriority(
     score,
     category: categorizeScore(score),
     signals: {
-      itemType: isPR ? ((item as GitHubPRDetail).type === "review" ? "pr_review" : "pr_assigned") : "issue",
+      itemType: isPR
+        ? (item as GitHubPRDetail).type === "review"
+          ? "pr_review"
+          : "pr_assigned"
+        : "issue",
       isDraft: isPR ? (item as GitHubPRDetail).isDraft : false,
       ageHours,
-      recencyBoost: calculateRecencyBoost(ageHours)
+      recencyBoost: calculateRecencyBoost(ageHours),
     },
-    reasons
+    reasons,
   };
 }

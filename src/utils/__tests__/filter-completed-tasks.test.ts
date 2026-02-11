@@ -292,6 +292,7 @@ describe("Edge cases", () => {
       "meeting-note": ["anything"],
     });
 
+    // biome-ignore lint/suspicious/noExplicitAny: intentional partial data for edge case test
     await filterCompletedTasks(data as any);
 
     // These sources should be completely untouched

@@ -52,9 +52,7 @@ describe("blocking pattern detection", () => {
   });
 
   it("should detect multiple blockers in one text", () => {
-    const result = parseDependencies(
-      "Blocked by ABC-1 and depends on DEF-2, waiting on #3"
-    );
+    const result = parseDependencies("Blocked by ABC-1 and depends on DEF-2, waiting on #3");
     expect(result.blockedBy).toHaveLength(3);
     expect(result.blockedBy).toContain("ABC-1");
     expect(result.blockedBy).toContain("DEF-2");
@@ -138,9 +136,7 @@ describe("blockedByExternal flag", () => {
 
   it("should be true when waiting on email (even with issue IDs)", () => {
     // waitingOn.size > 0 always sets blockedByExternal = true
-    const result = parseDependencies(
-      "Blocked by ABC-123, waiting on legal@co.com"
-    );
+    const result = parseDependencies("Blocked by ABC-123, waiting on legal@co.com");
     expect(result.blockedByExternal).toBe(true);
   });
 });

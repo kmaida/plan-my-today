@@ -6,7 +6,7 @@
  * A wrong boundary silently mis-prioritizes every task in the system.
  */
 
-import { categorizeScore, calculateRecencyBoost, calculateProximity } from "../priority-utils";
+import { calculateProximity, calculateRecencyBoost, categorizeScore } from "../priority-utils";
 
 // ── categorizeScore ──
 // Thresholds: CRITICAL >= 180, HIGH >= 130, MEDIUM >= 80

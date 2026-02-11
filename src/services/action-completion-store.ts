@@ -6,7 +6,7 @@ export interface CompletedAction {
   source: ActionSource;
   identifier: string;
   completedAt: string; // ISO 8601 timestamp
-  metadata?: Record<string, any>; // Optional contextual info
+  metadata?: Record<string, unknown>; // Optional contextual info
 }
 
 export interface CompletedActionsData {
@@ -14,11 +14,7 @@ export interface CompletedActionsData {
   lastPruned?: string; // ISO 8601 timestamp
 }
 
-const COMPLETIONS_FILE_PATH = path.join(
-  process.cwd(),
-  "data",
-  "completed-actions.json"
-);
+const COMPLETIONS_FILE_PATH = path.join(process.cwd(), "data", "completed-actions.json");
 
 const PRUNE_DAYS = 30; // Delete completions older than 30 days
 const PRUNE_INTERVAL_HOURS = 24; // Only prune once per 24 hours
@@ -55,15 +51,9 @@ async function readCompletionsFile(): Promise<CompletedActionsData> {
 /**
  * Write completions file to disk
  */
-async function writeCompletionsFile(
-  data: CompletedActionsData
-): Promise<void> {
+async function writeCompletionsFile(data: CompletedActionsData): Promise<void> {
   await ensureDataDir();
-  await fs.writeFile(
-    COMPLETIONS_FILE_PATH,
-    JSON.stringify(data, null, 2),
-    { mode: 0o600 }
-  );
+  await fs.writeFile(COMPLETIONS_FILE_PATH, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
 /**
@@ -76,8 +66,7 @@ function shouldPrune(data: CompletedActionsData): boolean {
 
   const lastPruned = new Date(data.lastPruned);
   const now = new Date();
-  const hoursSinceLastPrune =
-    (now.getTime() - lastPruned.getTime()) / (1000 * 60 * 60);
+  const hoursSinceLastPrune = (now.getTime() - lastPruned.getTime()) / (1000 * 60 * 60);
 
   return hoursSinceLastPrune >= PRUNE_INTERVAL_HOURS;
 }
@@ -85,9 +74,7 @@ function shouldPrune(data: CompletedActionsData): boolean {
 /**
  * Prune old completions and save to disk
  */
-async function pruneAndSave(
-  data: CompletedActionsData
-): Promise<CompletedActionsData> {
+async function pruneAndSave(data: CompletedActionsData): Promise<CompletedActionsData> {
   const pruned = pruneOldCompletions(data, PRUNE_DAYS);
   await writeCompletionsFile(pruned);
   return pruned;
@@ -96,10 +83,7 @@ async function pruneAndSave(
 /**
  * Remove completions older than specified days
  */
-function pruneOldCompletions(
-  data: CompletedActionsData,
-  daysBack: number
-): CompletedActionsData {
+function pruneOldCompletions(data: CompletedActionsData, daysBack: number): CompletedActionsData {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
 
@@ -131,7 +115,7 @@ function buildKey(source: ActionSource, identifier: string): string {
 export async function markActionComplete(
   source: ActionSource,
   identifier: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const data = await readCompletionsFile();
   const key = buildKey(source, identifier);
@@ -178,9 +162,7 @@ export async function isActionCompleted(
  * Returns identifier strings (without the source prefix).
  * Useful for bulk filtering without repeated file reads.
  */
-export async function getCompletedBySource(
-  source: ActionSource
-): Promise<Set<string>> {
+export async function getCompletedBySource(source: ActionSource): Promise<Set<string>> {
   const result = await getCompletedBySources([source]);
   return result.get(source) ?? new Set();
 }
@@ -193,9 +175,7 @@ export async function getCompletedBySources(
   sources: readonly ActionSource[]
 ): Promise<Map<ActionSource, Set<string>>> {
   const data = await readCompletionsFile();
-  const result = new Map<ActionSource, Set<string>>(
-    sources.map((s) => [s, new Set<string>()])
-  );
+  const result = new Map<ActionSource, Set<string>>(sources.map((s) => [s, new Set<string>()]));
 
   for (const key of Object.keys(data.completions)) {
     for (const source of sources) {

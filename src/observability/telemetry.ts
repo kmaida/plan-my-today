@@ -48,12 +48,13 @@ function createCleanConsoleLogger() {
       }[level] || "📝";
 
     // Filter out repetitive base attributes for cleaner output
-    const baseAttributesToFilter = ['service', 'version', 'environment', 'operation'];
+    const baseAttributesToFilter = ["service", "version", "environment", "operation"];
     const filteredAttributes = Object.fromEntries(
       Object.entries(attributes).filter(([key]) => !baseAttributesToFilter.includes(key))
     );
-    
-    const attrs = Object.keys(filteredAttributes).length > 0 ? ` ${JSON.stringify(filteredAttributes)}` : "";
+
+    const attrs =
+      Object.keys(filteredAttributes).length > 0 ? ` ${JSON.stringify(filteredAttributes)}` : "";
 
     return `${timestamp} ${levelIcon} ${message}${attrs}`;
   };

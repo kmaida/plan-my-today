@@ -1,9 +1,8 @@
-import type { SlackMessageDetail } from "./types";
-import { PriorityMetadata, categorizeScore, calculateRecencyBoost } from "./priority-utils";
+import { SLACK_SAVED_MESSAGES } from "../../constants";
 import { getLogger } from "../../observability/logger";
 import { isActionCompleted } from "../../services/action-completion-store";
-
-import { SLACK_SAVED_MESSAGES } from "../../constants";
+import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
+import type { SlackMessageDetail } from "./types";
 
 /**
  * Shape of a raw Slack message from the Search/Reactions APIs.
@@ -145,9 +144,7 @@ async function fetchSlackSavedMessages(
 
     // Check if this message has the target emoji reaction from the authenticated user
     const reactions = item.message.reactions || [];
-    const hasTargetEmoji = reactions.some(
-      (r) => r.name === emojiName && r.users.includes(userId)
-    );
+    const hasTargetEmoji = reactions.some((r) => r.name === emojiName && r.users.includes(userId));
 
     if (!hasTargetEmoji) continue;
 
@@ -171,10 +168,7 @@ async function fetchSlackSavedMessages(
 /**
  * Execute a Slack search query
  */
-async function searchMessages(
-  accessToken: string,
-  query: string
-): Promise<SlackRawMessage[]> {
+async function searchMessages(accessToken: string, query: string): Promise<SlackRawMessage[]> {
   const url = new URL("https://slack.com/api/search.messages");
   url.searchParams.set("query", query);
   url.searchParams.set("count", "100"); // Max results per query
@@ -245,15 +239,15 @@ function deduplicateAndGroup(
 
   // Process in priority order: saved > mentions > threads > DMs
   // First occurrence wins due to deduplication
-  saved.forEach((msg) => addIfNew(msg, "saved"));
-  mentions.forEach((msg) => addIfNew(msg, "mention"));
-  threads.forEach((msg) => {
+  for (const msg of saved) addIfNew(msg, "saved");
+  for (const msg of mentions) addIfNew(msg, "mention");
+  for (const msg of threads) {
     // Only include threads where user participated (not self-threads)
     if (msg.user !== userId) {
       addIfNew(msg, "thread", { replyCount: 1 });
     }
-  });
-  dms.forEach((msg) => addIfNew(msg, "dm"));
+  }
+  for (const msg of dms) addIfNew(msg, "dm");
 
   // Sort by timestamp descending (most recent first)
   results.sort((a, b) => parseFloat(b.timestamp) - parseFloat(a.timestamp));
@@ -264,36 +258,65 @@ function deduplicateAndGroup(
 /** Priority scoring constants */
 const PRIORITY_WEIGHTS = {
   TYPE: {
-    SAVED: 100,    // User explicitly bookmarked
-    MENTION: 90,   // Direct @mention
-    DM: 70,        // Direct message
+    SAVED: 100, // User explicitly bookmarked
+    MENTION: 90, // Direct @mention
+    DM: 70, // Direct message
   },
   CONTENT: {
-    URGENT: 80,    // Urgent keywords
-    ACTION: 50,    // Action request
-    QUESTION: 40,  // Question or request
+    URGENT: 80, // Urgent keywords
+    ACTION: 50, // Action request
+    QUESTION: 40, // Question or request
   },
   RECENCY: {
-    VERY_RECENT: 50,  // < 1 hour
-    RECENT: 30,       // < 4 hours
-    MODERATE: 15,     // < 12 hours
-    STALE: 5,         // < 24 hours
+    VERY_RECENT: 50, // < 1 hour
+    RECENT: 30, // < 4 hours
+    MODERATE: 15, // < 12 hours
+    STALE: 5, // < 24 hours
   },
 } as const;
 
 const URGENCY_KEYWORDS = [
-  "urgent", "asap", "immediately", "critical", "emergency", "blocker", "blocked",
-  "help", "stuck", "broken", "down", "failing", "issue", "problem"
+  "urgent",
+  "asap",
+  "immediately",
+  "critical",
+  "emergency",
+  "blocker",
+  "blocked",
+  "help",
+  "stuck",
+  "broken",
+  "down",
+  "failing",
+  "issue",
+  "problem",
 ] as const;
 
 const QUESTION_KEYWORDS = [
-  "?", "can you", "could you", "would you", "please", "need", "help",
-  "quick question", "wondering if", "do you know"
+  "?",
+  "can you",
+  "could you",
+  "would you",
+  "please",
+  "need",
+  "help",
+  "quick question",
+  "wondering if",
+  "do you know",
 ] as const;
 
 const ACTION_KEYWORDS = [
-  "review", "approve", "merge", "deploy", "fix", "update", "check",
-  "look at", "take a look", "feedback", "thoughts"
+  "review",
+  "approve",
+  "merge",
+  "deploy",
+  "fix",
+  "update",
+  "check",
+  "look at",
+  "take a look",
+  "feedback",
+  "thoughts",
 ] as const;
 
 /**
@@ -305,7 +328,7 @@ function analyzeSlackMessage(message: SlackMessageDetail, now: Date) {
   const text = message.text.toLowerCase();
 
   const hasKeyword = (keywords: readonly string[]) =>
-    keywords.some(keyword => text.includes(keyword));
+    keywords.some((keyword) => text.includes(keyword));
 
   const hasUrgentKeywords = hasKeyword(URGENCY_KEYWORDS);
   const hasQuestion = hasKeyword(QUESTION_KEYWORDS);
@@ -342,10 +365,7 @@ function analyzeSlackMessage(message: SlackMessageDetail, now: Date) {
  * @param now - Current timestamp for recency calculation
  * @returns Priority score (0-300+ scale)
  */
-export function calculateSlackPriority(
-  message: SlackMessageDetail,
-  now: Date
-): number {
+export function calculateSlackPriority(message: SlackMessageDetail, now: Date): number {
   return analyzeSlackMessage(message, now).score;
 }
 
@@ -361,8 +381,10 @@ export function calculateSlackPriorityWithMetadata(
   message: SlackMessageDetail,
   now: Date
 ): PriorityMetadata {
-  const { score, ageHours, hasUrgentKeywords, hasQuestion, hasActionRequest } =
-    analyzeSlackMessage(message, now);
+  const { score, ageHours, hasUrgentKeywords, hasQuestion, hasActionRequest } = analyzeSlackMessage(
+    message,
+    now
+  );
 
   const reasons: string[] = [];
   if (message.type === "saved") reasons.push("Saved with emoji");
@@ -382,9 +404,9 @@ export function calculateSlackPriorityWithMetadata(
       hasQuestion,
       hasActionRequest,
       ageHours,
-      recencyBoost: calculateRecencyBoost(ageHours)
+      recencyBoost: calculateRecencyBoost(ageHours),
     },
-    reasons
+    reasons,
   };
 }
 
@@ -421,10 +443,10 @@ async function getPermalink(
     return undefined;
   } catch (error) {
     const logger = getLogger().withOperation("slack_utils");
-    logger.debug('Failed to fetch Slack permalink', {
+    logger.debug("Failed to fetch Slack permalink", {
       channel,
       timestamp,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
     return undefined;
   }
@@ -581,7 +603,7 @@ export async function fetchSlackMessages(
   const {
     daysBack = 1,
     maxMessages = 5,
-    savedMessagesDaysBack = SLACK_SAVED_MESSAGES.DAYS_BACK
+    savedMessagesDaysBack = SLACK_SAVED_MESSAGES.DAYS_BACK,
   } = options;
 
   // Get user ID
@@ -589,13 +611,14 @@ export async function fetchSlackMessages(
 
   // Build time filter based on daysBack
   // Slack search uses "after:YYYY-MM-DD" or relative terms like "yesterday", "2 days ago"
-  const timeFilter = daysBack === 1
-    ? 'yesterday'
-    : daysBack === 2
-      ? '2 days ago'
-      : daysBack === 3
-        ? '3 days ago'
-        : `${daysBack} days ago`;
+  const timeFilter =
+    daysBack === 1
+      ? "yesterday"
+      : daysBack === 2
+        ? "2 days ago"
+        : daysBack === 3
+          ? "3 days ago"
+          : `${daysBack} days ago`;
 
   // Execute searches in parallel: @mentions, DMs, and saved messages
   let mentions: SlackRawMessage[];
@@ -645,12 +668,12 @@ export async function fetchSlackMessages(
   const filteredMessages: SlackMessageDetail[] = [];
   for (const msg of enrichedMessages) {
     if (msg.type !== "saved") {
-      if (msg.dismissalId && await isActionCompleted("slack", msg.dismissalId)) {
+      if (msg.dismissalId && (await isActionCompleted("slack", msg.dismissalId))) {
         continue;
       }
       // Backward compat: check legacy permalink-based key for entries created
       // before the switch to channel:ts identifiers. Will auto-expire via 30-day prune.
-      if (msg.permalink && await isActionCompleted("slack", msg.permalink)) {
+      if (msg.permalink && (await isActionCompleted("slack", msg.permalink))) {
         continue;
       }
     }

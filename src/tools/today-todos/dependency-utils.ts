@@ -39,8 +39,8 @@ export function parseDependencies(text: string): DependencyMetadata {
   }
 
   // Detect if blocked by external factors (person, or generic "blocked" with no issue ID)
-  const blockedByExternal = waitingOn.size > 0 ||
-    (normalized.includes('blocked') && blockedBy.size === 0);
+  const blockedByExternal =
+    waitingOn.size > 0 || (normalized.includes("blocked") && blockedBy.size === 0);
 
   return {
     blockedBy: Array.from(blockedBy),

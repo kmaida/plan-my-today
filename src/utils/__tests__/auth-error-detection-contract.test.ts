@@ -17,9 +17,9 @@
  *    messages — never exposing raw error text, user IDs, or internal URLs.
  */
 
-import { handleToolError } from "../tool-error-utils";
-import { formatAuthError, AuthenticationError } from "../error-utils";
 import { TokenExchangeError } from "../../services/keycard-client";
+import { AuthenticationError, formatAuthError } from "../error-utils";
+import { handleToolError } from "../tool-error-utils";
 
 // ── handleToolError always returns isError: true ─────────────────────────────
 
@@ -76,11 +76,9 @@ describe("handleToolError response structure", () => {
 
   it("should include detailed troubleshooting for TokenExchangeError", () => {
     const error = new TokenExchangeError("Token exchange failed: 400", 400);
-    const result = handleToolError(
-      error,
+    const result = handleToolError(error, "https://www.googleapis.com/auth/gmail.readonly", [
       "https://www.googleapis.com/auth/gmail.readonly",
-      ["https://www.googleapis.com/auth/gmail.readonly"]
-    );
+    ]);
 
     expect(result.content[0].text).toContain("Possible fixes:");
     expect(result.content[0].text).toContain("resource:");
@@ -205,10 +203,7 @@ describe("formatAuthError → no internal details leaked", () => {
   });
 
   it("should NOT leak resource URLs from token exchange errors", () => {
-    const error = new TokenExchangeError(
-      "Token exchange failed: 500 - Internal Server Error",
-      500
-    );
+    const error = new TokenExchangeError("Token exchange failed: 500 - Internal Server Error", 500);
     const text = formatAuthError("Gmail", error);
 
     expect(text).not.toContain("Internal Server Error");

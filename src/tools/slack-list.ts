@@ -1,7 +1,6 @@
-import type { McpServer, AuthenticatedToolHandlerNoArgs } from "../types/index";
 import { config } from "../config";
-import { fetchSlackMessages, calculateSlackPriority } from "./today-todos/slack-utils";
-import type { SlackMessageDetail } from "./today-todos/types";
+import type { AuthenticatedToolHandlerNoArgs, McpServer } from "../types/index";
+import { calculateSlackPriority, fetchSlackMessages } from "./today-todos/slack-utils";
 
 /**
  * Formats relative time from timestamp
@@ -28,7 +27,7 @@ function formatRelativeTime(timestamp: string): string {
  */
 function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength - 3) + "...";
+  return `${text.substring(0, maxLength - 3)}...`;
 }
 
 /**
@@ -64,28 +63,33 @@ export function registerSlackListTool(mcpServer: McpServer): void {
     "list-slack-todos",
     {
       title: "List Slack Todos",
-      description: "Get recent @mentions, DMs, and saved messages (marked with your custom emoji) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
+      description:
+        "Get recent @mentions, DMs, and saved messages (marked with your custom emoji) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
     },
     async ({ authInfo }: AuthenticatedToolHandlerNoArgs) => {
       if (!authInfo) {
         return {
-          content: [{
-            type: "text",
-            text: "❌ No authentication information available. Please ensure you're properly authenticated."
-          }]
+          content: [
+            {
+              type: "text",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
+            },
+          ],
         };
       }
 
       if (!config.slackUserToken) {
         return {
-          content: [{
-            type: "text",
-            text: [
-              "❌ Slack not configured.",
-              "",
-              "To use this tool, set SLACK_USER_TOKEN in your .env file"
-            ].join("\n")
-          }]
+          content: [
+            {
+              type: "text",
+              text: [
+                "❌ Slack not configured.",
+                "",
+                "To use this tool, set SLACK_USER_TOKEN in your .env file",
+              ].join("\n"),
+            },
+          ],
         };
       }
 
@@ -95,18 +99,20 @@ export function registerSlackListTool(mcpServer: McpServer): void {
 
         if (messages.length === 0) {
           return {
-            content: [{
-              type: "text",
-              text: "💬 No @mentions, DMs, or saved messages found."
-            }]
+            content: [
+              {
+                type: "text",
+                text: "💬 No @mentions, DMs, or saved messages found.",
+              },
+            ],
           };
         }
 
         // Calculate priorities
         const now = new Date();
-        const messagesWithPriority = messages.map(msg => ({
+        const messagesWithPriority = messages.map((msg) => ({
           message: msg,
-          priority: calculateSlackPriority(msg, now)
+          priority: calculateSlackPriority(msg, now),
         }));
 
         // Sort by priority (highest first)
@@ -115,19 +121,22 @@ export function registerSlackListTool(mcpServer: McpServer): void {
         // Build output
         const lines: string[] = [
           `💬 **Slack - Recent Messages (Last 24h)**\n`,
-          `Found ${messages.length} message${messages.length > 1 ? 's' : ''}\n`
+          `Found ${messages.length} message${messages.length > 1 ? "s" : ""}\n`,
         ];
 
         for (const { message, priority } of messagesWithPriority) {
           const typeEmoji =
-            message.type === "mention" ? "💬 @mention"
-            : message.type === "saved" ? "💾 Saved"
-            : "💬 DM";
+            message.type === "mention"
+              ? "💬 @mention"
+              : message.type === "saved"
+                ? "💾 Saved"
+                : "💬 DM";
           const channelInfo = message.channelName || message.channel;
           const sender = message.userName || message.user;
           const time = formatRelativeTime(message.timestamp);
           const truncatedText = truncateText(message.text, 120);
-          const priorityLabel = priority >= 150 ? "🔴 HIGH" : priority >= 100 ? "🟠 MEDIUM" : "🟢 LOW";
+          const priorityLabel =
+            priority >= 150 ? "🔴 HIGH" : priority >= 100 ? "🟠 MEDIUM" : "🟢 LOW";
 
           lines.push(`**${typeEmoji}** ${priorityLabel} (score: ${priority})`);
           if (message.type === "mention") {
@@ -151,22 +160,25 @@ export function registerSlackListTool(mcpServer: McpServer): void {
         lines.push("• Action requests (+50 pts): review, approve, merge, fix");
         lines.push("• Recency: <1h (+50), <4h (+30), <12h (+15), <24h (+5)");
 
-        const output = lines.join('\n');
+        const output = lines.join("\n");
 
         return {
-          content: [{
-            type: "text",
-            text: output
-          }]
+          content: [
+            {
+              type: "text",
+              text: output,
+            },
+          ],
         };
-
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
-          content: [{
-            type: "text",
-            text: `❌ Error fetching Slack messages: ${message}`
-          }]
+          content: [
+            {
+              type: "text",
+              text: `❌ Error fetching Slack messages: ${message}`,
+            },
+          ],
         };
       }
     }

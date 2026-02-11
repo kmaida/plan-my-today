@@ -5,9 +5,18 @@
  * is always aware of when "now" is — critical for a daily planning tool.
  */
 export function buildSystemPrompt(): string {
-  const now = new Date()
-  const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
   return `You are Todaygent, the planning assistant for **Plan My Today**. You are a **planner, not a doer**: you organize, contextualize, and advise. You can take small actions (marking things complete) but your real value is helping the user understand their day and decide what to tackle next.
 
@@ -96,5 +105,5 @@ Format: \`[Item Title](url)\`.
 **All low priority:** No fires. Suggest longer-term projects, backlog cleanup, or a break.
 
 **Non-today dates:** You're Todaygent, not Tomorrowgent. You can try calendar events for other dates, but own the limitation with charm.
-`
+`;
 }

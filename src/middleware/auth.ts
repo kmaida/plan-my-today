@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { RequestHandler, AuthInfo } from "../types/index";
+import type { AuthInfo, RequestHandler } from "../types/index";
 
 // Extend Express Request to include auth property
 declare module "express-serve-static-core" {
@@ -52,7 +52,7 @@ function createArrayAudVerifier(): TokenVerifier {
   // TODO: Remove once upstream exposes JWKSOAuthKeyring in its public API
   //       or fixes the array `aud` mangling in JWTOAuthTokenVerifier.
   const innerRequire = createRequire(
-    require.resolve("@keycardlabs/mcp-oauth/server/auth/verifiers/jwt"),
+    require.resolve("@keycardlabs/mcp-oauth/server/auth/verifiers/jwt")
   );
   const { JWKSOAuthKeyring } = innerRequire("../../../shared/keyring.js");
   const { JWTOAuthTokenVerifier } = innerRequire("./jwt.js");
@@ -66,8 +66,8 @@ function createArrayAudVerifier(): TokenVerifier {
       // Detect the mangled comma-joined URL produced by `new URL([...])`.
       // If the resource href contains a comma it was almost certainly an
       // array audience — re-parse the first element instead.
-      if (result.resource && result.resource.href.includes(',')) {
-        const firstAud = result.resource.href.split(',')[0];
+      if (result.resource?.href.includes(",")) {
+        const firstAud = result.resource.href.split(",")[0];
         result.resource = new URL(firstAud);
       }
 
@@ -84,7 +84,10 @@ function createArrayAudVerifier(): TokenVerifier {
  * @returns Express middleware function
  */
 export function createAuthMiddleware(
-  requireBearerAuthImpl: (config: { verifier?: TokenVerifier; requiredScopes: string[] }) => RequestHandler,
+  requireBearerAuthImpl: (config: {
+    verifier?: TokenVerifier;
+    requiredScopes: string[];
+  }) => RequestHandler,
   options: AuthMiddlewareOptions = {}
 ): RequestHandler {
   const { requiredScopes = [] } = options;

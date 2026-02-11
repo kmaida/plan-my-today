@@ -5,7 +5,8 @@
 // Regex patterns for various date formats commonly found in meeting note filenames
 const ISO_DATE_PATTERN = /\b(\d{4})-(\d{2})-(\d{2})\b/; // YYYY-MM-DD
 const US_DATE_PATTERN = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/; // M/D/YYYY or MM/DD/YYYY
-const WRITTEN_DATE_PATTERN = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* (\d{1,2}),? (\d{4})\b/i; // Jan 27, 2026
+const WRITTEN_DATE_PATTERN =
+  /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* (\d{1,2}),? (\d{4})\b/i; // Jan 27, 2026
 
 // Minimum year to consider valid (prevents false positives from version numbers, etc.)
 const MIN_VALID_YEAR = 2020;
@@ -28,7 +29,7 @@ export function parseDateFromFilename(filename: string): Date | null {
   const isoMatch = filename.match(ISO_DATE_PATTERN);
   if (isoMatch) {
     const [, year, month, day] = isoMatch;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     if (isValidDate(date)) return date;
   }
 
@@ -36,7 +37,7 @@ export function parseDateFromFilename(filename: string): Date | null {
   const usMatch = filename.match(US_DATE_PATTERN);
   if (usMatch) {
     const [, month, day, year] = usMatch;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     if (isValidDate(date)) return date;
   }
 
@@ -45,12 +46,22 @@ export function parseDateFromFilename(filename: string): Date | null {
   if (writtenMatch) {
     const [, monthName, day, year] = writtenMatch;
     const monthMap: Record<string, number> = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      jan: 0,
+      feb: 1,
+      mar: 2,
+      apr: 3,
+      may: 4,
+      jun: 5,
+      jul: 6,
+      aug: 7,
+      sep: 8,
+      oct: 9,
+      nov: 10,
+      dec: 11,
     };
     const month = monthMap[monthName.toLowerCase().slice(0, 3)];
     if (month !== undefined) {
-      const date = new Date(parseInt(year), month, parseInt(day));
+      const date = new Date(parseInt(year, 10), month, parseInt(day, 10));
       if (isValidDate(date)) return date;
     }
   }
@@ -69,7 +80,7 @@ export function parseDateFromFilename(filename: string): Date | null {
  */
 function isValidDate(date: Date): boolean {
   // Check if date is actually valid
-  if (isNaN(date.getTime())) return false;
+  if (Number.isNaN(date.getTime())) return false;
 
   const year = date.getFullYear();
 
@@ -102,9 +113,7 @@ export function getBusinessDaysAgo(date: Date, referenceDate: Date = new Date())
   endDate.setHours(0, 0, 0, 0);
 
   // Determine which date is earlier
-  const [earlier, later] = startDate <= endDate
-    ? [startDate, endDate]
-    : [endDate, startDate];
+  const [earlier, later] = startDate <= endDate ? [startDate, endDate] : [endDate, startDate];
 
   let businessDays = 0;
   const current = new Date(earlier);

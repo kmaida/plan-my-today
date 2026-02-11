@@ -8,10 +8,7 @@
  * A key invariant is that both always return the same score for the same input.
  */
 
-import {
-  calculateSlackPriority,
-  calculateSlackPriorityWithMetadata,
-} from "../slack-utils";
+import { calculateSlackPriority, calculateSlackPriorityWithMetadata } from "../slack-utils";
 import type { SlackMessageDetail } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -67,7 +64,11 @@ describe("calculateSlackPriority", () => {
     });
 
     it("should score thread type at 0 (no type bonus)", () => {
-      const msg = makeMessage({ type: "thread" as SlackMessageDetail["type"], text: "hello", timestamp: oldTs });
+      const msg = makeMessage({
+        type: "thread" as SlackMessageDetail["type"],
+        text: "hello",
+        timestamp: oldTs,
+      });
       expect(calculateSlackPriority(msg, NOW)).toBe(0);
     });
   });
@@ -78,19 +79,27 @@ describe("calculateSlackPriority", () => {
     const base = 100; // saved type score
 
     it("should add 80 for urgency keywords", () => {
-      const msg = makeMessage({ type: "saved", text: "this is urgent please help", timestamp: oldTs });
+      const msg = makeMessage({
+        type: "saved",
+        text: "this is urgent please help",
+        timestamp: oldTs,
+      });
       expect(calculateSlackPriority(msg, NOW)).toBe(base + 80);
     });
 
     it("should add 40 for question keywords (when no urgency)", () => {
-      const msg = makeMessage({ type: "saved", text: "can you take a look at this spec", timestamp: oldTs });
+      const msg = makeMessage({
+        type: "saved",
+        text: "can you take a look at this spec",
+        timestamp: oldTs,
+      });
       // "can you" is a question keyword, "take a look" is an action keyword
       // Question wins because it's checked before action in the else-if chain
       expect(calculateSlackPriority(msg, NOW)).toBe(base + 40);
     });
 
     it("should add 50 for action keywords (when no urgency or question)", () => {
-      const msg = makeMessage({ type: "saved", text: "please review the PR", timestamp: oldTs });
+      const _msg = makeMessage({ type: "saved", text: "please review the PR", timestamp: oldTs });
       // "please" is a question keyword — so this actually matches question first
       // Use a message with only action keywords
       const actionOnly = makeMessage({ type: "saved", text: "review the PR", timestamp: oldTs });
@@ -99,7 +108,11 @@ describe("calculateSlackPriority", () => {
 
     it("should only apply the first matching keyword category (urgency > question > action)", () => {
       // "urgent" (urgency) + "can you" (question) + "review" (action)
-      const msg = makeMessage({ type: "saved", text: "urgent: can you review this", timestamp: oldTs });
+      const msg = makeMessage({
+        type: "saved",
+        text: "urgent: can you review this",
+        timestamp: oldTs,
+      });
       // Only urgency bonus should apply
       expect(calculateSlackPriority(msg, NOW)).toBe(base + 80);
     });
@@ -174,8 +187,16 @@ describe("calculateSlackPriority", () => {
 describe("calculateSlackPriorityWithMetadata", () => {
   it("should return the same score as calculateSlackPriority", () => {
     const messages = [
-      makeMessage({ type: "saved", text: "urgent fix needed", timestamp: toSlackTs(hoursAgo(0.5, NOW)) }),
-      makeMessage({ type: "mention", text: "can you review this", timestamp: toSlackTs(hoursAgo(3, NOW)) }),
+      makeMessage({
+        type: "saved",
+        text: "urgent fix needed",
+        timestamp: toSlackTs(hoursAgo(0.5, NOW)),
+      }),
+      makeMessage({
+        type: "mention",
+        text: "can you review this",
+        timestamp: toSlackTs(hoursAgo(3, NOW)),
+      }),
       makeMessage({ type: "dm", text: "hello there", timestamp: toSlackTs(hoursAgo(10, NOW)) }),
       makeMessage({ type: "saved", text: "sounds good", timestamp: toSlackTs(hoursAgo(48, NOW)) }),
     ];
@@ -189,7 +210,11 @@ describe("calculateSlackPriorityWithMetadata", () => {
 
   describe("signals", () => {
     it("should set hasUrgentKeywords when urgency keywords are present", () => {
-      const msg = makeMessage({ type: "mention", text: "this is urgent", timestamp: toSlackTs(hoursAgo(2, NOW)) });
+      const msg = makeMessage({
+        type: "mention",
+        text: "this is urgent",
+        timestamp: toSlackTs(hoursAgo(2, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.signals.hasUrgentKeywords).toBe(true);
       expect(metadata.signals.hasQuestion).toBe(false);
@@ -197,19 +222,31 @@ describe("calculateSlackPriorityWithMetadata", () => {
     });
 
     it("should set hasQuestion when question keywords are present", () => {
-      const msg = makeMessage({ type: "dm", text: "can you help with this", timestamp: toSlackTs(hoursAgo(2, NOW)) });
+      const msg = makeMessage({
+        type: "dm",
+        text: "can you help with this",
+        timestamp: toSlackTs(hoursAgo(2, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.signals.hasQuestion).toBe(true);
     });
 
     it("should set hasActionRequest when action keywords are present", () => {
-      const msg = makeMessage({ type: "dm", text: "review the PR", timestamp: toSlackTs(hoursAgo(2, NOW)) });
+      const msg = makeMessage({
+        type: "dm",
+        text: "review the PR",
+        timestamp: toSlackTs(hoursAgo(2, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.signals.hasActionRequest).toBe(true);
     });
 
     it("should include message type in signals", () => {
-      const msg = makeMessage({ type: "saved", text: "hello", timestamp: toSlackTs(hoursAgo(2, NOW)) });
+      const msg = makeMessage({
+        type: "saved",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(2, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.signals.type).toBe("saved");
     });
@@ -225,25 +262,41 @@ describe("calculateSlackPriorityWithMetadata", () => {
 
   describe("reasons", () => {
     it("should include type reason for saved messages", () => {
-      const msg = makeMessage({ type: "saved", text: "hello", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const msg = makeMessage({
+        type: "saved",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.reasons).toContain("Saved with emoji");
     });
 
     it("should include type reason for mentions", () => {
-      const msg = makeMessage({ type: "mention", text: "hello", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const msg = makeMessage({
+        type: "mention",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.reasons).toContain("@Mention");
     });
 
     it("should include type reason for DMs", () => {
-      const msg = makeMessage({ type: "dm", text: "hello", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const msg = makeMessage({
+        type: "dm",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.reasons).toContain("Direct message");
     });
 
     it("should include 'Urgent keywords' when urgency keywords match", () => {
-      const msg = makeMessage({ type: "saved", text: "asap please", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const msg = makeMessage({
+        type: "saved",
+        text: "asap please",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
       expect(metadata.reasons).toContain("Urgent keywords");
     });
@@ -266,19 +319,35 @@ describe("calculateSlackPriorityWithMetadata", () => {
   describe("category", () => {
     it("should categorize based on score using standard thresholds", () => {
       // DM (70) + no keywords + >24h = 70 → low
-      const low = makeMessage({ type: "dm", text: "hello", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const low = makeMessage({
+        type: "dm",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       expect(calculateSlackPriorityWithMetadata(low, NOW).category).toBe("low");
 
       // mention (90) + no keywords + >24h = 90 → medium
-      const medium = makeMessage({ type: "mention", text: "hello", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const medium = makeMessage({
+        type: "mention",
+        text: "hello",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       expect(calculateSlackPriorityWithMetadata(medium, NOW).category).toBe("medium");
 
       // saved (100) + question (40) + >24h = 140 → high
-      const high = makeMessage({ type: "saved", text: "can you look at this", timestamp: toSlackTs(hoursAgo(48, NOW)) });
+      const high = makeMessage({
+        type: "saved",
+        text: "can you look at this",
+        timestamp: toSlackTs(hoursAgo(48, NOW)),
+      });
       expect(calculateSlackPriorityWithMetadata(high, NOW).category).toBe("high");
 
       // saved (100) + urgent (80) + very recent (50) = 230 → critical
-      const critical = makeMessage({ type: "saved", text: "urgent fix now", timestamp: toSlackTs(hoursAgo(0.25, NOW)) });
+      const critical = makeMessage({
+        type: "saved",
+        text: "urgent fix now",
+        timestamp: toSlackTs(hoursAgo(0.25, NOW)),
+      });
       expect(calculateSlackPriorityWithMetadata(critical, NOW).category).toBe("critical");
     });
   });

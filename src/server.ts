@@ -2,21 +2,27 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { requireBearerAuth } from "@keycardlabs/mcp-oauth/server/auth/middleware/bearerAuth";
-import { mcpAuthMetadataRouter, InferredAuthMetadataOptions } from "@keycardlabs/mcp-oauth/server/auth/router";
+import {
+  type InferredAuthMetadataOptions,
+  mcpAuthMetadataRouter,
+} from "@keycardlabs/mcp-oauth/server/auth/router";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
 import { config } from "./config";
+import { PATHS } from "./constants";
 import { createAuthMiddleware } from "./middleware/auth";
 import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
-import { registerAllTools, getAvailableToolNames, TOOL_REGISTRY } from "./tools/index";
+import {
+  markActionComplete as storeComplete,
+  markActionIncomplete as storeIncomplete,
+} from "./services/action-completion-store";
+import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
-import { markActionComplete as storeComplete, markActionIncomplete as storeIncomplete } from "./services/action-completion-store";
-import { filterCompletedTasks } from "./utils/filter-completed-tasks";
 import { removeTaskFromCache } from "./utils/cache-utils";
-import { PATHS } from "./constants";
+import { filterCompletedTasks } from "./utils/filter-completed-tasks";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -56,27 +62,27 @@ export function createApp(): express.Application {
   const app = express();
 
   // Trust proxy for correct protocol detection behind reverse proxies
-  app.set('trust proxy', true);
+  app.set("trust proxy", true);
 
   // Parse JSON requests (increased limit for chat payloads with tool results)
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: "2mb" }));
 
   // Check if we're in multi-tenant mode
   const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
-  
+
   if (isMultiTenant) {
     // Multi-tenant mode: dynamic issuer based on Host header
     const multiTenantOptions: InferredAuthMetadataOptions = {
       oauthMetadata: {
         issuer: (req: express.Request) => {
           // Extract zoneId from Host header (e.g., z123.dev.local -> z123)
-          const zoneId = req.headers.host?.split('.')[0] || 'default';
+          const zoneId = req.headers.host?.split(".")[0] || "default";
           // Use HTTP for local development, HTTPS for production
-          const protocol = config.issuerBaseDomain.includes('localdev') ? 'http' : 'https';
+          const protocol = config.issuerBaseDomain.includes("localdev") ? "http" : "https";
           return `${protocol}://${zoneId}.${config.issuerBaseDomain}`;
-        }
+        },
       },
-      scopesSupported: ['mcp:tools'],
+      scopesSupported: ["mcp:tools"],
       resourceName: "Plan My Today MCP",
     };
     app.use(mcpAuthMetadataRouter(multiTenantOptions));
@@ -84,9 +90,9 @@ export function createApp(): express.Application {
     // Single-tenant mode: static issuer (backward compatibility)
     const singleTenantOptions: InferredAuthMetadataOptions = {
       oauthMetadata: {
-        issuer: config.keycardIssuerUrl
+        issuer: config.keycardIssuerUrl,
       },
-      scopesSupported: ['mcp:tools'],
+      scopesSupported: ["mcp:tools"],
       resourceName: "Plan My Today MCP",
     };
     app.use(mcpAuthMetadataRouter(singleTenantOptions));
@@ -221,86 +227,92 @@ export function createApp(): express.Application {
     return { server: restMcpServer, transport: restTransport };
   }
 
-  app.post('/api/tools/:toolName', authMiddleware, async (req: express.Request, res: express.Response) => {
-    const { toolName } = req.params;
-    const { logger } = req.context;
-    const args = req.body || {};
+  app.post(
+    "/api/tools/:toolName",
+    authMiddleware,
+    async (req: express.Request, res: express.Response) => {
+      const { toolName } = req.params;
+      const { logger } = req.context;
+      const args = req.body || {};
 
-    logger.debug("REST API tool call", { toolName, args });
+      logger.debug("REST API tool call", { toolName, args });
 
-    try {
-      const toolEntry = TOOL_REGISTRY.find((t: { name: string }) => t.name === toolName);
+      try {
+        const toolEntry = TOOL_REGISTRY.find((t: { name: string }) => t.name === toolName);
 
-      if (!toolEntry) {
-        return res.status(404).json({
-          error: "Tool not found",
-          availableTools: TOOL_REGISTRY.map((t: { name: string }) => t.name),
+        if (!toolEntry) {
+          return res.status(404).json({
+            error: "Tool not found",
+            availableTools: TOOL_REGISTRY.map((t: { name: string }) => t.name),
+          });
+        }
+
+        const { transport } = await getRestMcpServer();
+
+        // Route through MCP protocol (tools are registered as closures, so
+        // we can't call them directly without refactoring every tool file)
+        const callRequest = {
+          jsonrpc: "2.0" as const,
+          id: 1,
+          method: "tools/call" as const,
+          params: {
+            name: toolName,
+            arguments: args,
+          },
+        };
+
+        let responseData: Record<string, unknown> | null = null;
+        let responseStatus = 200;
+
+        const mockRes = {
+          json: (data: Record<string, unknown>) => {
+            responseData = data;
+            if (data.error) responseStatus = 500;
+          },
+          status: (code: number) => {
+            responseStatus = code;
+            return {
+              json: (data: Record<string, unknown>) => {
+                responseData = data;
+              },
+            };
+          },
+          headersSent: false,
+        } as express.Response;
+
+        const mockReq = {
+          ...req,
+          body: callRequest,
+          context: req.context,
+        } as express.Request;
+
+        await transport.handleRequest(mockReq, mockRes, callRequest);
+
+        if (responseData) {
+          return res.status(responseStatus).json(responseData);
+        } else {
+          return res.status(500).json({ error: "No response from tool" });
+        }
+      } catch (error) {
+        logger.error("REST API tool call failed", {
+          toolName,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        // If the shared server is in a bad state, reset it
+        restMcpServer = null;
+        restTransport = null;
+
+        res.status(500).json({
+          error: "Tool execution failed",
+          message: error instanceof Error ? error.message : String(error),
         });
       }
-
-      const { transport } = await getRestMcpServer();
-
-      // Route through MCP protocol (tools are registered as closures, so
-      // we can't call them directly without refactoring every tool file)
-      const callRequest = {
-        jsonrpc: "2.0" as const,
-        id: 1,
-        method: "tools/call" as const,
-        params: {
-          name: toolName,
-          arguments: args,
-        },
-      };
-
-      let responseData: Record<string, unknown> | null = null;
-      let responseStatus = 200;
-
-      const mockRes = {
-        json: (data: Record<string, unknown>) => {
-          responseData = data;
-          if (data.error) responseStatus = 500;
-        },
-        status: (code: number) => {
-          responseStatus = code;
-          return {
-            json: (data: Record<string, unknown>) => { responseData = data; },
-          };
-        },
-        headersSent: false,
-      } as express.Response;
-
-      const mockReq = {
-        ...req,
-        body: callRequest,
-        context: req.context,
-      } as express.Request;
-
-      await transport.handleRequest(mockReq, mockRes, callRequest);
-
-      if (responseData) {
-        return res.status(responseStatus).json(responseData);
-      } else {
-        return res.status(500).json({ error: "No response from tool" });
-      }
-    } catch (error) {
-      logger.error("REST API tool call failed", {
-        toolName,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // If the shared server is in a bad state, reset it
-      restMcpServer = null;
-      restTransport = null;
-
-      res.status(500).json({
-        error: "Tool execution failed",
-        message: error instanceof Error ? error.message : String(error),
-      });
     }
-  });
+  );
 
   // List available tools endpoint
-  app.get('/api/tools', authMiddleware, async (_req: express.Request, res: express.Response) => {
+  app.get("/api/tools", authMiddleware, async (_req: express.Request, res: express.Response) => {
     try {
       res.json({
         tools: TOOL_REGISTRY.map((t: { name: string }) => ({
@@ -317,17 +329,19 @@ export function createApp(): express.Application {
 
   // Mark an action as complete (no auth — writes to local completion store).
   // Supports meeting-note, slack, docs, and adhoc sources.
-  app.post('/api/mark-action-complete', async (req: express.Request, res: express.Response) => {
+  app.post("/api/mark-action-complete", async (req: express.Request, res: express.Response) => {
     try {
       const { source, identifier, complete = true, metadata, taskId } = req.body || {};
 
       if (!source || !identifier) {
-        return res.status(400).json({ error: 'Missing required fields: source, identifier' });
+        return res.status(400).json({ error: "Missing required fields: source, identifier" });
       }
 
-      const validSources = ['meeting-note', 'slack', 'docs', 'adhoc'];
+      const validSources = ["meeting-note", "slack", "docs", "adhoc"];
       if (!validSources.includes(source)) {
-        return res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
+        return res
+          .status(400)
+          .json({ error: `Invalid source. Must be one of: ${validSources.join(", ")}` });
       }
 
       if (!complete) {
@@ -345,17 +359,17 @@ export function createApp(): express.Application {
       return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
     } catch (error) {
       res.status(500).json({
-        error: 'Failed to mark action complete',
+        error: "Failed to mark action complete",
         message: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
   // Remove a task from the cache by taskId (called by the UI after mark-action-complete)
-  app.post('/api/tasks/evict', async (req: express.Request, res: express.Response) => {
+  app.post("/api/tasks/evict", async (req: express.Request, res: express.Response) => {
     const { taskId } = req.body || {};
     if (!taskId) {
-      return res.status(400).json({ error: 'Missing required field: taskId' });
+      return res.status(400).json({ error: "Missing required field: taskId" });
     }
     await removeTaskFromCache(taskId);
     return res.json({ success: true });
@@ -364,13 +378,15 @@ export function createApp(): express.Application {
   // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today).
   // Filters against the completion store so dismissed items never reach the UI,
   // even if the cache is stale or was overwritten by a fresh fetch.
-  app.get('/api/tasks', async (_req: express.Request, res: express.Response) => {
+  app.get("/api/tasks", async (_req: express.Request, res: express.Response) => {
     let data: Record<string, unknown>;
     try {
-      const content = await fs.readFile(TASKS_CACHE_PATH, 'utf-8');
+      const content = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
       data = JSON.parse(content);
     } catch {
-      return res.status(404).json({ error: 'No task data yet. Ask Claude to fetch your tasks first.' });
+      return res
+        .status(404)
+        .json({ error: "No task data yet. Ask Claude to fetch your tasks first." });
     }
 
     // Filter dismissed items; non-fatal if completion store is unreadable
@@ -380,23 +396,25 @@ export function createApp(): express.Application {
       // Serve unfiltered data rather than failing entirely
     }
 
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader("Content-Type", "application/json");
     res.send(JSON.stringify(data));
   });
 
   // Proxy token exchange for the UI (adds client_secret server-side so the
   // browser never sees it — Keycard app is a confidential client).
-  app.post('/api/auth/token', async (req: express.Request, res: express.Response) => {
+  app.post("/api/auth/token", async (req: express.Request, res: express.Response) => {
     try {
       const { code, code_verifier, redirect_uri } = req.body;
       if (!code || !code_verifier || !redirect_uri) {
-        res.status(400).json({ error: 'Missing required parameters: code, code_verifier, redirect_uri' });
+        res
+          .status(400)
+          .json({ error: "Missing required parameters: code, code_verifier, redirect_uri" });
         return;
       }
 
       const tokenUrl = `${config.keycardIssuerUrl}/oauth/2/token`;
       const body = new URLSearchParams({
-        grant_type: 'authorization_code',
+        grant_type: "authorization_code",
         code,
         redirect_uri,
         client_id: config.keycardClientId,
@@ -405,31 +423,31 @@ export function createApp(): express.Application {
       });
 
       const tokenRes = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: body.toString(),
       });
 
       const tokenData = await tokenRes.text();
-      res.status(tokenRes.status).setHeader('Content-Type', 'application/json').send(tokenData);
+      res.status(tokenRes.status).setHeader("Content-Type", "application/json").send(tokenData);
     } catch (err) {
-      console.error('Token exchange proxy failed:', err);
-      res.status(500).json({ error: 'Token exchange proxy failed' });
+      console.error("Token exchange proxy failed:", err);
+      res.status(500).json({ error: "Token exchange proxy failed" });
     }
   });
 
   // Proxy chat messages to Anthropic Messages API (adds API key server-side).
   // The UI sends { messages, system?, tools? } and gets back Claude's response.
-  app.post('/api/chat', async (req: express.Request, res: express.Response) => {
+  app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     try {
       if (!config.anthropicApiKey) {
-        res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' });
+        res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on server" });
         return;
       }
 
       const { messages, system, tools, model } = req.body;
       if (!messages || !Array.isArray(messages)) {
-        res.status(400).json({ error: 'Missing required field: messages (array)' });
+        res.status(400).json({ error: "Missing required field: messages (array)" });
         return;
       }
 
@@ -441,60 +459,56 @@ export function createApp(): express.Application {
       };
       // Wrap system prompt as cacheable content block for Anthropic prompt caching
       if (system) {
-        body.system = [
-          { type: 'text', text: system, cache_control: { type: 'ephemeral' } },
-        ];
+        body.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
       }
       // Mark last tool definition as cacheable so the entire tool list is cached
       if (tools && tools.length > 0) {
         const cachedTools = tools.map((tool: Record<string, unknown>, i: number) =>
-          i === tools.length - 1
-            ? { ...tool, cache_control: { type: 'ephemeral' } }
-            : tool
+          i === tools.length - 1 ? { ...tool, cache_control: { type: "ephemeral" } } : tool
         );
         body.tools = cachedTools;
       }
 
-      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
+      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.anthropicApiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'prompt-caching-2024-07-31',
+          "Content-Type": "application/json",
+          "x-api-key": config.anthropicApiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "prompt-caching-2024-07-31",
         },
         body: JSON.stringify(body),
       });
 
       if (!anthropicRes.ok || !anthropicRes.body) {
         const data = await anthropicRes.text();
-        res.status(anthropicRes.status).setHeader('Content-Type', 'application/json').send(data);
+        res.status(anthropicRes.status).setHeader("Content-Type", "application/json").send(data);
         return;
       }
 
       // Pipe the SSE stream from Anthropic directly to the client
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
 
       // Convert web ReadableStream to Node.js Readable and pipe to response
-      const { Readable } = await import('node:stream');
+      const { Readable } = await import("node:stream");
       const nodeStream = Readable.fromWeb(
-        anthropicRes.body as import('node:stream/web').ReadableStream,
+        anthropicRes.body as import("node:stream/web").ReadableStream
       );
       nodeStream.pipe(res);
     } catch (err) {
-      console.error('Chat proxy failed:', err);
-      res.status(500).json({ error: 'Chat proxy failed' });
+      console.error("Chat proxy failed:", err);
+      res.status(500).json({ error: "Chat proxy failed" });
     }
   });
 
   // Serve the built UI in production (after all API/MCP routes)
-  const uiDistPath = path.join(__dirname, '..', 'ui', 'dist');
+  const uiDistPath = path.join(__dirname, "..", "ui", "dist");
   app.use(express.static(uiDistPath));
   // SPA fallback: serve index.html for any unmatched GET request
   app.use((_req: express.Request, res: express.Response) => {
-    res.sendFile(path.join(uiDistPath, 'index.html'));
+    res.sendFile(path.join(uiDistPath, "index.html"));
   });
 
   return app;
@@ -515,17 +529,19 @@ export function startServer(): void {
   app
     .listen(config.port, () => {
       const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
-      const issuer = isMultiTenant ? `https://{zoneId}.${config.issuerBaseDomain}` : config.keycardIssuerUrl;
-      
+      const issuer = isMultiTenant
+        ? `https://{zoneId}.${config.issuerBaseDomain}`
+        : config.keycardIssuerUrl;
+
       // Clean startup messages
       logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
       logger.info(`🔐 Keycard Issuer: ${issuer}`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
-      
+
       // Detailed debug info
       logger.debug("Server configuration details", {
-        mode: isMultiTenant ? 'multi-tenant' : 'single-tenant',
+        mode: isMultiTenant ? "multi-tenant" : "single-tenant",
         issuerBaseDomain: isMultiTenant ? config.issuerBaseDomain : undefined,
         mcpBaseDomain: isMultiTenant ? config.mcpBaseDomain : undefined,
         architecture: "One MCP server instance per session (prevents race conditions)",

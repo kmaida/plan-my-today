@@ -1,18 +1,20 @@
-import { z } from "zod/v3";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { z } from "zod/v3";
 
 // Re-export AuthInfo for use in other modules
 export type { AuthInfo };
 
-export const JWTPayloadSchema = z.object({
-  sub: z.string().optional(),
-  iss: z.string().optional(),
-  aud: z.string().optional(),
-  client_id: z.string().optional(),
-  exp: z.number().positive().optional(),
-  iat: z.number().positive().optional(),
-  scope: z.string().optional(),
-}).passthrough();
+export const JWTPayloadSchema = z
+  .object({
+    sub: z.string().optional(),
+    iss: z.string().optional(),
+    aud: z.string().optional(),
+    client_id: z.string().optional(),
+    exp: z.number().positive().optional(),
+    iat: z.number().positive().optional(),
+    scope: z.string().optional(),
+  })
+  .passthrough();
 
 export const SessionIdHeaderSchema = z.string().min(1);
 
@@ -32,7 +34,9 @@ export interface AuthenticatedToolHandlerNoArgs {
 export type AuthenticatedToolHandlerWithArgs<Args extends import("zod/v3").ZodRawShape> = (
   args: import("zod/v3").z.objectOutputType<Args, import("zod/v3").ZodTypeAny>,
   extra: { authInfo?: AuthInfo }
-) => import("@modelcontextprotocol/sdk/types.js").CallToolResult | Promise<import("@modelcontextprotocol/sdk/types.js").CallToolResult>;
+) =>
+  | import("@modelcontextprotocol/sdk/types.js").CallToolResult
+  | Promise<import("@modelcontextprotocol/sdk/types.js").CallToolResult>;
 
 export function parseJWTPayload(obj: unknown): JWTPayload | null {
   try {
