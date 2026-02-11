@@ -1,20 +1,23 @@
 /**
  * Shared error handling for MCP tool catch blocks.
  *
- * Most tools have the same pattern: detect invalid_grant / token-exchange
- * failures and return a structured MCP error response with resource/scope
- * troubleshooting info. This extracts that ~30-line block into one call.
+ * Most tools have the same pattern: detect token-exchange failures and
+ * return a structured MCP error response with troubleshooting info.
+ * Uses instanceof checks on typed error classes — no string matching.
  */
+
+import { TokenExchangeError } from "../services/keycard-client";
 
 type ToolErrorResponse = {
   content: [{ type: "text"; text: string }];
+  isError: true;
 };
 
 /**
  * Build a structured MCP error response from a caught error.
  *
- * For token-exchange failures (invalid_grant, Keycard rejection), returns
- * detailed troubleshooting with the resource URLs and scopes involved.
+ * For TokenExchangeError (from KeycardClient), returns detailed
+ * troubleshooting with the resource URLs and scopes involved.
  * For everything else, returns a generic error message.
  */
 export function handleToolError(
@@ -24,17 +27,13 @@ export function handleToolError(
   extraHints?: string[]
 ): ToolErrorResponse {
   const message = error instanceof Error ? error.message : "Unknown error";
-  const normalizedMessage = message.toLowerCase();
-  const isInvalidGrant =
-    normalizedMessage.includes("invalid_grant") ||
-    normalizedMessage.includes("not allowed to exchange token");
 
-  if (isInvalidGrant) {
+  if (error instanceof TokenExchangeError) {
     const resourceList = Array.isArray(resources) ? resources : [resources];
     const scopeList = Array.isArray(scopes[0]) ? (scopes as string[][]) : [scopes as string[]];
 
     const lines: string[] = [
-      `❌ Error: ${message}`,
+      `❌ Token exchange failed${error.description ? `: ${error.description}` : ""}`,
       "",
       "Possible fixes:",
       "- Verify KEYCARD_CLIENT_ID and KEYCARD_CLIENT_SECRET are set for this server.",
@@ -58,8 +57,8 @@ export function handleToolError(
       "- Ensure the Keycard issuer/zone matches the one that issued your MCP token."
     );
 
-    return { content: [{ type: "text", text: lines.join("\n") }] };
+    return { content: [{ type: "text", text: lines.join("\n") }], isError: true };
   }
 
-  return { content: [{ type: "text", text: `❌ Error: ${message}` }] };
+  return { content: [{ type: "text", text: `❌ Error: ${message}` }], isError: true };
 }

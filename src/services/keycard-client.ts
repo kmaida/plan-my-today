@@ -3,6 +3,41 @@ import { config } from "../config";
 import { parseJWTPayload } from "../types/index";
 import { decodeJWT } from "../utils/auth-utils";
 
+/**
+ * Error thrown when a Keycard token exchange fails.
+ * Carries structured data so formatAuthError can produce clean user-facing
+ * messages without string matching or leaking internal details.
+ */
+export class TokenExchangeError extends Error {
+  /** HTTP status from Keycard (e.g. 400, 500, 502), or undefined for non-HTTP failures. */
+  readonly status?: number;
+  /** Extracted error_description from a JSON error body, if available. */
+  readonly description?: string;
+
+  constructor(message: string, status?: number, description?: string) {
+    super(message);
+    this.name = "TokenExchangeError";
+    this.status = status;
+    this.description = description;
+  }
+}
+
+/**
+ * Parse an error_description from a Keycard JSON error response body.
+ * Keycard returns: {"error":"invalid_grant","error_description":"Token has been revoked","requestId":"..."}
+ */
+function parseKeycardErrorDescription(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    if (typeof parsed.error_description === "string") {
+      return parsed.error_description;
+    }
+  } catch {
+    // Not JSON
+  }
+  return undefined;
+}
+
 export interface TokenExchangeResponse {
   access_token: string;
   issued_token_type: string;
@@ -42,7 +77,7 @@ export class KeycardClient {
   ): Promise<TokenExchangeResponse> {
     const keycardBaseUrl = this.keycardBaseUrl || this.getIssuerFromAuthInfo(authInfo);
     if (!keycardBaseUrl) {
-      throw new Error("Token exchange failed: missing Keycard issuer URL");
+      throw new TokenExchangeError("Token exchange failed: missing Keycard issuer URL");
     }
 
     const params = new URLSearchParams({
@@ -75,8 +110,13 @@ export class KeycardClient {
     }
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Token exchange failed: ${response.status} - ${error}`);
+      const body = await response.text();
+      const description = parseKeycardErrorDescription(body);
+      throw new TokenExchangeError(
+        `Token exchange failed: ${response.status} - ${body}`,
+        response.status,
+        description,
+      );
     }
 
     return await response.json() as TokenExchangeResponse;

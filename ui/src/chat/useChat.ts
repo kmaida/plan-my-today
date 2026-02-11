@@ -140,6 +140,8 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
             const content = result.content as Array<{ type: string; text?: string }> | undefined
             const textItem = content?.find((c) => c.type === 'text')
             resultText = textItem?.text ?? JSON.stringify(result)
+            // Respect the MCP protocol's isError flag from the server
+            isError = result.isError === true
           } catch (err) {
             resultText = err instanceof Error ? err.message : String(err)
             isError = true

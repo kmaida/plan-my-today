@@ -1,7 +1,7 @@
 import request from "supertest";
 import { createApp } from "../src/server";
 
-describe("Todo MCP Server Integration Tests", () => {
+describe("Plan My Today MCP Integration Tests", () => {
   let app: ReturnType<typeof createApp>;
 
   beforeAll(() => {
@@ -27,7 +27,7 @@ describe("Todo MCP Server Integration Tests", () => {
       expect(response.body).toMatchObject({
         authorization_servers: expect.arrayContaining([expect.any(String)]),
         scopes_supported: ["mcp:tools"],
-        resource_name: "Todo MCP Server",
+        resource_name: "Plan My Today MCP",
       });
     });
   });

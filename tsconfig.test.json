@@ -6,6 +6,8 @@
   },
   "include": [
     "src/**/*",
-    "tests/**/*"
+    "tests/**/*",
+    "ui/src/chat/auth-error-detection.ts",
+    "ui/src/chat/types.ts"
   ]
 }

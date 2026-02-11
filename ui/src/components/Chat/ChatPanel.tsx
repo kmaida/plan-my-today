@@ -6,6 +6,7 @@ import { ChatMessage } from './ChatMessage'
 import type { ChatMessage as ChatMessageType } from '../../chat/types'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { buildSystemPrompt } from '../../chat/system-prompt'
+import { extractToolCallAuthErrors } from '../../chat/auth-error-detection'
 import './ChatPanel.css'
 
 interface ChatPanelProps {
@@ -56,37 +57,17 @@ const PLACEHOLDERS = [
 ]
 
 /**
- * Patterns in tool results that indicate an auth/token error requiring reauthorization.
- * Mirrored in src/utils/__tests__/auth-error-detection-contract.test.ts — update both.
- */
-const AUTH_ERROR_PATTERNS = [
-  'unauthorized',
-  'invalid_grant',
-  'not allowed to exchange token',
-  'token exchange failed',
-  'authentication failed',
-  'access denied',
-  'reauthoriz',
-  '401',
-  '403',
-  'forbidden',
-]
-
-/**
  * Scan completed tool calls for auth-related errors.
- * Returns an array of human-readable error strings (empty if none found).
+ * Delegates to the shared auth-error-detection utility for per-tool-call
+ * analysis (structured JSON parsing for aggregate tools, pattern matching
+ * for individual tools).
  */
 function extractAuthErrors(messages: ChatMessageType[]): string[] {
   const errors: string[] = []
   for (const msg of messages) {
     if (!msg.toolCalls) continue
     for (const tc of msg.toolCalls) {
-      if (!tc.result) continue
-      const lower = tc.result.toLowerCase()
-      const isAuthError = AUTH_ERROR_PATTERNS.some((p) => lower.includes(p))
-      if (isAuthError) {
-        errors.push(`${tc.name}: ${tc.result.slice(0, 200)}`)
-      }
+      errors.push(...extractToolCallAuthErrors(tc))
     }
   }
   return errors

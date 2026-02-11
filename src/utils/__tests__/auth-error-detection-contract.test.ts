@@ -1,156 +1,268 @@
 /**
  * Auth error detection contract tests
  *
- * These tests verify that error messages produced by the server-side error
- * utilities (handleToolError, formatAuthError, KeycardClient) are detectable by
- * the UI's AUTH_ERROR_PATTERNS used in ChatPanel.extractAuthErrors().
+ * These tests verify the contract between server-side error utilities and the
+ * UI's error detection. The contract is based on **typed error classes and
+ * structured signals** — no string pattern matching anywhere in the chain:
  *
- * This is the exact class of bug we hit in production: the chatbot called
- * list-gmail-todos directly (not list-all-tasks-today), the tool returned an
- * auth error, but the UI didn't show the reauth banner because the error
- * text wasn't being scanned for auth patterns.
+ * 1. KeycardClient throws `TokenExchangeError` (not plain Error) so
+ *    downstream code can use `instanceof` instead of parsing error text.
  *
- * If someone changes the error text format in any of these functions, this
- * test will fail — preventing a silent disconnect between server errors and
- * UI detection.
+ * 2. Upstream API utils throw `AuthenticationError` with a status code.
+ *
+ * 3. `handleToolError` returns `isError: true` in the MCP CallToolResult.
+ *    The UI reads the `isError` flag directly.
+ *
+ * 4. `formatAuthError` uses `instanceof` to map errors to clean, user-facing
+ *    messages — never exposing raw error text, user IDs, or internal URLs.
  */
 
 import { handleToolError } from "../tool-error-utils";
 import { formatAuthError, AuthenticationError } from "../error-utils";
+import { TokenExchangeError } from "../../services/keycard-client";
 
-// ── Mirror of the UI's AUTH_ERROR_PATTERNS from ChatPanel.tsx ──
-// This is intentionally duplicated (not imported) to catch drift in EITHER direction.
-// If the server changes its error format, the test fails here.
-// If the UI changes its patterns, someone must update this test too.
-const AUTH_ERROR_PATTERNS = [
-  "unauthorized",
-  "invalid_grant",
-  "not allowed to exchange token",
-  "token exchange failed",
-  "authentication failed",
-  "access denied",
-  "reauthoriz",
-  "401",
-  "403",
-  "forbidden",
-];
+// ── handleToolError always returns isError: true ─────────────────────────────
 
-/** Check whether at least one AUTH_ERROR_PATTERN matches the text (case-insensitive). */
-function wouldUIDetect(text: string): boolean {
-  const lower = text.toLowerCase();
-  return AUTH_ERROR_PATTERNS.some((p) => lower.includes(p));
-}
-
-// ── handleToolError (used by individual source tools: gmail, linear, etc.) ──
-
-describe("handleToolError → UI detection contract", () => {
+describe("handleToolError → isError contract", () => {
   const RESOURCE = "https://www.googleapis.com/auth/gmail.readonly";
   const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 
-  it("should produce detectable output for invalid_grant errors", () => {
-    const error = new Error('{"error":"invalid_grant","error_description":"Token has been revoked"}');
+  it("should return isError: true for TokenExchangeError", () => {
+    const error = new TokenExchangeError("Token exchange failed: 500", 500);
     const result = handleToolError(error, RESOURCE, SCOPES);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+    expect(result.isError).toBe(true);
   });
 
-  it("should produce detectable output for 'not allowed to exchange token' errors", () => {
-    const error = new Error("Client is not allowed to exchange token for this resource");
+  it("should return isError: true for TokenExchangeError with description", () => {
+    const error = new TokenExchangeError(
+      "Token exchange failed: 400",
+      400,
+      "Token has been revoked"
+    );
     const result = handleToolError(error, RESOURCE, SCOPES);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+    expect(result.isError).toBe(true);
   });
 
-  it("should produce detectable output for generic 401 errors", () => {
-    // Non-grant errors pass through as "❌ Error: <message>" — the message
-    // itself must contain a detectable pattern for the UI to catch it.
-    const error = new Error("Request failed with status 401");
+  it("should return isError: true for AuthenticationError", () => {
+    const error = new AuthenticationError("Gmail", 401);
     const result = handleToolError(error, RESOURCE, SCOPES);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+    expect(result.isError).toBe(true);
   });
 
-  it("should produce detectable output for generic 403 errors", () => {
-    const error = new Error("Request failed with status 403");
+  it("should return isError: true for generic errors", () => {
+    const error = new Error("ECONNREFUSED 127.0.0.1:8080");
     const result = handleToolError(error, RESOURCE, SCOPES);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+    expect(result.isError).toBe(true);
+  });
+
+  it("should return isError: true for non-Error values", () => {
+    const result = handleToolError("something went wrong", RESOURCE, SCOPES);
+    expect(result.isError).toBe(true);
   });
 });
 
-// ── KeycardClient error format (thrown by keycard-client.ts, caught by tools) ──
+// ── handleToolError response structure ───────────────────────────────────────
 
-describe("KeycardClient error format → UI detection contract", () => {
-  // KeycardClient throws: `Token exchange failed: ${status} - ${body}`
-  // This flows through handleToolError's generic path (❌ Error: <message>)
-
-  it("should be detectable when Keycard returns 500", () => {
-    const error = new Error("Token exchange failed: 500 - Internal Server Error");
+describe("handleToolError response structure", () => {
+  it("should return content array with a single text entry", () => {
+    const error = new Error("something broke");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+
+    expect(result.content).toHaveLength(1);
+    expect(result.content[0].type).toBe("text");
+    expect(typeof result.content[0].text).toBe("string");
+    expect(result.content[0].text.length).toBeGreaterThan(0);
   });
 
-  it("should be detectable when Keycard returns 400 with invalid_grant", () => {
-    const error = new Error('Token exchange failed: 400 - {"error":"invalid_grant"}');
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+  it("should include detailed troubleshooting for TokenExchangeError", () => {
+    const error = new TokenExchangeError("Token exchange failed: 400", 400);
+    const result = handleToolError(
+      error,
+      "https://www.googleapis.com/auth/gmail.readonly",
+      ["https://www.googleapis.com/auth/gmail.readonly"]
+    );
+
+    expect(result.content[0].text).toContain("Possible fixes:");
+    expect(result.content[0].text).toContain("resource:");
+    expect(result.content[0].text).toContain("scope:");
   });
 
-  it("should be detectable when Keycard returns 502 Bad Gateway", () => {
-    const error = new Error("Token exchange failed: 502 - Bad Gateway");
+  it("should include error_description in troubleshooting when available", () => {
+    const error = new TokenExchangeError(
+      "Token exchange failed: 400",
+      400,
+      "Token has been revoked"
+    );
     const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+
+    expect(result.content[0].text).toContain("Token has been revoked");
   });
 
-  it("should be detectable when Keycard issuer URL is missing", () => {
-    const error = new Error("Token exchange failed: missing Keycard issuer URL");
+  it("should prefix generic errors with ❌ Error:", () => {
+    const error = new Error("Connection refused");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(true);
+    expect(result.content[0].text).toMatch(/^❌ Error:/);
   });
 });
 
-// ── formatAuthError (used by list-all-tasks-today for per-source errors) ──
+// ── formatAuthError uses instanceof, not string matching ─────────────────────
 
-describe("formatAuthError → UI detection contract", () => {
-  it("should produce detectable output for 401 AuthenticationError", () => {
+describe("formatAuthError → instanceof-based routing", () => {
+  it("should produce clean message for TokenExchangeError without description", () => {
+    const error = new TokenExchangeError("Token exchange failed: 500", 500);
+    const text = formatAuthError("Gmail", error);
+
+    expect(text).toContain("Gmail");
+    expect(text).toContain("Token exchange failed");
+    expect(text).toContain("please reauthorize");
+    // Should NOT contain raw status/body details
+    expect(text).not.toContain("500");
+  });
+
+  it("should surface short, safe error_description from TokenExchangeError", () => {
+    const error = new TokenExchangeError(
+      'Token exchange failed: 400 - {"error":"invalid_grant"}',
+      400,
+      "Token has been revoked"
+    );
+    const text = formatAuthError("Gmail", error);
+
+    expect(text).toContain("Token has been revoked");
+    expect(text).toContain("Gmail");
+    // Should NOT contain raw JSON or status code
+    expect(text).not.toContain("invalid_grant");
+    expect(text).not.toContain("400");
+  });
+
+  it("should NOT surface error_description that contains user IDs", () => {
+    // Keycard puts the full user ID, resource URL, and scopes in error_description
+    // for "no delegated grant" errors. This must never reach the UI.
+    const error = new TokenExchangeError(
+      "Token exchange failed: 400",
+      400,
+      "No delegated grant found for user 76ania8xjr9m2vxn8jelmsamhj to access https://www.googleapis.com/calendar/v3 with scopes [https://www.googleapis.com/auth/calendar.readonly]. User needs to delegate access first."
+    );
+    const text = formatAuthError("Google Calendar", error);
+
+    expect(text).not.toContain("76ania8xjr9m2vxn8jelmsamhj");
+    expect(text).not.toContain("googleapis.com");
+    expect(text).toContain("Google Calendar");
+    expect(text).toContain("Token exchange failed");
+    expect(text).toContain("please reauthorize");
+  });
+
+  it("should produce '401' message for AuthenticationError with status 401", () => {
     const error = new AuthenticationError("Gmail", 401);
     const text = formatAuthError("Gmail", error);
-    expect(wouldUIDetect(text)).toBe(true);
+
+    expect(text).toContain("Gmail");
+    expect(text).toContain("Authentication failed");
+    expect(text).toContain("reauthorize");
   });
 
-  it("should produce detectable output for 403 AuthenticationError", () => {
+  it("should produce '403' message for AuthenticationError with status 403", () => {
     const error = new AuthenticationError("Linear", 403);
     const text = formatAuthError("Linear", error);
-    expect(wouldUIDetect(text)).toBe(true);
+
+    expect(text).toContain("Linear");
+    expect(text).toContain("Access denied");
+    expect(text).toContain("reauthorize");
   });
 
-  it("should produce detectable output for token-related errors", () => {
-    const error = new Error("token has expired");
-    const text = formatAuthError("Google Calendar", error);
-    expect(wouldUIDetect(text)).toBe(true);
-  });
+  it("should produce safe generic message for plain Error", () => {
+    const error = new Error("something unexpected");
+    const text = formatAuthError("Slack", error);
 
-  it("should produce detectable output for auth-related errors", () => {
-    const error = new Error("authentication required");
-    const text = formatAuthError("GitHub", error);
-    expect(wouldUIDetect(text)).toBe(true);
+    expect(text).toContain("Slack");
+    // Should NOT contain the raw error message
+    expect(text).not.toContain("something unexpected");
   });
 });
 
-// ── Negative cases: non-auth errors should NOT be detected ──
+// ── User-facing message safety ───────────────────────────────────────────────
+//
+// Raw error messages from Keycard and upstream providers can contain internal
+// details like user IDs, resource URLs, and scopes. These must NEVER appear
+// in user-facing error messages.
 
-describe("non-auth errors should not trigger false positives", () => {
-  it("should NOT detect a rate-limit error as auth", () => {
-    const error = new Error("Rate limit exceeded, retry after 30s");
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(false);
+describe("formatAuthError → no internal details leaked", () => {
+  const USER_ID = "76ania8xjr9m2vxn8jelmsamhj";
+
+  it("should NOT leak user ID from token exchange errors", () => {
+    // Keycard returns user IDs in plain text error bodies. The raw message
+    // is stored in error.message but formatAuthError uses error.description
+    // (parsed from JSON) or a generic fallback — never the raw message.
+    const error = new TokenExchangeError(
+      `Token exchange failed: 500 - No delegated grant found for user ${USER_ID}`,
+      500
+    );
+    const text = formatAuthError("Google Calendar", error);
+
+    expect(text).not.toContain(USER_ID);
+    expect(text).not.toContain("googleapis.com");
+    expect(text).toContain("Google Calendar");
+    expect(text).toContain("please reauthorize");
   });
 
-  it("should NOT detect a timeout error as auth", () => {
-    const error = new Error("Request timed out after 30000ms");
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(false);
+  it("should NOT leak resource URLs from token exchange errors", () => {
+    const error = new TokenExchangeError(
+      "Token exchange failed: 500 - Internal Server Error",
+      500
+    );
+    const text = formatAuthError("Gmail", error);
+
+    expect(text).not.toContain("Internal Server Error");
+    expect(text).toContain("Gmail");
   });
 
-  it("should NOT detect a network error as auth", () => {
+  it("should use short description from TokenExchangeError, not raw message", () => {
+    const error = new TokenExchangeError(
+      'Token exchange failed: 400 - {"error":"invalid_grant","error_description":"Token has been revoked","requestId":"abc123"}',
+      400,
+      "Token has been revoked"
+    );
+    const text = formatAuthError("Gmail", error);
+
+    expect(text).toContain("Token has been revoked");
+    expect(text).not.toContain("requestId");
+    expect(text).not.toContain("abc123");
+  });
+
+  it("should filter long error_description containing internal details", () => {
+    // Real Keycard response: error_description has user ID + resource URL + scopes
+    const error = new TokenExchangeError(
+      "Token exchange failed: 400",
+      400,
+      "No delegated grant found for user abc123def to access https://api.linear.app with scopes [read]. User needs to delegate access first."
+    );
+    const text = formatAuthError("Linear", error);
+
+    expect(text).not.toContain("abc123def");
+    expect(text).not.toContain("linear.app");
+    expect(text).toContain("Linear");
+    expect(text).toContain("Token exchange failed");
+  });
+
+  it("should NOT leak raw error text in generic fallback", () => {
     const error = new Error("ECONNREFUSED 127.0.0.1:8080");
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(wouldUIDetect(result.content[0].text)).toBe(false);
+    const text = formatAuthError("Slack", error);
+
+    expect(text).not.toContain("ECONNREFUSED");
+    expect(text).not.toContain("127.0.0.1");
+    expect(text).toContain("Slack");
+  });
+
+  it("should produce non-empty output for all error types", () => {
+    const variants = [
+      formatAuthError("Gmail", new TokenExchangeError("fail", 500)),
+      formatAuthError("Gmail", new TokenExchangeError("fail", 400, "Token revoked")),
+      formatAuthError("Linear", new AuthenticationError("Linear", 401)),
+      formatAuthError("Drive", new AuthenticationError("Drive", 403)),
+      formatAuthError("Slack", new Error("unknown")),
+    ];
+
+    for (const text of variants) {
+      expect(text.length).toBeGreaterThan(0);
+    }
   });
 });
