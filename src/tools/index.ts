@@ -10,6 +10,7 @@ import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerSlackListTool } from "./slack-list";
 import { registerMarkActionCompleteTool } from "./mark-action-complete";
 import { registerMeetingNotesTool } from "./meeting-notes";
+import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -25,6 +26,7 @@ export const TOOL_REGISTRY = [
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
+  { name: "read-dashboard-tasks", register: registerReadDashboardTasksTool },
 ] as const;
 
 /**
