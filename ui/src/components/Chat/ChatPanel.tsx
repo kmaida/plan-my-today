@@ -32,10 +32,10 @@ const BUTTON_LABELS = [
 
 const WELCOME_MESSAGES = [
   // Informative with personality
-  'I\'m Todaygent. I pull from your calendar, Linear, Gmail, Slack, and GitHub so you don\'t have to. Tell me to plan your day.',
-  'Todaygent, reporting for duty. I\'ve got eyes on your calendar, inbox, Slack, Linear, and GitHub. Say the word and I\'ll brief you.',
-  'I\'m Todaygent. I aggregate your calendar, email, Slack, Linear, and GitHub into one plan. They don\'t let me execute on it yet, but I make a great briefing.',
-  'Todaygent here. I read your calendar, email, Slack, Linear, and GitHub so you don\'t have to open six tabs. Ask me to plan your day.',
+  'I\'m Todaygent. I pull from your calendar, Linear, Gmail, Slack, etc. so you don\'t have to. Tell me to plan your day.',
+  'Todaygent, reporting for duty. I\'ve got eyes on your calendar, inbox, Slack, Linear, GitHub, etc. Say the word and I\'ll brief you.',
+  'I\'m Todaygent. I aggregate your calendar, email, meeting notes, Slack, Linear, etc. into one plan. They don\'t let me execute on it yet, but I make a great briefing.',
+  'Todaygent here. I read your calendar, email, meeting notes, Slack, Linear, GitHub, etc. so you don\'t have to open even _more_ tabs. Ask me to plan your day.',
   'I\'m Todaygent. I exist because calendar blocking didn\'t work. You just kept pushing those blocks to Friday. Let me plan your day instead.',
 ]
 

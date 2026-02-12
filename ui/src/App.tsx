@@ -102,19 +102,19 @@ function App() {
     setLoading(false)
   }, [])
 
-  // When MCP reconnects (e.g. after reauth), auto-refresh to replace stale cached data.
-  // Only triggers on a false→true transition of isConnected, not on initial mount,
-  // so the banner doesn't flash and immediately dismiss on first load.
+  // After a reauth redirect, auto-refresh once MCP reconnects.
+  // The "Reauthorize" button sets a 'pending_refresh' flag in sessionStorage
+  // before redirecting. We check it here on the false→true transition of
+  // isConnected. Initial login and cold page loads never have the flag.
   const wasConnected = useRef(isConnected)
   useEffect(() => {
     const justReconnected = isConnected && !wasConnected.current
     wasConnected.current = isConnected
 
-    if (justReconnected && authErrors.length > 0) {
-      setAuthErrorsDismissed(true)
-      handleRefresh()
+    if (justReconnected && sessionStorage.getItem('pending_refresh')) {
+      handleRefresh().finally(() => { sessionStorage.removeItem('pending_refresh') })
     }
-  }, [isConnected, authErrors, handleRefresh])
+  }, [isConnected, handleRefresh])
 
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
@@ -183,7 +183,7 @@ function App() {
                       disabled={loading || refreshing}
                       title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
                     >
-                      {refreshing ? 'Updating...' : loading ? 'Loading...' : 'Update tasks'}
+                      {refreshing ? 'Fetching...' : loading ? 'Loading...' : 'Fetch tasks'}
                     </button>
                     <button
                       className="app-header__logout"
@@ -224,7 +224,7 @@ function App() {
               <div className="auth-error-banner__actions">
                 <button
                   className="auth-error-banner__reauth"
-                  onClick={login}
+                  onClick={() => login({ reauth: true })}
                 >
                   Reauthorize
                 </button>
@@ -246,13 +246,20 @@ function App() {
 
         <main className="app-main">
           <div className="app-content">
-            {loading && (
-              <p className="app-status-message">
-                Fetching tasks from all sources...
-              </p>
+            {(loading || (refreshing && tasks.length === 0)) && (
+              <div className="app-loading">
+                <div className="app-loading__notes" aria-hidden="true">
+                  <div className="app-loading__note app-loading__note--1" />
+                  <div className="app-loading__note app-loading__note--2" />
+                  <div className="app-loading__note app-loading__note--3" />
+                </div>
+                <p className="app-loading__text">
+                  {sessionStorage.getItem('pending_refresh') ? 'Restoring tasks...' : 'Fetching tasks...'}
+                </p>
+              </div>
             )}
 
-            {!loading && (error || tasks.length === 0) && (
+            {!loading && !refreshing && (error || tasks.length === 0) && (
               <div className="app-empty-state">
                 {authErrors.length > 0 ? (
                   <>
@@ -260,16 +267,34 @@ function App() {
                       <strong>Couldn't reach some sources.</strong>
                     </p>
                     <p>Your grants may have expired. Reauthorize to refresh them, then try again.</p>
-                    <button className="auth-error-banner__reauth" onClick={login}>
+                    <button className="auth-error-banner__reauth" onClick={() => login({ reauth: true })}>
                       Reauthorize
                     </button>
                   </>
                 ) : (
                   <>
-                    <p>
-                      <strong>No task data available.</strong>
+                    <p className="app-empty-state__heading">
+                      Ready when you are.
                     </p>
-                    <p>Open the chat and ask your agent to plan your day. The dashboard will populate once tasks are fetched.</p>
+                    <p>Fetch your tasks to populate the dashboard, or ask Todaygent to plan your day.</p>
+                    <div className="app-empty-state__actions">
+                      <button
+                        className="app-empty-state__fetch-btn"
+                        onClick={isConnected ? handleRefresh : fetchTasks}
+                        disabled={loading || refreshing}
+                      >
+                        Fetch tasks
+                      </button>
+                      <button className="app-empty-state__chat-btn" onClick={() => setChatOpen(true)}>
+                        <svg className="app-empty-state__sparkle" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="12" fill="#3D2E1F"/>
+                          <path d="M10.5,15 L11.5,18.5 L12.5,15 L16,14 L12.5,13 L11.5,9.5 L10.5,13 L7,14 Z" fill="#FFBF2E"/>
+                          <path d="M16,11.5 L16.8,14 L17.6,11.5 L20,10.7 L17.6,9.9 L16.8,7.5 L16,9.9 L13.5,10.7 Z" fill="#FFBF2E"/>
+                          <path d="M6.5,11 L7.2,12.6 L7.9,11 L9.5,10.4 L7.9,9.8 L7.2,8.2 L6.5,9.8 L5,10.4 Z" fill="#FFBF2E"/>
+                        </svg>
+                        Ask Todaygent
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

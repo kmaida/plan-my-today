@@ -26,7 +26,7 @@ interface AuthContextValue {
   token: string | null
   user: AuthUser | null
   error: string | null
-  login: () => Promise<void>
+  login: (opts?: { reauth?: boolean }) => Promise<void>
   logout: () => void
 }
 
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  const login = useCallback(async () => {
+  const login = useCallback(async (opts?: { reauth?: boolean }) => {
     try {
       setError(null)
 
@@ -177,6 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Store PKCE params for callback validation
       sessionStorage.setItem(PKCE_KEY, JSON.stringify({ state, code_verifier: codeVerifier }))
+
+      // On reauth, signal the dashboard to auto-refresh once MCP reconnects.
+      // Initial login skips this — the dashboard starts empty by design.
+      if (opts?.reauth) {
+        sessionStorage.setItem('pending_refresh', '1')
+      }
 
       // Discover authorization endpoint
       const { authorization_endpoint } = await discoverEndpoints(AUTH_CONFIG.discoveryBaseUrl)
