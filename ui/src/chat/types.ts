@@ -4,7 +4,8 @@
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
+  | { type: "compaction"; content: string };
 
 /** A message in the conversation (mirrors Anthropic API format). */
 export interface Message {
@@ -26,7 +27,7 @@ export interface AnthropicResponse {
   role: "assistant";
   content: ContentBlock[];
   model: string;
-  stop_reason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | null;
+  stop_reason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "compaction" | null;
   usage: { input_tokens: number; output_tokens: number };
 }
 
@@ -37,13 +38,17 @@ export interface StreamContentBlockStart {
   index: number;
   content_block:
     | { type: "text"; text: string }
-    | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> };
+    | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+    | { type: "compaction"; content: string };
 }
 
 export interface StreamContentBlockDelta {
   type: "content_block_delta";
   index: number;
-  delta: { type: "text_delta"; text: string } | { type: "input_json_delta"; partial_json: string };
+  delta:
+    | { type: "text_delta"; text: string }
+    | { type: "input_json_delta"; partial_json: string }
+    | { type: "compaction_delta"; content: string };
 }
 
 export interface StreamMessageDelta {

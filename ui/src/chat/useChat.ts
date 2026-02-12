@@ -44,62 +44,6 @@ function truncateToolResult(text: string): string {
   return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}\n\n[... result truncated due to size ...]`;
 }
 
-/**
- * Sliding window over conversation history to cap token consumption.
- * Keeps the first 2 messages (initial user query + assistant response for context)
- * and the most recent messages, inserting a marker where turns were dropped.
- *
- * The tail boundary is adjusted so we never split a tool_use / tool_result pair:
- * - If the tail starts on an assistant message whose content contains `tool_use`
- *   blocks, the next message (a user message with `tool_result` blocks) must be
- *   included too — so we step the cut-point back by one.
- * - If the tail starts on a user message whose content contains `tool_result`
- *   blocks (i.e. the preceding assistant `tool_use` was dropped), we step
- *   forward by one to drop the orphaned results.
- */
-const MAX_HISTORY_MESSAGES = 20;
-
-function hasToolUse(msg: Message): boolean {
-  return Array.isArray(msg.content) && msg.content.some((b) => b.type === "tool_use");
-}
-
-function hasToolResult(msg: Message): boolean {
-  return Array.isArray(msg.content) && msg.content.some((b) => b.type === "tool_result");
-}
-
-function windowHistory(history: Message[]): Message[] {
-  if (history.length <= MAX_HISTORY_MESSAGES) return history;
-
-  const headSize = 2;
-  // 3 = headSize + 1 placeholder message
-  let tailStart = history.length - (MAX_HISTORY_MESSAGES - 3);
-
-  // Fix orphaned tool_result at the start of the tail (its tool_use was dropped)
-  if (tailStart < history.length && hasToolResult(history[tailStart])) {
-    tailStart++;
-  }
-
-  // Fix orphaned tool_use at the end of the head-side cut (tool_result would be
-  // the first message in the tail, but we just skipped past it above — or the
-  // slice landed right after an assistant tool_use whose results got dropped).
-  // If the message *before* tailStart is an assistant with tool_use blocks and
-  // tailStart doesn't start with matching tool_results, pull it into the tail.
-  if (
-    tailStart > headSize &&
-    tailStart < history.length &&
-    hasToolUse(history[tailStart - 1]) &&
-    !hasToolResult(history[tailStart])
-  ) {
-    tailStart--;
-  }
-
-  return [
-    ...history.slice(0, headSize),
-    { role: "user" as const, content: "[Earlier conversation context omitted for brevity]" },
-    ...history.slice(tailStart),
-  ];
-}
-
 export interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -166,7 +110,7 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
           };
 
           const response = await streamChatAPI(
-            windowHistory(historyRef.current),
+            historyRef.current,
             tools,
             buildSystemPrompt?.(),
             onTextDelta,
@@ -356,6 +300,8 @@ async function streamChatAPI(
                 input: {},
               };
               partialJson.set(event.index, "");
+            } else if (event.content_block.type === "compaction") {
+              content[event.index] = { type: "compaction", content: "" };
             }
             break;
 
@@ -369,6 +315,9 @@ async function streamChatAPI(
             } else if (event.delta.type === "input_json_delta" && block?.type === "tool_use") {
               const current = partialJson.get(event.index) ?? "";
               partialJson.set(event.index, current + event.delta.partial_json);
+            } else if (event.delta.type === "compaction_delta" && block?.type === "compaction") {
+              // Compaction summary arrives as a single complete delta (not incremental)
+              block.content = event.delta.content;
             }
             break;
           }

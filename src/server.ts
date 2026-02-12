@@ -53,6 +53,49 @@ function createMcpServerForSession(): McpServer {
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
+// ── Chat context management helpers ────────────────────────────────────────
+// Sliding window fallback for models that don't support API-level compaction.
+// Keeps the first 2 messages (initial context) + most recent messages,
+// inserting a placeholder where turns were dropped. Adjusts the boundary
+// so tool_use / tool_result pairs are never split.
+
+type RawMessage = { role: string; content: unknown };
+const MAX_HISTORY_MESSAGES = 20;
+
+function hasBlockType(msg: RawMessage, blockType: string): boolean {
+  return (
+    Array.isArray(msg.content) &&
+    (msg.content as Array<{ type: string }>).some((b) => b.type === blockType)
+  );
+}
+
+function windowMessages(messages: RawMessage[]): RawMessage[] {
+  if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
+
+  const headSize = 2;
+  let tailStart = messages.length - (MAX_HISTORY_MESSAGES - 3);
+
+  // Fix orphaned tool_result at the start of the tail
+  if (tailStart < messages.length && hasBlockType(messages[tailStart], "tool_result")) {
+    tailStart++;
+  }
+  // Fix orphaned tool_use right before the tail boundary
+  if (
+    tailStart > headSize &&
+    tailStart < messages.length &&
+    hasBlockType(messages[tailStart - 1], "tool_use") &&
+    !hasBlockType(messages[tailStart], "tool_result")
+  ) {
+    tailStart--;
+  }
+
+  return [
+    ...messages.slice(0, headSize),
+    { role: "user", content: "[Earlier conversation context omitted for brevity]" },
+    ...messages.slice(tailStart),
+  ];
+}
+
 /**
  * Creates and configures the Express application
  *
@@ -438,6 +481,9 @@ export function createApp(): express.Application {
 
   // Proxy chat messages to Anthropic Messages API (adds API key server-side).
   // The UI sends { messages, system?, tools? } and gets back Claude's response.
+  // Context management strategy depends on the model:
+  //   - Opus 4.6: uses Anthropic's server-side compaction (intelligent summarization)
+  //   - Other models: falls back to a sliding window over message history
   app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     try {
       if (!config.anthropicApiKey) {
@@ -451,11 +497,17 @@ export function createApp(): express.Application {
         return;
       }
 
+      const resolvedModel = model || config.anthropicModel;
+      const supportsCompaction = resolvedModel === "claude-opus-4-6";
+
+      // For non-compaction models, apply sliding window to cap context size
+      const processedMessages = supportsCompaction ? messages : windowMessages(messages);
+
       const body: Record<string, unknown> = {
-        model: model || config.anthropicModel,
+        model: resolvedModel,
         max_tokens: 4096,
         stream: true,
-        messages,
+        messages: processedMessages,
       };
       // Wrap system prompt as cacheable content block for Anthropic prompt caching
       if (system) {
@@ -468,6 +520,16 @@ export function createApp(): express.Application {
         );
         body.tools = cachedTools;
       }
+      // Enable server-side compaction for supported models (auto-summarizes older
+      // context when approaching the token limit, default trigger: 150K tokens)
+      if (supportsCompaction) {
+        body.context_management = {
+          edits: [{ type: "compact_20260112" }],
+        };
+      }
+
+      const betas = ["prompt-caching-2024-07-31"];
+      if (supportsCompaction) betas.push("compact-2026-01-12");
 
       const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -475,7 +537,7 @@ export function createApp(): express.Application {
           "Content-Type": "application/json",
           "x-api-key": config.anthropicApiKey,
           "anthropic-version": "2023-06-01",
-          "anthropic-beta": "prompt-caching-2024-07-31",
+          "anthropic-beta": betas.join(","),
         },
         body: JSON.stringify(body),
       });
