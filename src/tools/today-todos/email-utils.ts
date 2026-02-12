@@ -832,6 +832,7 @@ function mapToGmailMessageDetail(message: GmailFullMessage): GmailMessageDetail 
     subject,
     from,
     link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+    snippet: message.snippet,
     timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
     isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
     isStarred: message.labelIds?.includes("STARRED") ?? false,

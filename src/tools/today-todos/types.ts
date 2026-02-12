@@ -20,9 +20,10 @@ export interface DependencyMetadata {
 export interface CrossReferenceMetadata {
   mentionedIn: string[]; // Sources where this item is mentioned (e.g., ["linear", "email", "slack"])
   relatedItems: Array<{
-    source: string; // Source type ("email" | "slack" | "github")
+    source: string; // Source type ("gmail" | "slack" | "meeting-notes")
     id: string; // Item ID from that source
     snippet: string; // Brief context where mentioned (truncated to 100 chars)
+    url?: string; // Direct link to the referenced item
   }>;
   totalMentions: number; // Total count of references (including origin)
 }
@@ -118,6 +119,7 @@ export interface GmailMessageDetail {
   subject: string;
   from: string;
   link: string;
+  snippet?: string; // First ~100 chars of email body (from Gmail API)
   timestamp?: number; // Internal date from Gmail (Unix timestamp in milliseconds)
   isImportant?: boolean; // Whether the email is marked as important
   isStarred?: boolean; // Whether the email is starred

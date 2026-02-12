@@ -144,6 +144,70 @@ describe("detectLinearMentions", () => {
     );
     expect(result.relatedItems[0].snippet.length).toBe(100);
   });
+
+  it("should find issue ID in email snippet (body preview)", () => {
+    const result = detectLinearMentions(
+      "KIM-42",
+      [makeEmail({ subject: "Quick update", snippet: "Regarding KIM-42 we should fix it" })],
+      []
+    );
+    expect(result.totalMentions).toBe(1);
+    expect(result.mentionedIn).toContain("gmail");
+    // Snippet in relatedItems shows subject, not body preview
+    expect(result.relatedItems[0].snippet).toBe("Quick update");
+  });
+
+  it("should not double-count when issue ID is in both subject and snippet", () => {
+    const result = detectLinearMentions(
+      "KIM-42",
+      [makeEmail({ subject: "Re: KIM-42", snippet: "About KIM-42 auth bug" })],
+      []
+    );
+    // Should be 1 mention, not 2 — same email matched once
+    expect(result.totalMentions).toBe(1);
+  });
+
+  it("should find issue ID in meeting note action item", () => {
+    const result = detectLinearMentions(
+      "KIM-99",
+      [],
+      [],
+      [makeMeetingNote({ actionItem: "Follow up on KIM-99 auth migration" })],
+    );
+    expect(result.totalMentions).toBe(1);
+    expect(result.mentionedIn).toContain("meeting-notes");
+    expect(result.relatedItems[0].url).toBe("https://granola.so/doc/1");
+  });
+
+  it("should find issue ID in meeting summary snippet", () => {
+    const result = detectLinearMentions(
+      "KIM-55",
+      [],
+      [],
+      [],
+      [makeMeetingSummary({ subject: "Meeting recap", snippet: "Discussed KIM-55 progress" })],
+    );
+    expect(result.totalMentions).toBe(1);
+    expect(result.mentionedIn).toContain("gmail");
+  });
+
+  it("should populate url on Gmail related items", () => {
+    const result = detectLinearMentions(
+      "KIM-1",
+      [makeEmail({ subject: "KIM-1 update", link: "https://mail.google.com/inbox/1" })],
+      []
+    );
+    expect(result.relatedItems[0].url).toBe("https://mail.google.com/inbox/1");
+  });
+
+  it("should populate url on Slack related items", () => {
+    const result = detectLinearMentions(
+      "KIM-1",
+      [],
+      [makeSlackMsg({ text: "KIM-1 is blocked", permalink: "https://slack.com/archives/C123/p123" })]
+    );
+    expect(result.relatedItems[0].url).toBe("https://slack.com/archives/C123/p123");
+  });
 });
 
 // ── detectGitHubMentions ─────────────────────────────────────────────────────
@@ -218,6 +282,41 @@ describe("detectGitHubMentions", () => {
     expect(result.totalMentions).toBe(2);
     // But mentionedIn is deduplicated — only "gmail" once
     expect(result.mentionedIn).toEqual(["gmail"]);
+  });
+
+  it("should find PR number in email snippet", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      42,
+      [makeEmail({ subject: "Code review", snippet: "Please review #42 when you can" })],
+      []
+    );
+    expect(result.totalMentions).toBe(1);
+    expect(result.relatedItems[0].url).toBe("https://mail.google.com/inbox/1");
+  });
+
+  it("should find GitHub URL in meeting note action item", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      42,
+      [],
+      [],
+      [makeMeetingNote({ actionItem: "Merge github.com/org/repo/pull/42 before release" })],
+    );
+    expect(result.totalMentions).toBe(1);
+    expect(result.mentionedIn).toContain("meeting-notes");
+  });
+
+  it("should find PR number in meeting summary", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      42,
+      [],
+      [],
+      [],
+      [makeMeetingSummary({ subject: "Sprint recap", snippet: "Discussed org/repo#42" })],
+    );
+    expect(result.totalMentions).toBe(1);
   });
 });
 

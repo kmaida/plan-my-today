@@ -642,7 +642,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         issue.crossReferenceMetadata = detectLinearMentions(
           issue.identifier,
           gmailTodos,
-          slackMessages
+          slackMessages,
+          meetingNoteActions,
+          meetingSummaries,
         );
       }
 
@@ -651,7 +653,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           pr.repo,
           pr.number,
           gmailTodos,
-          slackMessages
+          slackMessages,
+          meetingNoteActions,
+          meetingSummaries,
         );
       }
 
@@ -660,7 +664,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           issue.repo,
           issue.number,
           gmailTodos,
-          slackMessages
+          slackMessages,
+          meetingNoteActions,
+          meetingSummaries,
         );
       }
 
