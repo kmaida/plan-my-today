@@ -14,7 +14,8 @@ export interface CompletedActionsData {
   lastPruned?: string; // ISO 8601 timestamp
 }
 
-const COMPLETIONS_FILE_PATH = path.join(process.cwd(), "data", "completed-actions.json");
+const COMPLETIONS_FILE_PATH = process.env.COMPLETIONS_FILE_PATH
+  || path.join(process.cwd(), "data", "completed-actions.json");
 
 const PRUNE_DAYS = 30; // Delete completions older than 30 days
 const PRUNE_INTERVAL_HOURS = 24; // Only prune once per 24 hours

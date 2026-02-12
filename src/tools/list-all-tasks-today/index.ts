@@ -8,6 +8,7 @@ import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
+import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
   detectGitHubMentions,
@@ -694,6 +695,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           errors: errors.length > 0 ? errors : undefined,
         },
       };
+
+      // Filter dismissed tasks at the source so every consumer
+      // (MCP response, cache file, REST readers) gets clean data.
+      await filterCompletedTasks(responseData);
 
       // Write full data to local file so the UI can read it without auth.
       // Awaited so the cache is fresh when the UI re-fetches after a chat tool call.

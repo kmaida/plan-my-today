@@ -19,9 +19,9 @@ import path from "node:path";
 import { hashActionText } from "../../utils/action-identifiers";
 import { isActionCompleted, markActionComplete } from "../action-completion-store";
 
-// The store computes COMPLETIONS_FILE_PATH once at module load using process.cwd(),
-// so we reset the actual file between tests instead of changing cwd.
-const COMPLETIONS_FILE = path.join(process.cwd(), "data", "completed-actions.json");
+// Tests use a separate file (set via COMPLETIONS_FILE_PATH in tests/setup.ts)
+// so they don't wipe real dismissals from the live app.
+const COMPLETIONS_FILE = path.join(process.cwd(), "data", "test-completed-actions.json");
 
 beforeEach(async () => {
   // Start each test with an empty completions store

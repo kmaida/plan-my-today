@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { z } from "zod/v3";
 import { PATHS } from "../constants";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
-import { filterCompletedTasks } from "../utils/filter-completed-tasks";
+import { filterCompletedTasks, type CachedTaskData } from "../utils/filter-completed-tasks";
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
@@ -66,7 +66,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
         const data = JSON.parse(raw) as Record<string, unknown>;
 
         // Filter dismissed items so reads are consistent with the UI
-        await filterCompletedTasks(data);
+        await filterCompletedTasks(data as CachedTaskData);
 
         if (args.source) {
           // Return only the requested source + metadata for context

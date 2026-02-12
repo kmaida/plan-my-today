@@ -266,7 +266,8 @@ describe("Meeting notes filtering", () => {
 describe("Edge cases", () => {
   it("should not crash when data.slack is undefined", async () => {
     const data = { linear: [] };
-    await expect(filterCompletedTasks(data)).resolves.not.toThrow();
+    // biome-ignore lint/suspicious/noExplicitAny: intentional partial data for edge case test
+    await expect(filterCompletedTasks(data as any)).resolves.not.toThrow();
   });
 
   it("should not crash when data.slack is an empty array", async () => {

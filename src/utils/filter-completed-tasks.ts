@@ -2,25 +2,25 @@ import { getCompletedBySources } from "../services/action-completion-store";
 import { hashActionText } from "./action-identifiers";
 
 /**
- * Shape of a cached task list (from data/latest-tasks.json).
- * Loose types because we're filtering raw JSON — the full types
- * live in tools/today-todos/types.ts.
+ * Shape of a cached/live task list. Loose types so this works with
+ * both raw parsed JSON and strongly-typed enriched responses.
+ * Uses `| null` alongside `| undefined` because enriched types
+ * (e.g. EnrichedAssignedAction) use null for absent values.
  */
-interface CachedTaskData {
+export interface CachedTaskData {
   slack?: Array<{
-    type?: string;
-    dismissalId?: string;
-    permalink?: string;
+    type?: string | null;
+    dismissalId?: string | null;
+    permalink?: string | null;
   }>;
   docs?: Array<{
-    fileLink?: string;
-    fileTitle?: string;
+    fileLink?: string | null;
+    fileTitle?: string | null;
   }>;
   meetingNotes?: Array<{
-    documentId?: string;
-    actionItem?: string;
+    documentId?: string | null;
+    actionItem?: string | null;
   }>;
-  [key: string]: unknown;
 }
 
 /**

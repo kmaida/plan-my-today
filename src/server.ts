@@ -22,7 +22,7 @@ import {
 import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { removeTaskFromCache } from "./utils/cache-utils";
-import { filterCompletedTasks } from "./utils/filter-completed-tasks";
+import { filterCompletedTasks, type CachedTaskData } from "./utils/filter-completed-tasks";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -391,7 +391,7 @@ export function createApp(): express.Application {
 
     // Filter dismissed items; non-fatal if completion store is unreadable
     try {
-      await filterCompletedTasks(data);
+      await filterCompletedTasks(data as CachedTaskData);
     } catch {
       // Serve unfiltered data rather than failing entirely
     }

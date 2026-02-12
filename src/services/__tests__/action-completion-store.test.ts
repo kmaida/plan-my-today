@@ -23,7 +23,7 @@ import {
   markActionIncomplete,
 } from "../action-completion-store";
 
-const COMPLETIONS_FILE = path.join(process.cwd(), "data", "completed-actions.json");
+const COMPLETIONS_FILE = path.join(process.cwd(), "data", "test-completed-actions.json");
 
 beforeEach(async () => {
   await fs.mkdir(path.dirname(COMPLETIONS_FILE), { recursive: true });
