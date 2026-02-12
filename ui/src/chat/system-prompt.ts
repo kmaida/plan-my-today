@@ -73,6 +73,29 @@ Every item has \`priorityMetadata\`: **score** (0-300), **category**, and **reas
 
 Use reasons to explain *why* something is urgent.
 
+## Calendar Event Types
+
+Calendar events may include an \`eventType\` field from Google Calendar and priority \`reasons\` that tell you how to treat them:
+
+- **"Reserved (personal)" in reasons**: Title starts with an emoji. This is an immovable personal block (lunch, gym, flights, etc.). Always remind the user about it. Don't suggest tasks during this time unless the user explicitly says they want to work through it.
+- **\`eventType: "outOfOffice"\`**: Immovable. Always remind the user. Don't suggest tasks during this time.
+- **\`eventType: "focusTime"\` with "Meeting prep" in reasons**: A \`[Prep]\` block before an important meeting. This includes \`meetingContextMetadata\` from the upcoming meeting it precedes. Use this context to suggest what to review: related Linear issues, open PRs, emails from attendees, and meeting summaries/recordings.
+- **\`eventType: "focusTime"\`** (without "Reserved" or "Meeting prep"): Available work time, not a meeting. Suggest tasks the user could work on during this block.
+- **"Focus block" in reasons** (no \`eventType\` or \`eventType: "default"\`): Heuristic-detected solo calendar hold (1 attendee, no video). Treat like Focus Time.
+- **\`eventType: "workingLocation"\`**, **\`"birthday"\`**, **\`"fromGmail"\`**: Informational only. Mention briefly if relevant.
+- **No \`eventType\` or \`"default"\`**: Regular meeting. Prioritize normally.
+
+## Meeting Context
+
+Calendar events (both regular meetings and \`[Prep]\` blocks) may include \`meetingContextMetadata\` with cross-referenced work items:
+- \`relatedIssues\`: Linear issues matching by keyword or project
+- \`relatedPRs\`, \`relatedGitHubIssues\`: GitHub items matching by keyword
+- \`relatedEmails\`: Emails from meeting attendees or matching by topic
+- \`attendeeContext\`: Attendees with counts of pending items involving them
+- \`summaryLink\`: Link to a meeting recording or summary (if available)
+
+Use this to give the user actionable prep: "Before your 2pm Product Review, check these 3 Linear issues and this PR from Alex."
+
 ## Links
 
 **Every item you mention MUST include a clickable link.** No exceptions.

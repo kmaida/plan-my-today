@@ -15,6 +15,14 @@ import './TaskCard.css'
 // Meeting-notes, docs, and slack (non-saved) use the no-auth REST endpoint (local completion store).
 const COMPLETABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs', 'slack']
 
+/** Labels for non-default Google Calendar event types shown in card metadata */
+const CALENDAR_EVENT_TYPE_LABELS: Record<string, string> = {
+  focusTime: 'Focus Time',
+  outOfOffice: 'Out of Office',
+  workingLocation: 'Location',
+  birthday: 'Birthday',
+}
+
 /** Parse Slack link markup (<url|label> or <url>) into React nodes with clickable links */
 function parseSlackLinks(text: string): ReactNode[] {
   const parts: ReactNode[] = []
@@ -100,9 +108,12 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
     }
 
     if (isCalendarTask(task)) {
+      if (task.eventType && CALENDAR_EVENT_TYPE_LABELS[task.eventType]) {
+        items.push(CALENDAR_EVENT_TYPE_LABELS[task.eventType])
+      }
       const calendarDate = isToday(task.start) ? formatTime(task.start) : `${formatDate(task.start)} ${formatTime(task.start)}`
       items.push(calendarDate)
-      if (task.attendees) {
+      if (task.attendees && task.eventType !== 'focusTime' && task.eventType !== 'outOfOffice') {
         items.push(`${task.attendees.length} attendees`)
       }
     }
@@ -145,8 +156,15 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
   const handleViewSource = useCallback(() => { if (onViewSource) onViewSource(task) }, [onViewSource, task])
   const handleMarkComplete = useCallback(() => { if (onMarkComplete) onMarkComplete(task) }, [onMarkComplete, task])
 
+  const cardClassName = [
+    'task-card',
+    isExpanded && 'task-card--expanded',
+    isCalendarTask(task) && task.eventType === 'focusTime' && 'task-card--focus-time',
+    isCalendarTask(task) && task.eventType === 'outOfOffice' && 'task-card--out-of-office',
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={`task-card${isExpanded ? ' task-card--expanded' : ''}`}>
+    <div className={cardClassName}>
       <div className="task-card__header">
         <span className={`task-card__priority-tag task-card__priority-tag--${task.priorityMetadata.category}`}>{priorityLabel}</span>
         <div className="task-card__title-row">

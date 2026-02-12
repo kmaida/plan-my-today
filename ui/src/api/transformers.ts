@@ -132,6 +132,7 @@ function transformCalendar(event: ServerCalendarEvent): CalendarTask {
     start: event.start?.dateTime || event.start?.date || "",
     end: event.end?.dateTime || event.end?.date || "",
     location: event.location,
+    eventType: event.eventType,
     attendees: event.attendees?.map((a) => ({
       email: a.email || "",
       responseStatus: undefined,

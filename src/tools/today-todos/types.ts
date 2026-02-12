@@ -73,6 +73,7 @@ export interface CalendarEventDetail {
   location?: string;
   hangoutLink?: string;
   htmlLink?: string;
+  eventType?: string; // Google Calendar API: "default" | "focusTime" | "outOfOffice" | "workingLocation" | "birthday" | "fromGmail"
   conferenceData?: {
     entryPoints?: Array<{
       entryPointType?: string;
@@ -258,15 +259,6 @@ export interface ListAllTasksResponse {
   slack: EnrichedSlackMessage[];
   meetingNotes: EnrichedMeetingNote[];
   metadata: { fetched_at: string; date: string; errors?: string[] };
-}
-
-/**
- * Time block for work suggestions
- */
-export interface TimeBlock {
-  start: Date;
-  end: Date;
-  durationMinutes: number;
 }
 
 /**

@@ -144,6 +144,7 @@ export interface CalendarTask {
   start: string;
   end: string;
   location?: string;
+  eventType?: string; // Google Calendar: "default" | "focusTime" | "outOfOffice" | "workingLocation" | "birthday" | "fromGmail"
   attendees?: Array<{ email: string; responseStatus?: string }>;
   htmlLink: string;
 
@@ -308,6 +309,7 @@ export interface ServerCalendarEvent {
   location?: string;
   hangoutLink?: string;
   htmlLink?: string;
+  eventType?: string; // Google Calendar: "default" | "focusTime" | "outOfOffice" | "workingLocation" | "birthday" | "fromGmail"
   attendees?: Array<{ email?: string; displayName?: string; self?: boolean }>;
   priorityMetadata?: ServerPriorityMetadata;
   meetingContextMetadata?: MeetingContextMetadata;

@@ -167,6 +167,8 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
         "hangoutLink",
         "attendees",
         "taskId",
+        "eventType",
+        "meetingContextMetadata",
       ])
     ),
     linear: data.linear.map((e) =>
@@ -662,8 +664,11 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         );
       }
 
-      // 3. Meeting prep: Generate context for calendar events
+      // 3. Meeting prep: Generate context for calendar events (skip non-meeting types)
       for (const meeting of calendarEvents) {
+        const apiEventType = meeting.eventType || "default";
+        if (apiEventType !== "default") continue;
+
         meeting.meetingContextMetadata = generateMeetingContext(
           meeting,
           linearIssues,
@@ -673,7 +678,23 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         );
       }
 
-      // 4. Meeting assets: Link Zoom "meeting assets" emails to Granola notes & calendar events
+      // 4. Prep blocks: Link focusTime "[Prep]" blocks to the next meeting's context
+      for (let i = 0; i < calendarEvents.length; i++) {
+        const event = calendarEvents[i];
+        if ((event.eventType || "default") !== "focusTime") continue;
+        if (!event.summary || !/^\[Prep\]/i.test(event.summary)) continue;
+
+        // Find next default-type meeting after this prep block in the sorted list
+        for (let j = i + 1; j < calendarEvents.length; j++) {
+          const next = calendarEvents[j];
+          if ((next.eventType || "default") === "default") {
+            event.meetingContextMetadata = next.meetingContextMetadata;
+            break;
+          }
+        }
+      }
+
+      // 5. Meeting assets: Link Zoom "meeting assets" emails to Granola notes & calendar events
       linkMeetingAssets(meetingSummaries, meetingNoteActions, calendarEvents);
 
       // Build response data
