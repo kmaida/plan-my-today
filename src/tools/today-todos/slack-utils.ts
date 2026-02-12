@@ -196,7 +196,7 @@ async function searchMessages(accessToken: string, query: string): Promise<Slack
 /**
  * Deduplicate and group search results
  */
-function deduplicateAndGroup(
+export function deduplicateAndGroup(
   mentions: SlackRawMessage[],
   threads: SlackRawMessage[],
   dms: SlackRawMessage[],
@@ -258,7 +258,7 @@ function deduplicateAndGroup(
 /** Priority scoring constants */
 const PRIORITY_WEIGHTS = {
   TYPE: {
-    SAVED: 100, // User explicitly bookmarked
+    SAVED: 120, // User explicitly bookmarked — intentional save is a strong signal
     MENTION: 90, // Direct @mention
     DM: 70, // Direct message
   },

@@ -48,9 +48,9 @@ describe("calculateSlackPriority", () => {
     // All messages use old timestamp (>24h) and neutral text to isolate type score
     const oldTs = toSlackTs(hoursAgo(48, NOW));
 
-    it("should score saved messages at 100", () => {
+    it("should score saved messages at 120", () => {
       const msg = makeMessage({ type: "saved", text: "hello", timestamp: oldTs });
-      expect(calculateSlackPriority(msg, NOW)).toBe(100);
+      expect(calculateSlackPriority(msg, NOW)).toBe(120);
     });
 
     it("should score mentions at 90", () => {
@@ -74,9 +74,9 @@ describe("calculateSlackPriority", () => {
   });
 
   describe("keyword content scoring", () => {
-    // Use old timestamp and "saved" type (100) as stable base
+    // Use old timestamp and "saved" type (120) as stable base
     const oldTs = toSlackTs(hoursAgo(48, NOW));
-    const base = 100; // saved type score
+    const base = 120; // saved type score
 
     it("should add 80 for urgency keywords", () => {
       const msg = makeMessage({
@@ -165,18 +165,18 @@ describe("calculateSlackPriority", () => {
 
   describe("combined scoring", () => {
     it("should sum type + content + recency", () => {
-      // saved (100) + urgent (80) + very recent (50) = 230
+      // saved (120) + urgent (80) + very recent (50) = 250
       const ts = toSlackTs(hoursAgo(0.25, NOW));
       const msg = makeMessage({ type: "saved", text: "urgent blocker", timestamp: ts });
-      expect(calculateSlackPriority(msg, NOW)).toBe(230);
+      expect(calculateSlackPriority(msg, NOW)).toBe(250);
     });
 
     it("should classify a high-scoring message as critical (>= 180)", () => {
-      // saved (100) + urgent (80) + any recency = 180+
+      // saved (120) + urgent (80) + any recency = 200+
       const ts = toSlackTs(hoursAgo(48, NOW));
       const msg = makeMessage({ type: "saved", text: "urgent blocker", timestamp: ts });
       const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
-      expect(metadata.score).toBe(180);
+      expect(metadata.score).toBe(200);
       expect(metadata.category).toBe("critical");
     });
   });
@@ -334,7 +334,7 @@ describe("calculateSlackPriorityWithMetadata", () => {
       });
       expect(calculateSlackPriorityWithMetadata(medium, NOW).category).toBe("medium");
 
-      // saved (100) + question (40) + >24h = 140 → high
+      // saved (120) + question (40) + >24h = 160 → high
       const high = makeMessage({
         type: "saved",
         text: "can you look at this",
@@ -342,7 +342,7 @@ describe("calculateSlackPriorityWithMetadata", () => {
       });
       expect(calculateSlackPriorityWithMetadata(high, NOW).category).toBe("high");
 
-      // saved (100) + urgent (80) + very recent (50) = 230 → critical
+      // saved (120) + urgent (80) + very recent (50) = 250 → critical
       const critical = makeMessage({
         type: "saved",
         text: "urgent fix now",
