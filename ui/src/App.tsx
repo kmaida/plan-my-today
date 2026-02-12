@@ -94,9 +94,13 @@ function App() {
     }
   }, [])
 
+  // No auto-fetch on mount. The dashboard starts empty and populates only
+  // when the user clicks "Update tasks" or asks the agent. This avoids
+  // showing stale cached data (e.g., Linear issues that were completed
+  // after the last fetch but before the cache was refreshed).
   useEffect(() => {
-    fetchTasks()
-  }, [fetchTasks])
+    setLoading(false)
+  }, [])
 
   // When MCP reconnects (e.g. after reauth), auto-refresh to replace stale cached data.
   // Only triggers on a false→true transition of isConnected, not on initial mount,

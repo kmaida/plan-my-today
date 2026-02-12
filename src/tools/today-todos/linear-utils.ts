@@ -82,7 +82,22 @@ export async function fetchAllAssignedIssues(
     };
   };
 
-  return data.data?.viewer?.assignedIssues?.nodes || [];
+  const issues = data.data?.viewer?.assignedIssues?.nodes || [];
+
+  // Belt-and-suspenders: Linear's API has eventual consistency on state
+  // changes — both the GraphQL filter AND the returned field data can be
+  // stale for several minutes after a status change. This post-filter
+  // helps if the field data updates before the filter index, but won't
+  // catch cases where the entire response is stale. The primary defense
+  // is that the UI never auto-loads stale cache on mount.
+  if (!includeCompleted) {
+    return issues.filter(
+      (issue) =>
+        issue.state?.type !== "completed" && issue.state?.type !== "canceled"
+    );
+  }
+
+  return issues;
 }
 
 /**
