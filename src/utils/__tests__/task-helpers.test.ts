@@ -42,6 +42,7 @@ function makeSlack(overrides: Partial<SlackTask> = {}): SlackTask {
   return {
     source: "slack",
     taskId: "slack-1",
+    stableId: "slack:general:1234567890.000001",
     text: "Hello from Slack",
     timestamp: "1234567890.000001",
     channel: "general",
@@ -56,6 +57,7 @@ function makeGmail(overrides: Partial<GmailTask> = {}): GmailTask {
   return {
     source: "gmail",
     taskId: "gmail-1",
+    stableId: "gmail:msg-abc123",
     id: "msg-abc123",
     subject: "Re: Project update",
     from: "bob@example.com",
@@ -70,6 +72,7 @@ function makeDocs(overrides: Partial<DocsActionTask> = {}): DocsActionTask {
   return {
     source: "docs",
     taskId: "docs-1",
+    stableId: "docs:https://docs.google.com/document/d/abc",
     fileTitle: "Q3 Planning",
     actionType: "assigned_action_item",
     fileLink: "https://docs.google.com/document/d/abc",
@@ -83,6 +86,7 @@ function makeMeetingNote(overrides: Partial<MeetingNotesTask> = {}): MeetingNote
   return {
     source: "meeting-notes",
     taskId: "note-1",
+    stableId: "meeting-note:doc-xyz",
     documentId: "doc-xyz",
     actionItem: "Follow up with team",
     timestamp: new Date().toISOString(),
@@ -95,6 +99,7 @@ function makeLinear(overrides: Partial<LinearTask> = {}): LinearTask {
   return {
     source: "linear",
     taskId: "linear-1",
+    stableId: "linear:KIM-123",
     identifier: "KIM-123",
     title: "Fix authentication bug",
     url: "https://linear.app/team/KIM-123",
@@ -107,6 +112,7 @@ function makeGitHub(overrides: Partial<GitHubTask> = {}): GitHubTask {
   return {
     source: "github",
     taskId: "gh-1",
+    stableId: "github-pr:org/repo:42",
     number: 42,
     title: "Add retry logic to API client",
     url: "https://github.com/org/repo/pull/42",
@@ -121,6 +127,7 @@ function makeCalendar(overrides: Partial<CalendarTask> = {}): CalendarTask {
   return {
     source: "calendar",
     taskId: "cal-1",
+    stableId: "calendar:cal-1",
     summary: "Team standup",
     start: new Date().toISOString(),
     end: new Date(Date.now() + 3600_000).toISOString(),

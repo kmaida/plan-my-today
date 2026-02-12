@@ -67,6 +67,7 @@ export interface MeetingContextMetadata {
 export interface LinearTask {
   source: "linear";
   taskId: string;
+  stableId: string;
   identifier: string; // e.g., "KIM-123"
   title: string;
   priority?: number; // Linear's own priority value
@@ -86,6 +87,7 @@ export interface LinearTask {
 export interface GmailTask {
   source: "gmail";
   taskId: string;
+  stableId: string;
   id: string;
   subject: string;
   from: string;
@@ -107,6 +109,7 @@ export interface GmailTask {
 export interface GitHubTask {
   source: "github" | "github-issue";
   taskId: string;
+  stableId: string;
   number: number;
   title: string;
   url: string;
@@ -123,6 +126,7 @@ export interface GitHubTask {
 export interface SlackTask {
   source: "slack";
   taskId: string;
+  stableId: string;
   text: string;
   title?: string;
   timestamp: string;
@@ -140,6 +144,7 @@ export interface SlackTask {
 export interface CalendarTask {
   source: "calendar";
   taskId: string;
+  stableId: string;
   summary: string;
   start: string;
   end: string;
@@ -157,6 +162,7 @@ export interface CalendarTask {
 export interface DocsActionTask {
   source: "docs";
   taskId: string;
+  stableId: string;
   fileTitle: string;
   actionType: string;
   fileLink: string;
@@ -170,6 +176,7 @@ export interface DocsActionTask {
 export interface MeetingNotesTask {
   source: "meeting-notes";
   taskId: string;
+  stableId: string;
   documentId: string;
   actionItem: string;
   assignee?: string;
@@ -225,6 +232,7 @@ export interface ServerPriorityMetadata {
 
 export interface ServerLinearIssue {
   taskId?: string;
+  stableId?: string;
   identifier: string;
   title: string;
   priority: number;
@@ -243,6 +251,7 @@ export interface ServerLinearIssue {
 
 export interface ServerGmailMessage {
   taskId?: string;
+  stableId?: string;
   id: string;
   subject: string;
   from: string;
@@ -258,6 +267,7 @@ export interface ServerGmailMessage {
 
 export interface ServerGitHubPR {
   taskId?: string;
+  stableId?: string;
   id: number;
   number: number;
   title: string;
@@ -272,6 +282,7 @@ export interface ServerGitHubPR {
 
 export interface ServerGitHubIssue {
   taskId?: string;
+  stableId?: string;
   id: number;
   number: number;
   title: string;
@@ -285,6 +296,7 @@ export interface ServerGitHubIssue {
 
 export interface ServerSlackMessage {
   taskId?: string;
+  stableId?: string;
   text: string;
   title?: string;
   timestamp: string;
@@ -302,6 +314,7 @@ export interface ServerSlackMessage {
 
 export interface ServerCalendarEvent {
   taskId?: string;
+  stableId?: string;
   id?: string;
   summary?: string;
   start?: { dateTime?: string; date?: string };
@@ -317,6 +330,7 @@ export interface ServerCalendarEvent {
 
 export interface ServerDocsAction {
   taskId?: string;
+  stableId?: string;
   fileTitle: string;
   fileId?: string;
   actionType: string;
@@ -328,6 +342,7 @@ export interface ServerDocsAction {
 
 export interface ServerMeetingNote {
   taskId?: string;
+  stableId?: string;
   documentId: string;
   documentTitle: string;
   documentLink: string;

@@ -9,6 +9,7 @@ import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerMarkActionCompleteTool } from "./mark-action-complete";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
+import { registerSetTaskPriorityTool } from "./set-task-priority";
 import { registerSlackListTool } from "./slack-list";
 
 /**
@@ -26,6 +27,7 @@ export const TOOL_REGISTRY = [
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
   { name: "read-dashboard-tasks", register: registerReadDashboardTasksTool },
+  { name: "set-task-priority", register: registerSetTaskPriorityTool },
 ] as const;
 
 /**

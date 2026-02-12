@@ -8,7 +8,9 @@ import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
+import { applyOverridesToTasks } from "../../services/priority-override-store";
 import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
+import { computeStableId } from "../../utils/stable-task-keys";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
   detectGitHubMentions,
@@ -517,42 +519,49 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const calendarEvents: EnrichedCalendarEvent[] = activeCalendar.map((event) => ({
         ...event,
         taskId: randomUUID(),
+        stableId: computeStableId("calendar", event),
         priorityMetadata: calculateCalendarPriority(event, now),
       }));
 
       let linearIssues: EnrichedLinearIssue[] = rawLinear.map((issue) => ({
         ...issue,
         taskId: randomUUID(),
+        stableId: computeStableId("linear", issue),
         priorityMetadata: calculateLinearPriority(issue, now),
       }));
 
       let gmailTodos: EnrichedGmailMessage[] = rawGmail.map((email) => ({
         ...email,
         taskId: randomUUID(),
+        stableId: computeStableId("gmail", email),
         priorityMetadata: calculateEmailPriority(email, now),
       }));
 
       let meetingSummaries: EnrichedMeetingSummary[] = rawMeetingSummaries.map((summary) => ({
         ...summary,
         taskId: randomUUID(),
+        stableId: computeStableId("meeting-summary", summary),
         priorityMetadata: calculateMeetingSummaryPriority(summary, now),
       }));
 
       let assignedActions: EnrichedAssignedAction[] = rawAssignedActions.map((action) => ({
         ...action,
         taskId: randomUUID(),
+        stableId: computeStableId("docs", action),
         priorityMetadata: calculateDocsPriority(action, now),
       }));
 
       let githubPRs: EnrichedGitHubPR[] = rawGithubPRs.map((pr) => ({
         ...pr,
         taskId: randomUUID(),
+        stableId: computeStableId("github-pr", pr),
         priorityMetadata: calculateGitHubPriority(pr, now),
       }));
 
       let githubIssues: EnrichedGitHubIssue[] = rawGithubIssues.map((issue) => ({
         ...issue,
         taskId: randomUUID(),
+        stableId: computeStableId("github-issue", issue),
         priorityMetadata: calculateGitHubPriority(issue, now),
       }));
 
@@ -568,17 +577,32 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         return {
           ...msg,
           taskId: randomUUID(),
+          stableId: computeStableId("slack", msg),
           title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user),
           timestamp: isoTimestamp,
           priorityMetadata,
         };
       });
 
-      // Add taskId to meeting notes
+      // Add taskId and stableId to meeting notes
       let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map((note) => ({
         ...note,
         taskId: randomUUID(),
+        stableId: computeStableId("meeting-note", note),
       }));
+
+      // Apply persisted priority overrides before sorting
+      await applyOverridesToTasks(
+        calendarEvents,
+        linearIssues,
+        gmailTodos,
+        meetingSummaries,
+        assignedActions,
+        githubPRs,
+        githubIssues,
+        slackMessages,
+      );
+      // Meeting notes don't have priorityMetadata, so they're excluded from overrides
 
       // Sort by priority score (highest first) and cap each source
       // Done BEFORE cross-reference enrichment so less work to do

@@ -45,6 +45,7 @@ function transformLinear(issue: ServerLinearIssue): LinearTask {
   return {
     source: "linear",
     taskId: issue.taskId || "",
+    stableId: issue.stableId || "",
     identifier: issue.identifier,
     title: issue.title,
     priority: issue.priority,
@@ -64,6 +65,7 @@ function transformGmail(msg: ServerGmailMessage): GmailTask {
   return {
     source: "gmail",
     taskId: msg.taskId || "",
+    stableId: msg.stableId || "",
     id: msg.id,
     subject: msg.subject,
     from: msg.from,
@@ -82,6 +84,7 @@ function transformGitHubPR(pr: ServerGitHubPR): GitHubTask {
   return {
     source: "github",
     taskId: pr.taskId || "",
+    stableId: pr.stableId || "",
     number: pr.number,
     title: pr.title,
     url: pr.url,
@@ -97,6 +100,7 @@ function transformGitHubIssue(issue: ServerGitHubIssue): GitHubTask {
   return {
     source: "github-issue",
     taskId: issue.taskId || "",
+    stableId: issue.stableId || "",
     number: issue.number,
     title: issue.title,
     url: issue.url,
@@ -112,6 +116,7 @@ function transformSlack(msg: ServerSlackMessage): SlackTask {
   return {
     source: "slack",
     taskId: msg.taskId || "",
+    stableId: msg.stableId || "",
     text: msg.text,
     title: msg.title,
     timestamp: msg.timestamp,
@@ -128,6 +133,7 @@ function transformCalendar(event: ServerCalendarEvent): CalendarTask {
   return {
     source: "calendar",
     taskId: event.taskId || "",
+    stableId: event.stableId || "",
     summary: event.summary || "(No title)",
     start: event.start?.dateTime || event.start?.date || "",
     end: event.end?.dateTime || event.end?.date || "",
@@ -147,6 +153,7 @@ function transformDocs(action: ServerDocsAction): DocsActionTask {
   return {
     source: "docs",
     taskId: action.taskId || "",
+    stableId: action.stableId || "",
     fileTitle: action.fileTitle,
     actionType: action.actionType,
     fileLink: action.fileLink || "",
@@ -159,6 +166,7 @@ function transformMeetingNote(note: ServerMeetingNote): MeetingNotesTask {
   return {
     source: "meeting-notes",
     taskId: note.taskId || "",
+    stableId: note.stableId || "",
     documentId: note.documentId,
     actionItem: note.actionItem,
     assignee: note.assignee,

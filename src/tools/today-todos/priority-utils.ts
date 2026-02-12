@@ -12,6 +12,11 @@ export interface PriorityMetadata {
   category: "critical" | "high" | "medium" | "low";
   signals: Record<string, string | number | boolean | null>; // Type-specific signals
   reasons: string[]; // Human-readable explanations
+  override?: {
+    originalScore: number; // The automated score before override
+    reason: string; // Why the override was applied
+    appliedAt: string; // ISO 8601 timestamp
+  };
 }
 
 /**

@@ -1,8 +1,9 @@
 import path from "node:path";
 import { config } from "dotenv";
 
-// Isolate the completion store from the live app so tests don't wipe real dismissals
+// Isolate stores from the live app so tests don't affect real data
 process.env.COMPLETIONS_FILE_PATH = path.join(process.cwd(), "data", "test-completed-actions.json");
+process.env.OVERRIDES_FILE_PATH = path.join(process.cwd(), "data", "test-priority-overrides.json");
 
 config({ path: ".env.test" });
 
