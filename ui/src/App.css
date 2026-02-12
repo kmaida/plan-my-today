@@ -59,7 +59,7 @@
 
 .app-header__top {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
 }
