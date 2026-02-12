@@ -109,6 +109,8 @@
 /* ===== Dark Mode ===== */
 
 [data-theme="dark"] {
+  color-scheme: dark;
+
   /* Background */
   --color-bg: #1A1A1A;          /* Soft black, not pure black */
   --color-surface: #252525;     /* Elevated surface */

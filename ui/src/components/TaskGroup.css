@@ -103,23 +103,23 @@
 
 /* Priority group header tints */
 .task-group[data-group="critical"] .task-group__header {
-  background-color: rgba(196, 91, 91, 0.12);
-  border-bottom: 2px solid rgba(196, 91, 91, 0.25);
+  background-color: color-mix(in srgb, var(--color-critical) 12%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--color-critical) 25%, transparent);
 }
 
 .task-group[data-group="high"] .task-group__header {
-  background-color: rgba(216, 155, 90, 0.12);
-  border-bottom: 2px solid rgba(216, 155, 90, 0.25);
+  background-color: color-mix(in srgb, var(--color-high) 12%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--color-high) 25%, transparent);
 }
 
 .task-group[data-group="medium"] .task-group__header {
-  background-color: rgba(122, 156, 159, 0.10);
-  border-bottom: 2px solid rgba(122, 156, 159, 0.20);
+  background-color: color-mix(in srgb, var(--color-medium) 10%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--color-medium) 20%, transparent);
 }
 
 .task-group[data-group="low"] .task-group__header {
-  background-color: rgba(159, 163, 168, 0.10);
-  border-bottom: 2px solid rgba(159, 163, 168, 0.20);
+  background-color: color-mix(in srgb, var(--color-low) 10%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--color-low) 20%, transparent);
 }
 
 /* Mobile responsiveness */
