@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
 import type {
@@ -10,6 +10,9 @@ import type {
   ToolCall,
   ToolDefinition,
 } from "./types";
+
+/** A tool_use content block (extracted from the ContentBlock union). */
+type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>;
 
 const MAX_TOOL_ROUNDS = 10; // Safety limit to prevent infinite loops
 
@@ -45,15 +48,55 @@ function truncateToolResult(text: string): string {
  * Sliding window over conversation history to cap token consumption.
  * Keeps the first 2 messages (initial user query + assistant response for context)
  * and the most recent messages, inserting a marker where turns were dropped.
+ *
+ * The tail boundary is adjusted so we never split a tool_use / tool_result pair:
+ * - If the tail starts on an assistant message whose content contains `tool_use`
+ *   blocks, the next message (a user message with `tool_result` blocks) must be
+ *   included too — so we step the cut-point back by one.
+ * - If the tail starts on a user message whose content contains `tool_result`
+ *   blocks (i.e. the preceding assistant `tool_use` was dropped), we step
+ *   forward by one to drop the orphaned results.
  */
 const MAX_HISTORY_MESSAGES = 20;
 
+function hasToolUse(msg: Message): boolean {
+  return Array.isArray(msg.content) && msg.content.some((b) => b.type === "tool_use");
+}
+
+function hasToolResult(msg: Message): boolean {
+  return Array.isArray(msg.content) && msg.content.some((b) => b.type === "tool_result");
+}
+
 function windowHistory(history: Message[]): Message[] {
   if (history.length <= MAX_HISTORY_MESSAGES) return history;
+
+  const headSize = 2;
+  // 3 = headSize + 1 placeholder message
+  let tailStart = history.length - (MAX_HISTORY_MESSAGES - 3);
+
+  // Fix orphaned tool_result at the start of the tail (its tool_use was dropped)
+  if (tailStart < history.length && hasToolResult(history[tailStart])) {
+    tailStart++;
+  }
+
+  // Fix orphaned tool_use at the end of the head-side cut (tool_result would be
+  // the first message in the tail, but we just skipped past it above — or the
+  // slice landed right after an assistant tool_use whose results got dropped).
+  // If the message *before* tailStart is an assistant with tool_use blocks and
+  // tailStart doesn't start with matching tool_results, pull it into the tail.
+  if (
+    tailStart > headSize &&
+    tailStart < history.length &&
+    hasToolUse(history[tailStart - 1]) &&
+    !hasToolResult(history[tailStart])
+  ) {
+    tailStart--;
+  }
+
   return [
-    ...history.slice(0, 2),
+    ...history.slice(0, headSize),
     { role: "user" as const, content: "[Earlier conversation context omitted for brevity]" },
-    ...history.slice(-(MAX_HISTORY_MESSAGES - 3)),
+    ...history.slice(tailStart),
   ];
 }
 
@@ -73,9 +116,16 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
 
   // Keep a ref to the full Anthropic message history (for context continuity)
   const historyRef = useRef<Message[]>([]);
+  // AbortController ref so in-flight streams can be cancelled on unmount
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Cancel any in-flight stream when the component unmounts
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (userText: string) => {
       if (!isConnected) {
         setError("MCP client not connected — sign in first");
         return;
@@ -84,12 +134,17 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
       setError(null);
       setIsLoading(true);
 
+      // Cancel any previous in-flight request
+      abortRef.current?.abort();
+      const abort = new AbortController();
+      abortRef.current = abort;
+
       // Add user message to UI
-      const userMsg: ChatMessage = { id: uid(), role: "user", text, timestamp: Date.now() };
+      const userMsg: ChatMessage = { id: uid(), role: "user", text: userText, timestamp: Date.now() };
       setMessages((prev) => [...prev, userMsg]);
 
       // Add to Anthropic history
-      historyRef.current.push({ role: "user", content: text });
+      historyRef.current.push({ role: "user", content: userText });
 
       try {
         const tools = toAnthropicTools(mcpTools);
@@ -106,31 +161,28 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
             { id: msgId, role: "assistant", text: "", timestamp: Date.now() },
           ]);
 
-          const onText = (text: string) => {
-            setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, text } : m)));
+          const onTextDelta = (accumulated: string) => {
+            setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, text: accumulated } : m)));
           };
 
           const response = await streamChatAPI(
             windowHistory(historyRef.current),
             tools,
             buildSystemPrompt?.(),
-            onText
+            onTextDelta,
+            abort.signal
           );
 
           // Extract text and tool_use blocks from the reconstructed response
           const textParts: string[] = [];
-          const toolUseBlocks: Array<{
-            type: "tool_use";
-            id: string;
-            name: string;
-            input: Record<string, unknown>;
-          }> = [];
+          const toolUseBlocks: ToolUseBlock[] = [];
 
           for (const block of response.content) {
             if (block.type === "text") textParts.push(block.text);
-            if (block.type === "tool_use")
-              toolUseBlocks.push(block as (typeof toolUseBlocks)[number]);
+            if (block.type === "tool_use") toolUseBlocks.push(block);
           }
+
+          const fullText = textParts.join("");
 
           // Add assistant response to history
           historyRef.current.push({ role: "assistant", content: response.content });
@@ -138,7 +190,7 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
           if (response.stop_reason !== "tool_use" || toolUseBlocks.length === 0) {
             // Final response — update the streaming message with final text
             setMessages((prev) =>
-              prev.map((m) => (m.id === msgId ? { ...m, text: textParts.join("\n") } : m))
+              prev.map((m) => (m.id === msgId ? { ...m, text: fullText } : m))
             );
             break;
           }
@@ -181,7 +233,7 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
 
           // Update the streaming message with tool calls (intermediate turn)
           setMessages((prev) =>
-            prev.map((m) => (m.id === msgId ? { ...m, text: textParts.join("\n"), toolCalls } : m))
+            prev.map((m) => (m.id === msgId ? { ...m, text: fullText, toolCalls } : m))
           );
 
           // Add tool results to history so Claude can see them
@@ -192,6 +244,8 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
           setError("Reached maximum tool call rounds — stopping to avoid infinite loop");
         }
       } catch (err) {
+        // Don't surface abort errors — they're intentional (unmount / new request)
+        if (err instanceof DOMException && err.name === "AbortError") return;
         const msg = err instanceof Error ? err.message : "Chat request failed";
         setError(msg);
       } finally {
@@ -202,6 +256,7 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
   );
 
   const clearMessages = useCallback(() => {
+    abortRef.current?.abort();
     setMessages([]);
     historyRef.current = [];
     setError(null);
@@ -221,7 +276,8 @@ async function streamChatAPI(
   messages: Message[],
   tools: ToolDefinition[],
   system: string | undefined,
-  onText: (text: string) => void
+  onText: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<AnthropicResponse> {
   const body: Record<string, unknown> = { messages };
   if (system) body.system = system;
@@ -231,11 +287,16 @@ async function streamChatAPI(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
     const errText = await res.text();
     throw new Error(`Chat API error (${res.status}): ${errText}`);
+  }
+
+  if (!res.body) {
+    throw new Error("Chat API returned an empty response body");
   }
 
   // Reconstruct the full response from SSE events
@@ -250,89 +311,93 @@ async function streamChatAPI(
   // Track partial JSON for tool_use input blocks
   const partialJson: Map<number, string> = new Map();
 
-  const reader = res.body!.getReader();
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
 
-    // Parse SSE lines from the buffer
-    const lines = buffer.split("\n");
-    buffer = lines.pop()!; // keep incomplete last line in buffer
+      // Parse SSE lines from the buffer
+      const lines = buffer.split("\n");
+      buffer = lines.pop()!; // keep incomplete last line in buffer
 
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const data = line.slice(6).trim();
-      if (data === "[DONE]") continue;
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
 
-      let event: StreamEvent;
-      try {
-        event = JSON.parse(data) as StreamEvent;
-      } catch {
-        continue;
-      }
-
-      switch (event.type) {
-        case "message_start":
-          messageId = event.message.id;
-          model = event.message.model;
-          usage.input_tokens = event.message.usage.input_tokens;
-          break;
-
-        case "content_block_start":
-          if (event.content_block.type === "text") {
-            content[event.index] = { type: "text", text: "" };
-          } else if (event.content_block.type === "tool_use") {
-            content[event.index] = {
-              type: "tool_use",
-              id: event.content_block.id,
-              name: event.content_block.name,
-              input: {},
-            };
-            partialJson.set(event.index, "");
-          }
-          break;
-
-        case "content_block_delta": {
-          const block = content[event.index];
-          if (event.delta.type === "text_delta" && block?.type === "text") {
-            block.text += event.delta.text;
-            // Update accumulated text for the onText callback
-            textParts[event.index] = block.text;
-            onText(textParts.filter(Boolean).join("\n"));
-          } else if (event.delta.type === "input_json_delta" && block?.type === "tool_use") {
-            const current = partialJson.get(event.index) ?? "";
-            partialJson.set(event.index, current + event.delta.partial_json);
-          }
-          break;
+        let event: StreamEvent;
+        try {
+          event = JSON.parse(data) as StreamEvent;
+        } catch {
+          continue;
         }
 
-        case "content_block_stop": {
-          const block = content[event.index];
-          if (block?.type === "tool_use") {
-            const jsonStr = partialJson.get(event.index);
-            if (jsonStr) {
-              try {
-                block.input = JSON.parse(jsonStr) as Record<string, unknown>;
-              } catch {
-                block.input = {};
-              }
+        switch (event.type) {
+          case "message_start":
+            messageId = event.message.id;
+            model = event.message.model;
+            usage.input_tokens = event.message.usage.input_tokens;
+            break;
+
+          case "content_block_start":
+            if (event.content_block.type === "text") {
+              content[event.index] = { type: "text", text: "" };
+            } else if (event.content_block.type === "tool_use") {
+              content[event.index] = {
+                type: "tool_use",
+                id: event.content_block.id,
+                name: event.content_block.name,
+                input: {},
+              };
+              partialJson.set(event.index, "");
             }
-            partialJson.delete(event.index);
-          }
-          break;
-        }
+            break;
 
-        case "message_delta":
-          stopReason = event.delta.stop_reason;
-          usage.output_tokens = event.usage.output_tokens;
-          break;
+          case "content_block_delta": {
+            const block = content[event.index];
+            if (event.delta.type === "text_delta" && block?.type === "text") {
+              block.text += event.delta.text;
+              // Update accumulated text for the onText callback
+              textParts[event.index] = block.text;
+              onText(textParts.filter(Boolean).join(""));
+            } else if (event.delta.type === "input_json_delta" && block?.type === "tool_use") {
+              const current = partialJson.get(event.index) ?? "";
+              partialJson.set(event.index, current + event.delta.partial_json);
+            }
+            break;
+          }
+
+          case "content_block_stop": {
+            const block = content[event.index];
+            if (block?.type === "tool_use") {
+              const jsonStr = partialJson.get(event.index);
+              if (jsonStr) {
+                try {
+                  block.input = JSON.parse(jsonStr) as Record<string, unknown>;
+                } catch {
+                  block.input = {};
+                }
+              }
+              partialJson.delete(event.index);
+            }
+            break;
+          }
+
+          case "message_delta":
+            stopReason = event.delta.stop_reason;
+            usage.output_tokens = event.usage.output_tokens;
+            break;
+        }
       }
     }
+  } finally {
+    reader.releaseLock();
   }
 
   return {
