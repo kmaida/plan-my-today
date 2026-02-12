@@ -166,6 +166,7 @@ function transformMeetingNote(note: ServerMeetingNote): MeetingNotesTask {
       typeof note.timestamp === "number"
         ? new Date(note.timestamp).toISOString()
         : String(note.timestamp),
+    documentTitle: note.documentTitle,
     documentLink: note.documentLink,
     priorityMetadata: transformPriority(note.priorityMetadata),
   };

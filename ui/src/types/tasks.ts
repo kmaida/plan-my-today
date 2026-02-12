@@ -174,6 +174,7 @@ export interface MeetingNotesTask {
   assignee?: string;
   isUrgent?: boolean;
   timestamp: string;
+  documentTitle?: string;
   documentLink?: string;
 
   // Enrichment

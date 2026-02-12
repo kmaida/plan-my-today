@@ -163,6 +163,7 @@ export interface AssignedActionDetail {
   fileLink: string | null;
   timestamp?: string; // When the comment/assignment was created
   isAssignment?: boolean; // True if assigned, false if just mentioned
+  commentCount?: number; // Number of unresolved comments (for comment-email items)
   priorityMetadata?: PriorityMetadata;
 }
 

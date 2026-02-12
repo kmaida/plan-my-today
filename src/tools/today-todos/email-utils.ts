@@ -1,6 +1,32 @@
 import { AuthenticationError } from "../../utils/error-utils";
+import type { DocCommentEmail } from "./drive-comments-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { GmailMessageDetail, MeetingSummaryDetail } from "./types";
+
+// ── Gmail full message type ──────────────────────────────────────────────────
+// The Gmail API returns payload.body and payload.parts for the full message
+// body. We use this to extract comment URLs from doc comment notification
+// emails before reducing messages to the lighter GmailMessageDetail shape.
+
+interface GmailMessagePart {
+  mimeType?: string;
+  body?: { data?: string; size?: number };
+  parts?: GmailMessagePart[];
+}
+
+export interface GmailFullMessage {
+  payload?: {
+    headers?: Array<{ name?: string; value?: string }>;
+    body?: { data?: string; size?: number };
+    parts?: GmailMessagePart[];
+    mimeType?: string;
+  };
+  snippet?: string;
+  id: string;
+  threadId?: string;
+  internalDate?: string;
+  labelIds?: string[];
+}
 
 // ── Shared patterns for email classification ──────────────────────────────────
 // Defined once, reused across isFromIndividual, isNewsletter, isLowImportance,
@@ -578,6 +604,130 @@ export function filterEmails(
   });
 }
 
+// ── Google Docs comment email extraction ─────────────────────────────────────
+
+const DOC_COMMENT_SENDER = "comments-noreply@docs.google.com";
+
+/**
+ * Regex to find a direct-to-comment URL in an email body.
+ * Matches: https://docs.google.com/document/d/{fileId}/comment?discussion={id}...
+ * Also matches: https://docs.google.com/a/{domain}/document/d/{fileId}/...
+ */
+const DOC_COMMENT_URL_PATTERN =
+  /https:\/\/docs\.google\.com\/(?:a\/[^/]+\/)?document\/d\/([^/\s"]+)\/[^\s"]*comment[^\s"]*/;
+
+/**
+ * Regex to extract doc title from a Google Docs comment notification subject.
+ * Typical formats:
+ *   "Ian Ornstein (via Google Docs) - My Document Title"
+ *   "Re: Ian Ornstein (via Google Docs) - My Document Title"
+ */
+const DOC_COMMENT_SUBJECT_PATTERN = /(?:Re:\s*)?.*?\(via Google Docs\)\s*[-–]\s*(.+)/i;
+
+/**
+ * Decode base64url-encoded email body data from the Gmail API.
+ * Gmail uses URL-safe base64 (- and _ instead of + and /).
+ */
+function decodeBase64Url(data: string): string {
+  const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(base64, "base64").toString("utf-8");
+}
+
+/**
+ * Recursively extract text content from a Gmail message payload.
+ * Handles both simple (payload.body) and multipart (payload.parts) messages.
+ */
+function extractMessageBody(message: GmailFullMessage): string {
+  const parts: string[] = [];
+
+  function walkParts(part: GmailMessagePart): void {
+    // Prefer text/html as it's more likely to contain full URLs
+    if (part.body?.data && part.mimeType?.startsWith("text/")) {
+      parts.push(decodeBase64Url(part.body.data));
+    }
+    if (part.parts) {
+      for (const child of part.parts) {
+        walkParts(child);
+      }
+    }
+  }
+
+  if (message.payload) {
+    walkParts(message.payload as GmailMessagePart);
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Extract Google Docs comment notification emails from the full message list.
+ *
+ * Must be called BEFORE messages are reduced to GmailMessageDetail (which
+ * discards the body). Identified comment emails are removed from the message
+ * list so they flow into the docs pipeline instead of the email pipeline.
+ *
+ * Uses the email body (already present in the Gmail API response — no extra
+ * API calls) to extract the direct-to-comment URL.
+ *
+ * @param messages - Full Gmail message objects (including payload.body/parts)
+ * @returns commentEmails for the docs pipeline, and remainingMessages for the email pipeline
+ */
+export function extractDocCommentEmails(messages: GmailFullMessage[]): {
+  commentEmails: DocCommentEmail[];
+  remainingMessages: GmailFullMessage[];
+} {
+  const commentEmails: DocCommentEmail[] = [];
+  const remainingMessages: GmailFullMessage[] = [];
+  // Track by fileId to dedup multiple comment emails for the same doc
+  const seenFileIds = new Map<string, DocCommentEmail>();
+
+  for (const message of messages) {
+    const headers = message.payload?.headers || [];
+    const from = headers.find((h) => h.name?.toLowerCase() === "from")?.value?.toLowerCase() || "";
+
+    if (!from.includes(DOC_COMMENT_SENDER)) {
+      remainingMessages.push(message);
+      continue;
+    }
+
+    // This is a doc comment notification email — try to extract the comment URL
+    const body = extractMessageBody(message);
+    // Also check the snippet as a fallback
+    const searchText = body || message.snippet || "";
+    const urlMatch = searchText.match(DOC_COMMENT_URL_PATTERN);
+
+    if (!urlMatch) {
+      // Can't extract a file ID — let it fall through to normal email processing
+      remainingMessages.push(message);
+      continue;
+    }
+
+    const commentUrl = urlMatch[0];
+    const fileId = urlMatch[1];
+
+    // Extract title from subject
+    const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value || "";
+    const titleMatch = subject.match(DOC_COMMENT_SUBJECT_PATTERN);
+    const fileTitle = titleMatch?.[1]?.trim() || subject || "Untitled";
+
+    const emailTimestamp = message.internalDate
+      ? parseInt(message.internalDate, 10)
+      : undefined;
+
+    // Dedup: keep the most recent comment email per doc
+    const existing = seenFileIds.get(fileId);
+    if (!existing || (emailTimestamp && (!existing.emailTimestamp || emailTimestamp > existing.emailTimestamp))) {
+      const entry: DocCommentEmail = { fileId, fileTitle, commentUrl, emailTimestamp };
+      seenFileIds.set(fileId, entry);
+    }
+  }
+
+  // Collect deduped comment emails
+  commentEmails.push(...seenFileIds.values());
+
+  return { commentEmails, remainingMessages };
+}
+
 /**
  * Extract the display name from a Gmail "From" header.
  * "Ben Ornstein <ben@example.com>" → "Ben Ornstein"
@@ -654,9 +804,50 @@ export function collapseByThread(emails: GmailMessageDetail[]): GmailMessageDeta
   return [...collapsed, ...noThread];
 }
 
+/** Return shape for fetchGmailTodos — includes doc comment emails extracted from the Gmail results */
+export interface FetchGmailTodosResult {
+  emails: GmailMessageDetail[];
+  docCommentEmails: DocCommentEmail[];
+}
+
 /**
- * Fetches Gmail todos
- * Expands date range to include individual emails from the past week
+ * Maps a full Gmail message object to the lighter GmailMessageDetail shape.
+ * Discards the message body — only keeps headers and classification metadata.
+ */
+function mapToGmailMessageDetail(message: GmailFullMessage): GmailMessageDetail {
+  const headers = message.payload?.headers || [];
+  const getHeader = (name: string) =>
+    headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value;
+
+  const subject = getHeader("subject") || "(No subject)";
+  const from = getHeader("from") || "Unknown";
+  const isUnread = message.labelIds?.includes("UNREAD") ?? false;
+  const fromIndividual = isFromIndividual(from, subject);
+  const needsReply = emailNeedsReply(subject, from, isUnread);
+  const hasAction = emailHasActionItems(subject);
+
+  return {
+    id: message.id,
+    threadId: message.threadId,
+    subject,
+    from,
+    link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
+    timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
+    isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
+    isStarred: message.labelIds?.includes("STARRED") ?? false,
+    isFromIndividual: fromIndividual,
+    needsReply,
+    hasActionItems: hasAction,
+  };
+}
+
+/**
+ * Fetches Gmail todos and extracts Google Docs comment notification emails.
+ *
+ * Doc comment emails (from comments-noreply@docs.google.com) are extracted
+ * from the full message list BEFORE filtering, since they'd otherwise be
+ * discarded as automated emails. They're returned separately so the docs
+ * pipeline can verify them against the Drive v3 API.
  *
  * @param accessToken - Gmail access token
  * @param options - Optional configuration
@@ -664,7 +855,7 @@ export function collapseByThread(emails: GmailMessageDetail[]): GmailMessageDeta
  * @param options.maxResults - Maximum emails to return (default: 20, agent: 30-40)
  * @param options.includeRead - Include recent read emails (default: false, agent: true)
  * @param options.strictFiltering - Apply strict filtering for newsletters/low-priority (default: true, agent: false)
- * @returns Array of Gmail messages
+ * @returns emails for the email pipeline, and docCommentEmails for the docs pipeline
  */
 export async function fetchGmailTodos(
   accessToken: string,
@@ -674,7 +865,7 @@ export async function fetchGmailTodos(
     includeRead?: boolean;
     strictFiltering?: boolean;
   } = {}
-): Promise<GmailMessageDetail[]> {
+): Promise<FetchGmailTodosResult> {
   // Defaults: backward compatible with existing behavior
   const { daysBack = 7, maxResults = 20, includeRead = false, strictFiltering = true } = options;
 
@@ -716,15 +907,15 @@ export async function fetchGmailTodos(
     if (messagesResponse.status === 401 || messagesResponse.status === 403) {
       throw new AuthenticationError("Gmail", messagesResponse.status);
     }
-    return [];
+    return { emails: [], docCommentEmails: [] };
   }
 
   const messagesData = (await messagesResponse.json()) as { messages?: Array<{ id: string }> };
   if (!messagesData.messages || messagesData.messages.length === 0) {
-    return [];
+    return { emails: [], docCommentEmails: [] };
   }
 
-  // Fetch message details (use maxResults limit)
+  // Fetch full message details (includes payload.body/parts for comment URL extraction)
   const messagePromises = messagesData.messages.slice(0, maxResults).map((msg) =>
     fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
       headers: {
@@ -733,50 +924,22 @@ export async function fetchGmailTodos(
     }).then((r) => (r.ok ? r.json() : null))
   );
 
-  const messages = (await Promise.all(messagePromises)).filter(Boolean) as Array<{
-    payload?: {
-      headers?: Array<{ name?: string; value?: string }>;
-    };
-    snippet?: string;
-    id: string;
-    threadId?: string;
-    internalDate?: string;
-    labelIds?: string[];
-  }>;
+  const messages = (await Promise.all(messagePromises)).filter(Boolean) as GmailFullMessage[];
 
-  const emails = messages.map((message) => {
-    const headers = message.payload?.headers || [];
-    const getHeader = (name: string) =>
-      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value;
+  // Extract doc comment notification emails BEFORE mapping to GmailMessageDetail.
+  // This must happen first because: (a) we need the full message body to extract
+  // comment URLs, and (b) filterEmails() would discard them as automated emails.
+  const { commentEmails: docCommentEmails, remainingMessages } = extractDocCommentEmails(messages);
 
-    const subject = getHeader("subject") || "(No subject)";
-    const from = getHeader("from") || "Unknown";
-    const isUnread = message.labelIds?.includes("UNREAD") ?? false;
-    const fromIndividual = isFromIndividual(from, subject);
-    const needsReply = emailNeedsReply(subject, from, isUnread);
-    const hasActionItems = emailHasActionItems(subject);
-
-    return {
-      id: message.id,
-      threadId: message.threadId,
-      subject,
-      from,
-      link: `https://mail.google.com/mail/u/0/#inbox/${message.id}`,
-      timestamp: message.internalDate ? parseInt(message.internalDate, 10) : undefined,
-      isImportant: message.labelIds?.includes("IMPORTANT") ?? false,
-      isStarred: message.labelIds?.includes("STARRED") ?? false,
-      isFromIndividual: fromIndividual,
-      needsReply,
-      hasActionItems,
-    };
-  });
+  // Map remaining messages to GmailMessageDetail (discards body data)
+  const emails = remainingMessages.map(mapToGmailMessageDetail);
 
   // Collapse messages in the same thread into one representative email.
   // Keeps the most recent message per thread, attaches participant list and count.
   const collapsed = collapseByThread(emails);
 
   // Filter out unwanted emails (pass strictFiltering parameter)
-  return filterEmails(collapsed, strictFiltering);
+  return { emails: filterEmails(collapsed, strictFiltering), docCommentEmails };
 }
 
 /**

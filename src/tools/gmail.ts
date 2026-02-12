@@ -88,8 +88,8 @@ export function registerGmailTool(mcpServer: McpServer): void {
         // TODO: Support custom searchQuery parameter
         // The utility function uses a fixed query, so custom queries aren't supported yet
 
-        // Fetch emails using utility function
-        const emails = await fetchGmailTodos(tokenResponse.access_token, {
+        // Fetch emails using utility function (ignore doc comment emails in standalone tool)
+        const { emails } = await fetchGmailTodos(tokenResponse.access_token, {
           daysBack,
           maxResults,
           includeRead: false, // Tool focuses on unread/starred

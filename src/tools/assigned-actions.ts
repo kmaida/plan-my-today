@@ -3,10 +3,15 @@ import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchAssignedActions } from "./today-todos/docs-utils";
+import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { AssignedActionDetail } from "./today-todos/types";
 
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
+const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
+const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
+const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 
 /**
  * Input schema for the list-assigned-actions tool
@@ -52,7 +57,8 @@ function formatActionDetail(action: AssignedActionDetail): string {
  * Registers the list-assigned-actions tool with the MCP server
  *
  * This tool queries the Google Drive Activity API to find action items
- * assigned to the current user via @mentions and comment assignments.
+ * assigned to the current user via @mentions, comment assignments, and
+ * unresolved comments on owned docs (discovered via Gmail notifications).
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -62,7 +68,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
     {
       title: "List Assigned Actions",
       description:
-        "Get action items assigned to you in Google Docs via @mentions and comment assignments. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Docs.",
+        "Get action items assigned to you in Google Docs via @mentions, comment assignments, and unresolved comments on docs you own. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Docs.",
       inputSchema: assignedActionsInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -78,19 +84,39 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
       }
 
       try {
-        // Exchange user's JWT for a Drive Activity access token
-        const tokenResponse = await keycardClient.exchange(
-          authInfo,
-          DRIVE_ACTIVITY_RESOURCE,
-          DRIVE_ACTIVITY_SCOPES
-        );
-
-        // Calculate time filter
         const daysBack = args.daysBack || 7;
         const maxResults = args.maxResults || 20;
 
-        // Fetch assigned actions using utility function
-        const actions = await fetchAssignedActions(tokenResponse.access_token, daysBack);
+        // Exchange tokens in parallel: Drive Activity (required), Gmail + Drive v3 (optional)
+        const [activityToken, gmailToken, driveToken] = await Promise.all([
+          keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES),
+          keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES).catch(() => null),
+          keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES).catch(() => null),
+        ]);
+
+        // Build comment email context if Gmail + Drive tokens are available
+        let commentEmailContext;
+        if (gmailToken && driveToken) {
+          const gmailResult = await fetchGmailTodos(gmailToken.access_token, {
+            daysBack,
+            maxResults: 20,
+            includeRead: false,
+            strictFiltering: true,
+          });
+          if (gmailResult.docCommentEmails.length > 0) {
+            commentEmailContext = {
+              docCommentEmails: gmailResult.docCommentEmails,
+              driveToken: driveToken.access_token,
+            };
+          }
+        }
+
+        // Fetch assigned actions (mentions/assignments + optional comment email enrichment)
+        const actions = await fetchAssignedActions(
+          activityToken.access_token,
+          daysBack,
+          commentEmailContext
+        );
 
         // Apply maxResults limit
         const limitedActions = actions.slice(0, maxResults);
@@ -109,7 +135,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
           };
         }
 
-        const output = `📋 **Action Items Assigned to You** (${actionItems.length}):\n\n${actionItems.join("\n\n")}`;
+        const output = `📋 **Action Items** (${actionItems.length}):\n\n${actionItems.join("\n\n")}`;
 
         return {
           content: [
@@ -120,7 +146,11 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES);
+        return handleToolError(
+          error,
+          [DRIVE_ACTIVITY_RESOURCE, GMAIL_RESOURCE, DRIVE_RESOURCE],
+          [DRIVE_ACTIVITY_SCOPES, GMAIL_SCOPES, DRIVE_SCOPES]
+        );
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof assignedActionsInputSchema>
   );

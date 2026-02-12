@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod/v3";
 import { config } from "../../config";
 import { DISPLAY_LIMITS, FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
+import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
@@ -15,6 +16,8 @@ import {
 } from "../today-todos/cross-reference-utils";
 import { parseDependencies } from "../today-todos/dependency-utils";
 import { calculateDocsPriority, fetchAssignedActions } from "../today-todos/docs-utils";
+import type { DocCommentEmail } from "../today-todos/drive-comments-utils";
+import { verifyAndEnrichDocComments } from "../today-todos/drive-comments-utils";
 import {
   calculateEmailPriority,
   calculateMeetingSummaryPriority,
@@ -329,6 +332,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       let rawGithubIssues: GitHubIssueDetail[] = [];
       let rawSlack: SlackMessageDetail[] = [];
       let rawMeetingNotes: MeetingNoteActionDetail[] = [];
+      let docCommentEmails: DocCommentEmail[] = [];
 
       // ============================================
       // PARALLEL FETCH: All sources run concurrently
@@ -350,10 +354,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           return fetchLinearIssues(token.access_token, sevenDaysFromNow);
         })(),
 
-        // 2: Gmail (todos + meeting summaries share one STS exchange)
+        // 2: Gmail (todos + meeting summaries + doc comment emails share one STS exchange)
         (async () => {
           const token = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
-          const [todos, summaries] = await Promise.all([
+          const [gmailResult, summaries] = await Promise.all([
             fetchGmailTodos(token.access_token, {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
               maxResults: FETCH_LIMITS.GMAIL,
@@ -365,7 +369,11 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
               maxResults: FETCH_LIMITS.MEETINGS,
             }),
           ]);
-          return { todos, summaries };
+          return {
+            todos: gmailResult.emails,
+            summaries,
+            docCommentEmails: gmailResult.docCommentEmails,
+          };
         })(),
 
         // 3: Google Drive Activity (assigned actions)
@@ -424,6 +432,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       if (fetchResults[2].status === "fulfilled") {
         rawGmail = fetchResults[2].value.todos;
         rawMeetingSummaries = fetchResults[2].value.summaries;
+        docCommentEmails = fetchResults[2].value.docCommentEmails;
       } else {
         errors.push(formatAuthError("Gmail", fetchResults[2].reason));
       }
@@ -451,6 +460,46 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         rawMeetingNotes = fetchResults[6].value;
       } else {
         errors.push(formatAuthError("Meeting Notes (Google Drive)", fetchResults[6].reason));
+      }
+
+      // ============================================
+      // POST-PROCESSING: Verify doc comment emails
+      // ============================================
+      // Gmail-discovered doc comment emails need Drive v3 verification to
+      // check if comments are still unresolved and get counts. This runs
+      // after parallel fetches because it needs both Gmail results (fetch #2)
+      // and a Drive v3 token.
+      if (docCommentEmails.length > 0) {
+        try {
+          const driveToken = await keycardClient
+            .exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES)
+            .catch(() => null);
+
+          if (driveToken) {
+            // Dedup: skip docs already surfaced via @mention/assignment
+            const existingFileIds = new Set(
+              rawAssignedActions.map((a) => a.fileId).filter((id): id is string => !!id)
+            );
+
+            const verifiedComments = await verifyAndEnrichDocComments(
+              docCommentEmails,
+              driveToken.access_token,
+              existingFileIds
+            );
+
+            // Filter completed items and merge into assigned actions
+            for (const item of verifiedComments) {
+              const identifier = item.fileLink || item.fileTitle;
+              if (identifier && (await isActionCompleted("docs", identifier))) {
+                continue;
+              }
+              rawAssignedActions.push(item);
+            }
+          }
+        } catch {
+          // Non-fatal: doc comment verification is best-effort
+          errors.push("Doc comment verification failed (Drive v3)");
+        }
       }
 
       // Enrich with priority metadata + taskId

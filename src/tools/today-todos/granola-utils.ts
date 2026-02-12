@@ -140,6 +140,14 @@ export async function exportDocAsText(accessToken: string, fileId: string): Prom
 }
 
 /**
+ * Action text must be 3+ chars and contain at least one letter.
+ * Filters out junk like "--" or "-" captured from separator lines.
+ */
+function isValidActionText(text: string): boolean {
+  return text.length >= 3 && /[a-zA-Z]/.test(text);
+}
+
+/**
  * Extracts action items from document content using regex patterns
  */
 export function extractActionItemsFromContent(content: string): ExtractedActionItem[] {
@@ -154,7 +162,7 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
   let match: RegExpExecArray | null = checkboxPattern.exec(content);
   while (match !== null) {
     const text = match[1].trim();
-    if (text && !seenItems.has(text.toLowerCase())) {
+    if (text && isValidActionText(text) && !seenItems.has(text.toLowerCase())) {
       seenItems.add(text.toLowerCase());
       const assignee = extractAssignee(text);
       actionItems.push({
@@ -176,7 +184,7 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
     while (bulletMatch !== null) {
       const text = bulletMatch[1].trim();
       // Skip if it's a checkbox item (already captured)
-      if (text && !text.startsWith("[") && !seenItems.has(text.toLowerCase())) {
+      if (text && isValidActionText(text) && !text.startsWith("[") && !seenItems.has(text.toLowerCase())) {
         seenItems.add(text.toLowerCase());
         const assignee = extractAssignee(text);
         actionItems.push({
@@ -195,7 +203,7 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
   match = todoPattern.exec(content);
   while (match !== null) {
     const text = match[1].trim();
-    if (text && !seenItems.has(text.toLowerCase())) {
+    if (text && isValidActionText(text) && !seenItems.has(text.toLowerCase())) {
       seenItems.add(text.toLowerCase());
       const assignee = extractAssignee(text);
       actionItems.push({
@@ -214,7 +222,7 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
     const assignee = match[1];
     const action = match[2].trim();
     const text = `@${assignee} ${action}`;
-    if (action && !seenItems.has(text.toLowerCase())) {
+    if (action && isValidActionText(action) && !seenItems.has(text.toLowerCase())) {
       seenItems.add(text.toLowerCase());
       actionItems.push({
         text,
@@ -234,7 +242,7 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
     let stepMatch: RegExpExecArray | null = stepPattern.exec(section);
     while (stepMatch !== null) {
       const text = stepMatch[1].trim();
-      if (text && !seenItems.has(text.toLowerCase())) {
+      if (text && isValidActionText(text) && !seenItems.has(text.toLowerCase())) {
         seenItems.add(text.toLowerCase());
         const assignee = extractAssignee(text);
         actionItems.push({

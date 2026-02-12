@@ -107,7 +107,12 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
       }
     }
 
-    if (isDocsActionTask(task) || isMeetingNotesTask(task)) {
+    if (isDocsActionTask(task)) {
+      items.push(formatSmartDate(task.timestamp))
+    }
+
+    if (isMeetingNotesTask(task)) {
+      if (task.documentTitle) items.push(task.documentTitle)
       items.push(formatSmartDate(task.timestamp))
     }
 

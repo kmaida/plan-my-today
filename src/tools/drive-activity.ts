@@ -2,6 +2,7 @@ import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
+import { type DriveComment, getUnresolvedComments } from "./today-todos/drive-comments-utils";
 
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
@@ -26,7 +27,7 @@ const driveActivityInputSchema = {
 };
 
 /**
- * Google Drive API response types
+ * Google Drive API response types (local to this tool — not shared)
  */
 interface DriveFile {
   id?: string;
@@ -40,20 +41,6 @@ interface DriveFile {
 
 interface DriveFilesResponse {
   files?: DriveFile[];
-  nextPageToken?: string;
-}
-
-interface DriveComment {
-  id?: string;
-  content?: string;
-  author?: { displayName?: string };
-  createdTime?: string;
-  resolved?: boolean;
-  quotedFileContent?: { value?: string };
-}
-
-interface DriveCommentsResponse {
-  comments?: DriveComment[];
   nextPageToken?: string;
 }
 
@@ -113,33 +100,6 @@ function formatFileType(mimeType?: string): string {
     default:
       return "📁 File";
   }
-}
-
-/**
- * Fetches unresolved comments for a file
- */
-async function getUnresolvedComments(fileId: string, accessToken: string): Promise<DriveComment[]> {
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}/comments?` +
-      new URLSearchParams({
-        fields:
-          "comments(id,content,author/displayName,createdTime,resolved,quotedFileContent/value)",
-        pageSize: "10",
-      }),
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    return [];
-  }
-
-  const data = (await response.json()) as DriveCommentsResponse;
-  // Filter to only unresolved comments
-  return (data.comments || []).filter((c) => !c.resolved);
 }
 
 /**
