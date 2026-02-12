@@ -236,10 +236,28 @@ describe("assignee extraction", () => {
     expect(items[0].assignee).toBe("Kim Lee");
   });
 
-  it("should extract 'for Name' pattern", () => {
-    const content = "[ ] Setup environment for Alex";
+  it("should extract 'Name:' prefix pattern (Granola convention)", () => {
+    const content = "[ ] Kim: Clean up spreadsheet, post in #all-keycard for topic brainstorming";
     const items = extractActionItemsFromContent(content);
-    expect(items[0].assignee).toBe("Alex");
+    expect(items[0].assignee).toBe("Kim");
+  });
+
+  it("should extract 'All:' prefix as assignee", () => {
+    const content = "[ ] All: Volunteer for guinea pig posts to kick off program";
+    const items = extractActionItemsFromContent(content);
+    expect(items[0].assignee).toBe("All");
+  });
+
+  it("should NOT match 'for' followed by non-person words", () => {
+    const content = "[ ] Post in #all-keycard for topic brainstorming";
+    const items = extractActionItemsFromContent(content);
+    expect(items[0].assignee).toBeUndefined();
+  });
+
+  it("should NOT treat common label prefixes as assignees", () => {
+    const content = "[ ] Note: remember to follow up with the team";
+    const items = extractActionItemsFromContent(content);
+    expect(items[0].assignee).toBeUndefined();
   });
 
   it("should return undefined when no assignee found", () => {

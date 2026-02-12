@@ -259,8 +259,18 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
   return actionItems;
 }
 
+/** Common label words that can start a line with a colon but aren't people names. */
+const NON_NAME_PREFIXES = new Set([
+  "note", "action", "todo", "fixme", "update", "important", "reminder",
+  "context", "background", "summary", "decision", "question", "example",
+]);
+
 /**
- * Extracts an assignee from text (looks for @mentions or "assigned to" patterns)
+ * Extracts an assignee from text.
+ * Checks (in order): @mentions, "Name:" prefix (Granola convention),
+ * and explicit "assigned to Name" phrasing.
+ * The old "for Name" pattern was removed because it false-positived on
+ * phrases like "for topic brainstorming" or "for new features".
  */
 function extractAssignee(text: string): string | undefined {
   // Pattern: @username or @name
@@ -269,8 +279,14 @@ function extractAssignee(text: string): string | undefined {
     return atMentionMatch[1];
   }
 
-  // Pattern: "assigned to Name" or "for Name"
-  const assignedToMatch = text.match(/(?:assigned to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+  // Pattern: "Name:" prefix (Granola uses "Kim: do the thing", "All: do the thing").
+  const prefixMatch = text.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?):\s/);
+  if (prefixMatch && !NON_NAME_PREFIXES.has(prefixMatch[1].toLowerCase())) {
+    return prefixMatch[1];
+  }
+
+  // Pattern: "assigned to Name" (no "for" — too many false positives)
+  const assignedToMatch = text.match(/assigned to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
   if (assignedToMatch) {
     return assignedToMatch[1];
   }
