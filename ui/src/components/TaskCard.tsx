@@ -123,8 +123,17 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
     }
 
     if (isMeetingNotesTask(task)) {
-      if (task.documentTitle) items.push(task.documentTitle)
-      items.push(formatSmartDate(task.timestamp))
+      if (task.documentTitle) {
+        // Granola names docs like "Meeting Title - 2026-02-12T15:00:00-05:00";
+        // strip the trailing ISO timestamp since the doc title is the useful context.
+        const cleanTitle = task.documentTitle.replace(/\s*-\s*\d{4}-\d{2}-\d{2}T\S+$/, '')
+        items.push(cleanTitle || task.documentTitle)
+      }
+      // Only show date for non-today meetings; today's meetings don't need a bare time
+      // since the document title already identifies the meeting.
+      if (!isToday(task.timestamp)) {
+        items.push(formatDate(task.timestamp))
+      }
     }
 
     return items

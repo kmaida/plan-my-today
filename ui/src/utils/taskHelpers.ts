@@ -10,7 +10,7 @@ import {
   isMeetingNotesTask,
   isSlackTask,
 } from "../types/tasks";
-import { isThisWeek, isToday } from "./dateHelpers";
+import { isThisWeek, isToday, parseDate } from "./dateHelpers";
 
 /**
  * Extract searchable text from any task type.
@@ -136,7 +136,7 @@ export function applyFilters(tasks: Task[], filters: FilterState): Task[] {
           break;
         case "overdue": {
           if (!ts) return false;
-          if (new Date(ts).getTime() >= Date.now()) return false;
+          if (parseDate(ts).getTime() >= Date.now()) return false;
           break;
         }
       }

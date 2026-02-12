@@ -2,6 +2,35 @@
  * Date utility functions for meeting note date parsing and business days calculation
  */
 
+/**
+ * Parse an ISO date-only string (YYYY-MM-DD) as a local-timezone Date at midnight.
+ *
+ * Why this exists: `new Date("2026-02-13")` is parsed as UTC midnight per the
+ * ECMAScript spec.  In US timezones that's the *evening before* in local time,
+ * so `setHours(0,0,0,0)` then snaps to the wrong local day — causing an
+ * off-by-one in "due today" / "due tomorrow" comparisons.
+ *
+ * This helper splits the string and uses the `Date(year, month, day)` constructor
+ * which always produces local midnight.
+ *
+ * @param dateStr - An ISO date string, e.g. "2026-02-13" (or full ISO-8601 with time)
+ * @returns A Date at local midnight for the given calendar day
+ */
+export function parseLocalDate(dateStr: string): Date {
+  // Handle YYYY-MM-DD (possibly with trailing time component we want to ignore)
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1; // JS months are 0-indexed
+    const day = parseInt(match[3], 10);
+    return new Date(year, month, day);
+  }
+  // Fallback for unexpected formats — still normalize to local midnight
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // Regex patterns for various date formats commonly found in meeting note filenames
 const ISO_DATE_PATTERN = /\b(\d{4})-(\d{2})-(\d{2})\b/; // YYYY-MM-DD
 const US_DATE_PATTERN = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/; // M/D/YYYY or MM/DD/YYYY

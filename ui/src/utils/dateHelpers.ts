@@ -1,10 +1,33 @@
 // Date helpers - format timestamps and due dates
 
 /**
+ * Parse a date string into a local-timezone Date.
+ *
+ * Date-only strings like "2026-02-13" are parsed as UTC midnight by the spec,
+ * which shifts to the previous calendar day in US timezones.  This helper
+ * detects date-only strings and constructs a local Date instead.
+ * Full ISO-8601 strings (with "T") are left to the default parser.
+ */
+export function parseDate(dateStr: string): Date {
+  // Date-only: "YYYY-MM-DD" (no "T" or time component)
+  // Match date-only strings (no "T" time component). Full ISO-8601 like
+  // "2026-02-12T15:00:00-05:00" must fall through to new Date() so times are preserved.
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?!\S)/);
+  if (match) {
+    return new Date(
+      parseInt(match[1], 10),
+      parseInt(match[2], 10) - 1,
+      parseInt(match[3], 10),
+    );
+  }
+  return new Date(dateStr);
+}
+
+/**
  * Format ISO timestamp to readable date (e.g., "Jan 15, 2026")
  */
 export function formatDate(timestamp: string): string {
-  const date = new Date(timestamp);
+  const date = parseDate(timestamp);
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -32,7 +55,7 @@ export function formatDueDate(dueDate: string): {
   isOverdue: boolean;
   isUrgent: boolean;
 } {
-  const due = new Date(dueDate);
+  const due = parseDate(dueDate);
   const now = new Date();
   const diffMs = due.getTime() - now.getTime();
   const diffHour = Math.floor(diffMs / (1000 * 60 * 60));
@@ -93,7 +116,7 @@ export function formatSmartDate(timestamp: string): string {
  * Check if a date is today
  */
 export function isToday(timestamp: string): boolean {
-  const date = new Date(timestamp);
+  const date = parseDate(timestamp);
   const today = new Date();
 
   return (
@@ -107,7 +130,7 @@ export function isToday(timestamp: string): boolean {
  * Check if a date is this week
  */
 export function isThisWeek(timestamp: string): boolean {
-  const date = new Date(timestamp);
+  const date = parseDate(timestamp);
   const now = new Date();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)

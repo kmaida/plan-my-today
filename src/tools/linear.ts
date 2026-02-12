@@ -1,6 +1,7 @@
 import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
+import { parseLocalDate } from "../utils/date-utils";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
 import type { LinearIssueDetail } from "./today-todos/types";
@@ -33,9 +34,10 @@ function formatPriority(priority: number, priorityLabel: string): string {
 function formatDueDate(dueDate: string | null): string {
   if (!dueDate) return "";
 
-  const due = new Date(dueDate);
+  const due = parseLocalDate(dueDate);
   const now = new Date();
-  const daysUntilDue = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  now.setHours(0, 0, 0, 0);
+  const daysUntilDue = Math.round((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
   let urgency = "";
   if (daysUntilDue < 0) {

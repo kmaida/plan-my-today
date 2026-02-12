@@ -1,4 +1,5 @@
 import { FETCH_LIMITS } from "../../constants";
+import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { CalendarEventDetail, CategorizedIssues, LinearIssueDetail } from "./types";
@@ -147,8 +148,7 @@ export async function fetchLinearIssues(
 
     // Has a due date within the window or overdue
     if (issue.dueDate) {
-      const dueDate = new Date(issue.dueDate);
-      dueDate.setHours(0, 0, 0, 0);
+      const dueDate = parseLocalDate(issue.dueDate);
       return dueDate <= dueByDate;
     }
 
@@ -169,9 +169,8 @@ export function categorizeIssues(issues: LinearIssueDetail[], today: Date): Cate
 
   for (const issue of issues) {
     if (issue.dueDate) {
-      const due = new Date(issue.dueDate);
-      due.setHours(0, 0, 0, 0);
-      const daysUntilDue = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const due = parseLocalDate(issue.dueDate);
+      const daysUntilDue = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
       if (daysUntilDue < 0) {
         overdue.push(issue);
@@ -285,9 +284,8 @@ export function calculateLinearPriority(issue: LinearIssueDetail, now: Date): Pr
   let daysUntilDue: number | null = null;
 
   if (issue.dueDate) {
-    const dueDate = new Date(issue.dueDate);
-    dueDate.setHours(0, 0, 0, 0);
-    daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    const dueDate = parseLocalDate(issue.dueDate);
+    daysUntilDue = Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
     if (daysUntilDue < 0) {
       temporalUrgency = "overdue";
