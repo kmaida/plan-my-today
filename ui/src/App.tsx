@@ -6,6 +6,7 @@ import { FilterBar } from './components/FilterBar'
 import { ChatPanel } from './components/Chat/ChatPanel'
 import { listAllTasks, refreshAllTasks, markActionComplete } from './api/client'
 import { useMCP } from './mcp'
+import { useTheme } from './hooks/useTheme'
 import type { Task, ViewMode, FilterState } from './types/tasks'
 import { DEFAULT_FILTERS } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
@@ -26,6 +27,7 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 function App() {
   const { login, logout } = useAuth()
   const { isConnected } = useMCP()
+  const { theme, effectiveTheme, setTheme } = useTheme()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -177,14 +179,48 @@ function App() {
                 <div className="app-header__top">
                   <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
                   <div className="app-header__actions">
-                    <button
-                      className="app-header__reload"
-                      onClick={isConnected ? handleRefresh : fetchTasks}
-                      disabled={loading || refreshing}
-                      title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
-                    >
-                      {refreshing ? 'Fetching...' : loading ? 'Loading...' : 'Fetch tasks'}
-                    </button>
+                    <div className="theme-switcher" role="radiogroup" aria-label="Theme">
+                      <button
+                        className={`theme-switcher__option${theme === 'light' ? ' theme-switcher__option--active' : ''}`}
+                        onClick={() => setTheme('light')}
+                        title="Light"
+                        aria-label="Light theme"
+                        role="radio"
+                        aria-checked={theme === 'light'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="5"/>
+                          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                        </svg>
+                      </button>
+                      <button
+                        className={`theme-switcher__option${theme === 'system' ? ' theme-switcher__option--active' : ''}`}
+                        onClick={() => setTheme('system')}
+                        title="System"
+                        aria-label="System theme"
+                        role="radio"
+                        aria-checked={theme === 'system'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                      </button>
+                      <button
+                        className={`theme-switcher__option${theme === 'dark' ? ' theme-switcher__option--active' : ''}`}
+                        onClick={() => setTheme('dark')}
+                        title="Dark"
+                        aria-label="Dark theme"
+                        role="radio"
+                        aria-checked={theme === 'dark'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                        </svg>
+                      </button>
+                    </div>
                     <button
                       className="app-header__logout"
                       onClick={logout}
@@ -194,9 +230,19 @@ function App() {
                     </button>
                   </div>
                 </div>
-                <p className="app-header__subtitle">
-                  {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
-                </p>
+                <div className="app-header__subtitle-row">
+                  <p className="app-header__subtitle">
+                    {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
+                  </p>
+                  <button
+                    className="app-header__reload"
+                    onClick={isConnected ? handleRefresh : fetchTasks}
+                    disabled={loading || refreshing}
+                    title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
+                  >
+                    {refreshing ? 'Fetching...' : loading ? 'Loading...' : 'Fetch tasks'}
+                  </button>
+                </div>
                 {snapshotLabel && (
                   <p className="app-header__snapshot">{snapshotLabel}</p>
                 )}
@@ -288,9 +334,15 @@ function App() {
                       <button className="app-empty-state__chat-btn" onClick={() => setChatOpen(true)}>
                         <svg className="app-empty-state__sparkle" viewBox="0 0 24 24" aria-hidden="true">
                           <circle cx="12" cy="12" r="12" fill="#3D2E1F"/>
-                          <path d="M10.5,15 L11.5,18.5 L12.5,15 L16,14 L12.5,13 L11.5,9.5 L10.5,13 L7,14 Z" fill="#FFBF2E"/>
-                          <path d="M16,11.5 L16.8,14 L17.6,11.5 L20,10.7 L17.6,9.9 L16.8,7.5 L16,9.9 L13.5,10.7 Z" fill="#FFBF2E"/>
-                          <path d="M6.5,11 L7.2,12.6 L7.9,11 L9.5,10.4 L7.9,9.8 L7.2,8.2 L6.5,9.8 L5,10.4 Z" fill="#FFBF2E"/>
+                          {effectiveTheme === 'dark' ? (
+                            <path d="M10.4,14 L12,20 L13.6,14 L20,12 L13.6,10 L12,4 L10.4,10 L4,12 Z" fill="#FFBF2E"/>
+                          ) : (
+                            <>
+                              <path d="M10.5,15 L11.5,18.5 L12.5,15 L16,14 L12.5,13 L11.5,9.5 L10.5,13 L7,14 Z" fill="#FFBF2E"/>
+                              <path d="M16,11.5 L16.8,14 L17.6,11.5 L20,10.7 L17.6,9.9 L16.8,7.5 L16,9.9 L13.5,10.7 Z" fill="#FFBF2E"/>
+                              <path d="M6.5,11 L7.2,12.6 L7.9,11 L9.5,10.4 L7.9,9.8 L7.2,8.2 L6.5,9.8 L5,10.4 Z" fill="#FFBF2E"/>
+                            </>
+                          )}
                         </svg>
                         Ask Todaygent
                       </button>

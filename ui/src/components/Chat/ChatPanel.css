@@ -11,7 +11,7 @@
   background: var(--color-bg);
   color: var(--color-text-primary);
   border: 1px solid var(--color-divider);
-  box-shadow: 0 2px 12px rgba(61, 46, 31, 0.12), 0 1px 3px rgba(61, 46, 31, 0.08);
+  box-shadow: var(--shadow-md);
   z-index: var(--z-modal);
   font-weight: var(--font-weight-medium);
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
@@ -19,7 +19,7 @@
 
 .chat-toggle:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(61, 46, 31, 0.16), 0 2px 4px rgba(61, 46, 31, 0.10);
+  box-shadow: var(--shadow-lg);
   background: var(--color-bg);
 }
 
@@ -130,7 +130,7 @@
   font-family: var(--font-sans);
   font-size: var(--font-size-small);
   padding: var(--space-sm) var(--space-md);
-  background: rgba(196, 91, 91, 0.08);
+  background: color-mix(in srgb, var(--color-critical) 8%, transparent);
   border-radius: var(--radius-sm);
 }
 

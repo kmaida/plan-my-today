@@ -32,10 +32,10 @@
   white-space: nowrap;
 }
 
-.task-card__priority-tag--critical { background-color: rgba(220, 38, 38, 0.1); color: #b91c1c; }
-.task-card__priority-tag--high { background-color: rgba(234, 88, 12, 0.1); color: #c2410c; }
-.task-card__priority-tag--medium { background-color: rgba(161, 138, 0, 0.1); color: #92820a; }
-.task-card__priority-tag--low { background-color: rgba(37, 99, 235, 0.1); color: #1d4ed8; }
+.task-card__priority-tag--critical { background-color: var(--color-critical-bg); color: var(--color-critical-text); }
+.task-card__priority-tag--high { background-color: var(--color-high-bg); color: var(--color-high-text); }
+.task-card__priority-tag--medium { background-color: var(--color-medium-bg); color: var(--color-medium-text); }
+.task-card__priority-tag--low { background-color: var(--color-low-bg); color: var(--color-low-text); }
 
 .task-card__title-row {
   display: flex;
@@ -55,9 +55,9 @@
 }
 
 .task-card__inline-link {
-  color: var(--color-accent, #2563eb);
+  color: var(--color-focus);
   text-decoration: underline;
-  text-decoration-color: var(--color-accent, #2563eb);
+  text-decoration-color: var(--color-focus);
   text-underline-offset: 2px;
 }
 
@@ -253,11 +253,11 @@
 }
 
 .task-card__action--error {
-  color: #b91c1c;
+  color: var(--color-critical);
 }
 
 .task-card__action--error:hover {
-  color: #991b1b;
+  color: color-mix(in srgb, var(--color-critical) 85%, black);
 }
 
 /* Non-meeting calendar event types */

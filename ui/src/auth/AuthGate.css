@@ -47,8 +47,8 @@
 .auth-gate__error {
   font-size: var(--font-size-small);
   color: var(--color-critical);
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: color-mix(in srgb, var(--color-critical) 8%, var(--color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-critical) 25%, transparent);
   border-radius: var(--radius-sm);
   padding: var(--space-sm);
   margin: 0 0 var(--space-md) 0;

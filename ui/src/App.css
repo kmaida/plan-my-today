@@ -25,7 +25,7 @@
 }
 
 .app-header {
-  background: linear-gradient(to bottom, #faf8f5, #f5f0eb);
+  background: linear-gradient(to bottom, var(--color-header-from), var(--color-header-to));
   border-bottom: 1px solid var(--color-divider);
   box-shadow: var(--shadow-sm);
 }
@@ -50,6 +50,12 @@
      Positive margin nudges the board down so its top aligns with the title
      cap-height and its bottom reaches the snapshot baseline. */
   margin-top: 0;
+}
+
+/* In dark mode the clipboard's brown frame disappears into the background.
+   A tight edge highlight lifts it off without touching the SVG. */
+[data-theme="dark"] .app-header__logo {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
 }
 
 .app-header__text {
@@ -88,6 +94,49 @@
   gap: var(--space-sm);
 }
 
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.theme-switcher__option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  color: var(--color-text-tertiary);
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.theme-switcher__option:not(:last-child) {
+  border-right: 1px solid var(--color-divider);
+}
+
+.theme-switcher__option:hover {
+  color: var(--color-text-primary);
+  background: var(--color-hover);
+  box-shadow: none;
+}
+
+.theme-switcher__option--active {
+  color: var(--color-text-primary);
+  background: var(--color-active);
+}
+
+.theme-switcher__option--active:hover {
+  background: var(--color-active);
+}
+
 .app-header__logout {
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
@@ -108,10 +157,10 @@
 
 .app-header__reload {
   font-size: var(--font-size-small);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-surface);
-  background: var(--color-text-primary);
-  border: 1px solid var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background: none;
+  border: 1px solid var(--color-text-tertiary);
   border-radius: var(--radius-sm);
   padding: var(--space-xs) var(--space-sm);
   box-shadow: none;
@@ -120,14 +169,21 @@
 }
 
 .app-header__reload:hover {
-  background: var(--color-text-secondary);
+  color: var(--color-text-primary);
   border-color: var(--color-text-secondary);
-  box-shadow: var(--shadow-md);
+  background: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .app-header__reload:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.app-header__subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .app-header__subtitle {
@@ -255,12 +311,12 @@ button.auth-error-banner__reauth {
 }
 
 button.auth-error-banner__reauth:hover {
-  background: #A94E4E;
+  background: color-mix(in srgb, var(--color-critical) 85%, black);
   box-shadow: none;
 }
 
 button.auth-error-banner__reauth:active {
-  background: #934444;
+  background: color-mix(in srgb, var(--color-critical) 75%, black);
   box-shadow: none;
 }
 
@@ -433,12 +489,12 @@ button.auth-error-banner__reauth:active {
   color: var(--color-text-primary);
   background: var(--color-bg);
   border: 1px solid var(--color-divider);
-  box-shadow: 0 2px 12px rgba(61, 46, 31, 0.12), 0 1px 3px rgba(61, 46, 31, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .app-empty-state__fetch-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(61, 46, 31, 0.16), 0 2px 4px rgba(61, 46, 31, 0.10);
+  box-shadow: var(--shadow-lg);
   background: var(--color-bg);
 }
 
@@ -454,10 +510,14 @@ button.auth-error-banner__reauth:active {
   flex-shrink: 0;
 }
 
+[data-theme="dark"] .app-empty-state__sparkle {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
+}
+
 .app-empty-state__chat-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   color: var(--color-text-secondary);
   background: none;
   border: 1px solid var(--color-divider);

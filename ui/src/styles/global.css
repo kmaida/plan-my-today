@@ -125,12 +125,12 @@ button.btn--inverted {
 }
 
 button.btn--inverted:hover {
-  background: #4A3D34;
+  background: color-mix(in srgb, var(--color-text-primary) 85%, black);
   box-shadow: none;
 }
 
 button.btn--inverted:active {
-  background: #3D332C;
+  background: color-mix(in srgb, var(--color-text-primary) 75%, black);
   box-shadow: none;
 }
 
@@ -152,7 +152,7 @@ input[type="text"]:focus,
 input[type="search"]:focus {
   outline: none;
   border-color: var(--color-focus);
-  box-shadow: 0 0 0 3px rgba(122, 156, 159, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 10%, transparent);
 }
 
 /* ===== Scrollbar Styling ===== */
@@ -209,4 +209,10 @@ input[type="search"]:focus {
 
 .text-tertiary {
   color: var(--color-text-tertiary);
+}
+
+/* ===== Dark Mode Overrides ===== */
+
+[data-theme="dark"] body::before {
+  display: none;
 }

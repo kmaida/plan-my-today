@@ -30,6 +30,20 @@
   --color-focus-time: #7c3aed;   /* Purple accent for Focus Time blocks */
   --color-out-of-office: #94a3b8; /* Slate accent for OOO blocks */
 
+  /* Header Gradient */
+  --color-header-from: #faf8f5;
+  --color-header-to: #f5f0eb;
+
+  /* Priority Tag Backgrounds & Text */
+  --color-critical-bg: rgba(220, 38, 38, 0.1);
+  --color-critical-text: #b91c1c;
+  --color-high-bg: rgba(234, 88, 12, 0.1);
+  --color-high-text: #c2410c;
+  --color-medium-bg: rgba(161, 138, 0, 0.1);
+  --color-medium-text: #92820a;
+  --color-low-bg: rgba(37, 99, 235, 0.1);
+  --color-low-text: #1d4ed8;
+
   /* ===== Typography ===== */
 
   /* Font Families */
@@ -121,6 +135,20 @@
   /* Calendar Event Types */
   --color-focus-time: #a78bfa;    /* Lighter purple for dark backgrounds */
   --color-out-of-office: #64748b; /* Adjusted slate for dark backgrounds */
+
+  /* Header Gradient */
+  --color-header-from: #1E1E1E;
+  --color-header-to: #1A1A1A;
+
+  /* Priority Tag Backgrounds & Text */
+  --color-critical-bg: rgba(216, 118, 118, 0.15);
+  --color-critical-text: #F09090;
+  --color-high-bg: rgba(229, 181, 122, 0.15);
+  --color-high-text: #E5B57A;
+  --color-medium-bg: rgba(143, 180, 183, 0.12);
+  --color-medium-text: #8FB4B7;
+  --color-low-bg: rgba(179, 183, 188, 0.12);
+  --color-low-text: #B3B7BC;
 
   /* Shadows (softer in dark mode) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.2);
