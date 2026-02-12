@@ -28,7 +28,7 @@ import {
   fetchMeetingSummaries,
 } from "../today-todos/email-utils";
 import { calculateGitHubPriority, fetchGitHubTodos } from "../today-todos/github-utils";
-import { fetchMeetingNoteActions } from "../today-todos/granola-utils";
+import { calculateMeetingNotePriority, fetchMeetingNoteActions } from "../today-todos/granola-utils";
 import { calculateLinearPriority, fetchLinearIssues } from "../today-todos/linear-utils";
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import type { PriorityMetadata } from "../today-todos/priority-utils";
@@ -155,6 +155,9 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
     for (const key of keepFields) {
       if (item[key] !== undefined && item[key] !== null) slim[key] = item[key];
     }
+    // Always include stableId and priorityMetadata so agents can use
+    // set-task-priority regardless of which fields each source keeps.
+    if (item.stableId) slim.stableId = item.stableId;
     slim.priorityMetadata = slimPriority(item as { priorityMetadata?: PriorityMetadata });
     return slim;
   }
@@ -584,11 +587,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         };
       });
 
-      // Add taskId and stableId to meeting notes
+      // Enrich meeting notes with taskId, stableId, and priorityMetadata
       let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map((note) => ({
         ...note,
         taskId: randomUUID(),
         stableId: computeStableId("meeting-note", note),
+        priorityMetadata: note.priorityMetadata ?? calculateMeetingNotePriority(note, now),
       }));
 
       // Apply persisted priority overrides before sorting
@@ -601,8 +605,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         githubPRs,
         githubIssues,
         slackMessages,
+        meetingNoteActions,
       );
-      // Meeting notes don't have priorityMetadata, so they're excluded from overrides
 
       // Sort by priority score (highest first) and cap each source
       // Done BEFORE cross-reference enrichment so less work to do

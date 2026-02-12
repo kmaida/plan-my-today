@@ -248,7 +248,7 @@ export type EnrichedAssignedAction = Enriched<AssignedActionDetail>;
 export type EnrichedGitHubPR = Enriched<GitHubPRDetail>;
 export type EnrichedGitHubIssue = Enriched<GitHubIssueDetail>;
 export type EnrichedSlackMessage = Enriched<SlackMessageDetail>;
-export type EnrichedMeetingNote = MeetingNoteActionDetail & { taskId: string; stableId: string };
+export type EnrichedMeetingNote = Enriched<MeetingNoteActionDetail>;
 
 /** Full response shape from list-all-tasks-today */
 export interface ListAllTasksResponse {
