@@ -96,12 +96,27 @@ function App() {
     }
   }, [])
 
-  // No auto-fetch on mount. The dashboard starts empty and populates only
-  // when the user clicks "Update tasks" or asks the agent. This avoids
-  // showing stale task store data (e.g., Linear issues that were completed
-  // after the last fetch but before the task store was refreshed).
+  // Restore the last task snapshot on mount when a chat session exists, so the
+  // dashboard stays consistent with the restored conversation. Reads cached
+  // task store JSON only (no API calls). Skipped during reauth — the reauth
+  // effect below fetches fresh data and needs the empty-task loading skeleton.
   useEffect(() => {
-    setLoading(false)
+    const hasChatSession = sessionStorage.getItem("chat_state") !== null;
+    const isPendingReauth = sessionStorage.getItem("pending_refresh") !== null;
+    if (hasChatSession && !isPendingReauth) {
+      listAllTasks()
+        .then((result) => {
+          setTasks(result.tasks);
+          setFetchedAt(result.fetchedAt);
+          setAuthErrors(result.authErrors);
+        })
+        .catch(() => {
+          // Task store read failed — dashboard stays empty, user can fetch manually
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, [])
 
   // After a reauth redirect, auto-refresh once MCP reconnects.
