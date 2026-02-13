@@ -65,7 +65,7 @@ export const FETCH_LIMITS = {
  * and only the top N are kept. Calendar is uncapped (you need all your meetings).
  */
 export const DISPLAY_LIMITS = {
-  LINEAR: 10,
+  LINEAR: 15,
   GMAIL: 8,
   SLACK: 8,
   GITHUB_PRS: 5,
