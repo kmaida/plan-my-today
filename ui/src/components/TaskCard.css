@@ -269,18 +269,6 @@
   color: color-mix(in srgb, var(--color-critical) 85%, black);
 }
 
-/* Non-meeting calendar event types */
-
-.task-card--focus-time {
-  border-left: 3px solid var(--color-focus-time);
-  opacity: 0.85;
-}
-
-.task-card--out-of-office {
-  border-left: 3px solid var(--color-out-of-office);
-  opacity: 0.7;
-}
-
 /* Mobile responsiveness */
 
 @media (max-width: 768px) {

@@ -175,8 +175,6 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
   const cardClassName = [
     'task-card',
     isExpanded && 'task-card--expanded',
-    isCalendarTask(task) && task.eventType === 'focusTime' && 'task-card--focus-time',
-    isCalendarTask(task) && task.eventType === 'outOfOffice' && 'task-card--out-of-office',
   ].filter(Boolean).join(' ')
 
   return (

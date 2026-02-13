@@ -26,10 +26,6 @@
   --color-active: rgba(0, 0, 0, 0.08);
   --color-focus: #7A9C9F;
 
-  /* Calendar Event Types */
-  --color-focus-time: #7c3aed;   /* Purple accent for Focus Time blocks */
-  --color-out-of-office: #94a3b8; /* Slate accent for OOO blocks */
-
   /* Header Gradient */
   --color-header-from: #faf8f5;
   --color-header-to: #f5f0eb;
@@ -133,10 +129,6 @@
   --color-hover: rgba(255, 255, 255, 0.06);
   --color-active: rgba(255, 255, 255, 0.12);
   --color-focus: #8FB4B7;
-
-  /* Calendar Event Types */
-  --color-focus-time: #a78bfa;    /* Lighter purple for dark backgrounds */
-  --color-out-of-office: #64748b; /* Adjusted slate for dark backgrounds */
 
   /* Header Gradient */
   --color-header-from: #1E1E1E;
