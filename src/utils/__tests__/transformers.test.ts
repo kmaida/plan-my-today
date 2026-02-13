@@ -132,7 +132,7 @@ describe("transformPriority", () => {
     expect(task.priorityMetadata.reasons).toBe("High priority, Blocked by other issue");
   });
 
-  it("should handle reasons as string (compact mode fallback)", () => {
+  it("should handle reasons as string (defensive fallback)", () => {
     const data = emptyResponse();
     data.linear = [
       {
@@ -149,7 +149,7 @@ describe("transformPriority", () => {
           score: 100,
           category: "medium",
           signals: {},
-          // biome-ignore lint/suspicious/noExplicitAny: testing compact mode fallback where server sends string instead of array
+          // biome-ignore lint/suspicious/noExplicitAny: testing defensive fallback where server sends string instead of array
           reasons: "Already a string" as any,
         },
       },
