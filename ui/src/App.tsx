@@ -8,7 +8,7 @@ import { listAllTasks, refreshAllTasks, markActionComplete } from './api/client'
 import { useMCP } from './mcp'
 import { useTheme } from './hooks/useTheme'
 import type { Task, ViewMode, FilterState } from './types/tasks'
-import { DEFAULT_FILTERS } from './types/tasks'
+import { DEFAULT_FILTERS, isSlackTask } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
@@ -125,10 +125,12 @@ function App() {
     setCompletingTaskId(task.taskId)
     setCompleteError(null)
     try {
-      // Meeting-notes, docs — use no-auth REST endpoint (local completion store)
+      // Meeting-notes, docs, slack — use no-auth REST endpoint (local completion store)
       const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
       const identifier = getTaskIdentifier(task)
-      await markActionComplete(source, identifier, task.taskId)
+      // Pass slackType for defense-in-depth: server rejects emoji-saved messages
+      const slackType = isSlackTask(task) ? task.type : undefined
+      await markActionComplete(source, identifier, task.taskId, slackType)
       setTasks(prev => prev.filter(t => t !== task))
     } catch (err) {
       console.error('Failed to mark complete:', err)

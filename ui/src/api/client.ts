@@ -132,14 +132,18 @@ export async function refreshAllTasks(): Promise<TasksResult> {
 /**
  * Mark an action as complete (stores in local completion tracking).
  * Calls a dedicated no-auth REST endpoint instead of the MCP tool layer.
+ * For Slack tasks, pass slackType so the server can reject emoji-saved messages.
  */
 export async function markActionComplete(
   source: string,
   identifier: string,
-  taskId?: string
+  taskId?: string,
+  slackType?: string
 ): Promise<MarkCompleteResponse> {
+  const payload: Record<string, unknown> = { source, identifier, complete: true, taskId };
+  if (slackType) payload.slackType = slackType;
   return await apiCall<MarkCompleteResponse>("/mark-action-complete", {
     method: "POST",
-    body: JSON.stringify({ source, identifier, complete: true, taskId }),
+    body: JSON.stringify(payload),
   });
 }

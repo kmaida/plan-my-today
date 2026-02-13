@@ -53,7 +53,6 @@ function createMcpServerForSession(): McpServer {
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
-
 /**
  * Creates and configures the Express application
  *
@@ -343,6 +342,18 @@ export function createApp(): express.Application {
         return res
           .status(400)
           .json({ error: `Invalid source. Must be one of: ${validSources.join(", ")}` });
+      }
+
+      // Reject emoji-saved Slack messages: those are dismissed in Slack
+      // itself by removing the emoji reaction, not via local completion state.
+      if (source === "slack") {
+        const { slackType } = req.body || {};
+        if (slackType === "saved") {
+          return res.status(400).json({
+            error:
+              "Emoji-saved Slack messages cannot be dismissed here. Remove the emoji reaction in Slack instead.",
+          });
+        }
       }
 
       if (!complete) {

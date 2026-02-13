@@ -27,6 +27,14 @@ const markActionCompleteInputSchema = {
     .boolean()
     .describe("Set to true to mark complete, false to unmark (default: true)")
     .optional(),
+  slackType: z
+    .enum(["mention", "thread", "dm", "saved"])
+    .describe(
+      "Required when source is 'slack'. The Slack message type from the task data. " +
+        "Only 'mention', 'thread', and 'dm' can be dismissed. " +
+        "'saved' (emoji-bookmarked) messages must be managed in Slack by removing the emoji."
+    )
+    .optional(),
   metadata: z
     .record(z.any())
     .describe("Optional metadata to store with the completion (e.g., title, context)")
@@ -47,7 +55,7 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
     {
       title: "Mark Action Complete",
       description:
-        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads - not emoji-saved), Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
+        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
       inputSchema: markActionCompleteInputSchema,
     },
     (async (args, _extra) => {
@@ -55,6 +63,33 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
         const source = args.source as ActionSource;
         const identifier = args.identifier;
         const shouldComplete = args.complete ?? true;
+
+        // Reject emoji-saved Slack messages: those are dismissed in Slack
+        // itself by removing the emoji reaction, not via local completion state.
+        if (source === "slack") {
+          if (!args.slackType) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: slackType is required when source is 'slack'. Pass the message's type field (mention, thread, dm, or saved).",
+                },
+              ],
+              isError: true,
+            };
+          }
+          if (args.slackType === "saved") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Error: Emoji-saved Slack messages cannot be dismissed here. The user must remove the emoji reaction in Slack to dismiss this message.",
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
 
         if (shouldComplete) {
           await storeMarkComplete(source, identifier, args.metadata);
