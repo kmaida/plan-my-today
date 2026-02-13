@@ -39,7 +39,7 @@ export function formatDate(timestamp: string): string {
  * Format ISO timestamp to time (e.g., "2:30 PM")
  */
 export function formatTime(timestamp: string): string {
-  const date = new Date(timestamp);
+  const date = parseDate(timestamp);
   return date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -57,7 +57,15 @@ export function formatDueDate(dueDate: string): {
 } {
   const due = parseDate(dueDate);
   const now = new Date();
-  const diffMs = due.getTime() - now.getTime();
+  const hasTime = dueDate.includes("T");
+
+  // Date-only due dates (e.g. Linear's "2026-02-13") mean "due on this day",
+  // not "due at midnight". Use end-of-day for the overdue comparison and
+  // show "Due today" instead of a meaningless clock time.
+  const compareDate = hasTime
+    ? due
+    : new Date(due.getFullYear(), due.getMonth(), due.getDate(), 23, 59, 59);
+  const diffMs = compareDate.getTime() - now.getTime();
   const diffHour = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDay = Math.floor(diffHour / 24);
 
@@ -65,7 +73,7 @@ export function formatDueDate(dueDate: string): {
     // Overdue
     if (isToday(dueDate)) {
       return {
-        text: `Overdue (was ${formatTime(dueDate)})`,
+        text: hasTime ? `Overdue (was ${formatTime(dueDate)})` : "Overdue (today)",
         isOverdue: true,
         isUrgent: true,
       };
@@ -80,9 +88,9 @@ export function formatDueDate(dueDate: string): {
   // Future due date
   if (isToday(dueDate)) {
     return {
-      text: `Due ${formatTime(dueDate)}`,
+      text: hasTime ? `Due ${formatTime(dueDate)}` : "Due today",
       isOverdue: false,
-      isUrgent: diffHour < 4,
+      isUrgent: hasTime ? diffHour < 4 : true,
     };
   } else if (diffDay <= 1) {
     return {

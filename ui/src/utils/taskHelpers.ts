@@ -136,7 +136,13 @@ export function applyFilters(tasks: Task[], filters: FilterState): Task[] {
           break;
         case "overdue": {
           if (!ts) return false;
-          if (parseDate(ts).getTime() >= Date.now()) return false;
+          // Date-only strings (no "T") represent a full day — use end-of-day
+          // so due-today tasks aren't falsely treated as overdue.
+          const due = parseDate(ts);
+          const cutoff = ts.includes("T")
+            ? due
+            : new Date(due.getFullYear(), due.getMonth(), due.getDate(), 23, 59, 59);
+          if (cutoff.getTime() >= Date.now()) return false;
           break;
         }
       }
