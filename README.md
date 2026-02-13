@@ -68,8 +68,7 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 PORT=9005
 HOST=localhost
 
-# ── Optional: Slack (direct token, not via Keycard) ──
-SLACK_USER_TOKEN=xoxp-your-user-token
+# ── Optional: Slack saved messages emoji ─────
 SLACK_EMOJI_NAME=my-todo-reminder
 ```
 
@@ -243,10 +242,10 @@ Configure in Keycard Console:
 
 ### Slack
 
-Direct token (not via Keycard):
-1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
-2. Add user token scopes: `search:read`, `reactions:read`
-3. Set `SLACK_USER_TOKEN` and optionally `SLACK_EMOJI_NAME` in `.env`
+1. Add Slack as a credential provider in your Keycard zone
+2. Authorize Slack access through the Keycard consent flow
+3. Token exchange resource: `https://slack.com/api` (scopes: `search:read`, `reactions:read`, `users:read`, `channels:read`, `groups:read`, `im:read`, `mpim:read`)
+4. Optionally set `SLACK_EMOJI_NAME` in `.env` to track saved messages with a custom emoji
 
 ### Meeting Notes
 
@@ -262,7 +261,6 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 | `ANTHROPIC_API_KEY` | Anthropic API key for Todaygent | — (required for chat) |
 | `PORT` | Server port | `9005` |
 | `HOST` | Server host | `localhost` |
-| `SLACK_USER_TOKEN` | Slack user OAuth token | — |
 | `SLACK_EMOJI_NAME` | Custom emoji for saved messages | `mcp-todo-reminder` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `ENABLE_OTEL` | Enable OpenTelemetry | `true` |

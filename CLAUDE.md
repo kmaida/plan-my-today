@@ -65,7 +65,7 @@ ui/                  # Vite dashboard app
 
 - Node.js + TypeScript (ES2020 target)
 - Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_STS_ISSUER_URL` (single-tenant) or `ISSUER_BASE_DOMAIN` + `MCP_BASE_DOMAIN` (multi-tenant)
-- Optional: `SLACK_USER_TOKEN`, `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`
+- Optional: `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`
 - See `.env.example` for full list
 
 ## Working with Kim

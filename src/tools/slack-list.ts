@@ -1,6 +1,18 @@
-import { config } from "../config";
+import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerNoArgs, McpServer } from "../types/index";
+import { handleToolError } from "../utils/tool-error-utils";
 import { calculateSlackPriority, fetchSlackMessages } from "./today-todos/slack-utils";
+
+const SLACK_RESOURCE = "https://slack.com/api";
+const SLACK_SCOPES = [
+  "search:read",
+  "reactions:read",
+  "users:read",
+  "channels:read",
+  "groups:read",
+  "im:read",
+  "mpim:read",
+];
 
 /**
  * Formats relative time from timestamp
@@ -31,30 +43,10 @@ function truncateText(text: string, maxLength: number): string {
 }
 
 /**
- * Slack authentication: static user token (not STS)
- *
- * Unlike other providers in this app, Slack does NOT use Keycard STS
- * token exchange. Slack's OIDC discovery document at
- * https://slack.com/.well-known/openid-configuration only advertises
- * identity scopes (openid, profile, email). The API scopes this tool
- * needs (search:read, reactions:read, users:read, etc.) use Slack's
- * separate OAuth v2 system, which has no discovery document. Keycard's
- * provider configuration validates scopes against the discovery doc,
- * so Slack API scopes can't be registered as a Keycard resource.
- *
- * This means Slack access in this app:
- * - Uses a static user token from SLACK_USER_TOKEN env var
- * - Is NOT visible in Keycard audit logs
- * - Does NOT get task-scoped credentials
- * - Does NOT participate in delegation chains
- *
- * All other OAuth providers (Google, GitHub) go through stsClient.exchange().
- */
-
-/**
  * Registers the list-slack-todos tool with the MCP server
  *
  * This tool fetches recent @mentions and DMs from Slack with priority analysis.
+ * Uses Keycard token exchange for Slack API access.
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -78,24 +70,10 @@ export function registerSlackListTool(mcpServer: McpServer): void {
         };
       }
 
-      if (!config.slackUserToken) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: [
-                "❌ Slack not configured.",
-                "",
-                "To use this tool, set SLACK_USER_TOKEN in your .env file",
-              ].join("\n"),
-            },
-          ],
-        };
-      }
-
       try {
-        // Fetch Slack messages
-        const messages = await fetchSlackMessages(config.slackUserToken);
+        // Exchange user's JWT for a Slack access token via Keycard
+        const tokenResponse = await keycardClient.exchange(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
+        const messages = await fetchSlackMessages(tokenResponse.access_token);
 
         if (messages.length === 0) {
           return {
@@ -171,15 +149,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text",
-              text: `❌ Error fetching Slack messages: ${message}`,
-            },
-          ],
-        };
+        return handleToolError(error, SLACK_RESOURCE, SLACK_SCOPES);
       }
     }
   );
