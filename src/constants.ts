@@ -67,6 +67,6 @@ export const OAUTH = {
 
 /** File paths */
 export const PATHS = {
-  /** Cached tasks JSON written by list-all-tasks-today, read by UI and read-dashboard-tasks */
-  TASKS_CACHE: "data/latest-tasks.json",
+  /** Task store JSON written by list-all-tasks-today, read by UI and read-dashboard-tasks */
+  TASK_STORE: "data/latest-tasks.json",
 } as const;

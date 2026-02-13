@@ -21,8 +21,8 @@ import {
 } from "./services/action-completion-store";
 import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
-import { removeTaskFromCache } from "./utils/cache-utils";
-import { type CachedTaskData, filterCompletedTasks } from "./utils/filter-completed-tasks";
+import { removeTaskFromStore } from "./utils/task-store-utils";
+import { type TaskStoreData, filterCompletedTasks } from "./utils/filter-completed-tasks";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -51,7 +51,7 @@ function createMcpServerForSession(): McpServer {
   return mcpServer;
 }
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
+const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
 
 /**
  * Creates and configures the Express application
@@ -363,9 +363,9 @@ export function createApp(): express.Application {
 
       await storeComplete(source, identifier, metadata);
 
-      // Remove from cached tasks JSON so it disappears on next UI reload
+      // Remove from task store so it disappears on next UI reload
       if (taskId) {
-        await removeTaskFromCache(taskId);
+        await removeTaskFromStore(taskId);
       }
 
       return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
@@ -377,23 +377,23 @@ export function createApp(): express.Application {
     }
   });
 
-  // Remove a task from the cache by taskId (called by the UI after mark-action-complete)
+  // Remove a task from the task store by taskId (called by the UI after mark-action-complete)
   app.post("/api/tasks/evict", async (req: express.Request, res: express.Response) => {
     const { taskId } = req.body || {};
     if (!taskId) {
       return res.status(400).json({ error: "Missing required field: taskId" });
     }
-    await removeTaskFromCache(taskId);
+    await removeTaskFromStore(taskId);
     return res.json({ success: true });
   });
 
-  // Serve cached task data for the UI (no auth — reads local file written by list-all-tasks-today).
+  // Serve task store data for the UI (no auth — reads local file written by list-all-tasks-today).
   // Filters against the completion store so dismissed items never reach the UI,
-  // even if the cache is stale or was overwritten by a fresh fetch.
+  // even if the task store is stale or was overwritten by a fresh fetch.
   app.get("/api/tasks", async (_req: express.Request, res: express.Response) => {
     let data: Record<string, unknown>;
     try {
-      const content = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
+      const content = await fs.readFile(TASK_STORE_PATH, "utf-8");
       data = JSON.parse(content);
     } catch {
       return res
@@ -403,7 +403,7 @@ export function createApp(): express.Application {
 
     // Filter dismissed items; non-fatal if completion store is unreadable
     try {
-      await filterCompletedTasks(data as CachedTaskData);
+      await filterCompletedTasks(data as TaskStoreData);
     } catch {
       // Serve unfiltered data rather than failing entirely
     }

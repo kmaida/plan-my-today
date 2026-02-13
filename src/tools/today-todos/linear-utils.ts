@@ -201,7 +201,7 @@ export async function fetchAllAssignedIssues(
   // stale for several minutes after a status change. This post-filter
   // helps if the field data updates before the filter index, but won't
   // catch cases where the entire response is stale. The primary defense
-  // is that the UI never auto-loads stale cache on mount.
+  // is that the UI never auto-loads stale task store data on mount.
   if (!includeCompleted) {
     return issues.filter(
       (issue) => issue.state?.type !== "completed" && issue.state?.type !== "canceled"

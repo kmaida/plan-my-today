@@ -75,7 +75,7 @@ function App() {
 
   /**
    * Single callback for ChatPanel after each chat turn completes.
-   * - Refreshes the dashboard when list-all-tasks-today wrote fresh cache data.
+   * - Refreshes the dashboard when list-all-tasks-today wrote fresh task store data.
    * - Shows the reauth banner when any tool (aggregate or individual) hit an
    *   auth error. Detection uses the same pattern matching for all tools —
    *   the underlying failure is always "Keycard token exchange failed."
@@ -83,11 +83,11 @@ function App() {
   const handleToolCallsComplete = useCallback(async (result: { didFetchAllTasks: boolean; authErrors: string[] }) => {
     if (result.didFetchAllTasks) {
       try {
-        const cached = await listAllTasks()
-        setTasks(cached.tasks)
-        setFetchedAt(cached.fetchedAt)
+        const stored = await listAllTasks()
+        setTasks(stored.tasks)
+        setFetchedAt(stored.fetchedAt)
       } catch {
-        // Non-fatal: cache read failed, tasks stay as-is
+        // Non-fatal: task store read failed, tasks stay as-is
       }
     }
     if (result.authErrors.length > 0) {
@@ -98,8 +98,8 @@ function App() {
 
   // No auto-fetch on mount. The dashboard starts empty and populates only
   // when the user clicks "Update tasks" or asks the agent. This avoids
-  // showing stale cached data (e.g., Linear issues that were completed
-  // after the last fetch but before the cache was refreshed).
+  // showing stale task store data (e.g., Linear issues that were completed
+  // after the last fetch but before the task store was refreshed).
   useEffect(() => {
     setLoading(false)
   }, [])

@@ -2,12 +2,12 @@ import { getCompletedBySources } from "../services/action-completion-store";
 import { hashActionText } from "./action-identifiers";
 
 /**
- * Shape of a cached/live task list. Loose types so this works with
+ * Shape of the task store data. Loose types so this works with
  * both raw parsed JSON and strongly-typed enriched responses.
  * Uses `| null` alongside `| undefined` because enriched types
  * (e.g. EnrichedAssignedAction) use null for absent values.
  */
-export interface CachedTaskData {
+export interface TaskStoreData {
   slack?: Array<{
     type?: string | null;
     dismissalId?: string | null;
@@ -31,7 +31,7 @@ export interface CachedTaskData {
  * Uses a single file read via `getCompletedBySources` to load all
  * dismissable source completions at once.
  */
-export async function filterCompletedTasks(data: CachedTaskData): Promise<void> {
+export async function filterCompletedTasks(data: TaskStoreData): Promise<void> {
   const completed = await getCompletedBySources(["slack", "docs", "meeting-note"] as const);
   const slackCompleted = completed.get("slack")!;
   const docsCompleted = completed.get("docs")!;
