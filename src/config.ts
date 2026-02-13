@@ -14,7 +14,6 @@ export interface ServerConfig {
   mcpBaseDomain: string;
   keycardClientId: string;
   keycardClientSecret: string;
-  slackUserToken: string;
   slackEmojiName: string;
   userDisplayNames: string[];
   anthropicApiKey: string;
@@ -59,8 +58,7 @@ export function getConfig(): ServerConfig {
   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
   const KEYCARD_CLIENT_SECRET = process.env.KEYCARD_CLIENT_SECRET;
 
-  // Slack configuration (optional - single-user deployment only)
-  const SLACK_USER_TOKEN = process.env.SLACK_USER_TOKEN;
+  // Slack custom emoji for saved messages (optional preference, not auth)
   const SLACK_EMOJI_NAME = process.env.SLACK_EMOJI_NAME;
 
   // User identity for filtering meeting notes action items (optional)
@@ -100,8 +98,8 @@ export function getConfig(): ServerConfig {
     );
   }
 
-  // Warn if Slack is enabled but custom emoji is not configured
-  if (SLACK_USER_TOKEN && !SLACK_EMOJI_NAME) {
+  // Warn if custom emoji is not configured for Slack saved messages
+  if (!SLACK_EMOJI_NAME) {
     console.warn(
       "⚠️  SLACK_EMOJI_NAME not set - using default 'mcp-todo-reminder'.\n" +
         "💡 To use a custom emoji, set SLACK_EMOJI_NAME in your .env file.\n" +
@@ -118,7 +116,6 @@ export function getConfig(): ServerConfig {
     mcpBaseDomain: MCP_BASE_DOMAIN || "",
     keycardClientId: KEYCARD_CLIENT_ID || "",
     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
-    slackUserToken: SLACK_USER_TOKEN || "",
     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",
     anthropicApiKey: ANTHROPIC_API_KEY,
     anthropicModel: ANTHROPIC_MODEL,

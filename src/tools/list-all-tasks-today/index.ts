@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod/v3";
-import { config } from "../../config";
 import { DISPLAY_LIMITS, FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
@@ -66,6 +65,16 @@ const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.r
 const GITHUB_RESOURCE = "https://api.github.com";
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
+const SLACK_RESOURCE = "https://slack.com/api";
+const SLACK_SCOPES = [
+  "search:read",
+  "reactions:read",
+  "users:read",
+  "channels:read",
+  "groups:read",
+  "im:read",
+  "mpim:read",
+];
 
 const SLACK_TITLE_MAX_LENGTH = 80;
 
@@ -401,14 +410,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           return fetchGitHubTodos(token.access_token);
         })(),
 
-        // 5: Slack (static user token, not STS)
-        // Slack's OIDC discovery only advertises identity scopes (openid, profile,
-        // email), so the API scopes we need (search:read, etc.) can't go through
-        // Keycard STS. See src/tools/slack-list.ts for full explanation.
+        // 5: Slack
         (async () => {
-          const slackToken = config.slackUserToken || null;
-          if (!slackToken) return [];
-          return fetchSlackMessages(slackToken, {
+          const token = await keycardClient.exchange(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
+          return fetchSlackMessages(token.access_token, {
             daysBack: TIME_WINDOWS.SLACK_DAYS_BACK,
             maxMessages: FETCH_LIMITS.SLACK,
           });

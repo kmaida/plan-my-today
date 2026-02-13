@@ -199,7 +199,6 @@ Create **README-STDIO.md** with:
          "command": "node",
          "args": ["/absolute/path/to/plan-my-today/dist/stdio/stdio.js"],
          "env": {
-           "SLACK_USER_TOKEN": "xoxp-your-token",
            "SLACK_EMOJI_NAME": "your-custom-emoji"
          }
        }
@@ -208,7 +207,7 @@ Create **README-STDIO.md** with:
    ```
 4. **Service Setup:**
    - How to authenticate each service via Claude Desktop UI
-   - Creating Slack app and getting user token
+   - Authorizing Slack via Keycard consent flow
    - Creating custom Slack emoji in workspace
 5. **Troubleshooting:** Common issues and solutions
 
