@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node", "jest"],
-    "rootDir": "."
+    "rootDir": ".",
+    "jsx": "react-jsx"
   },
   "include": [
     "src/**/*",
@@ -13,6 +14,9 @@
     "ui/src/api/transformers.ts",
     "ui/src/types/tasks.ts",
     "ui/src/utils/taskHelpers.ts",
-    "ui/src/utils/dateHelpers.ts"
+    "ui/src/utils/dateHelpers.ts",
+    "ui/src/utils/taskGrouping.ts",
+    "ui/src/utils/priorityHelpers.ts",
+    "ui/src/components/SourceIcon.tsx"
   ]
 }
