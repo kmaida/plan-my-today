@@ -20,6 +20,16 @@ export interface ToolDefinition {
   input_schema: Record<string, unknown>;
 }
 
+/** Token usage from the Anthropic Messages API, including prompt cache metrics. */
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  /** Tokens written to the prompt cache on this request (125% of base cost). */
+  cache_creation_input_tokens?: number;
+  /** Tokens read from the prompt cache on this request (10% of base cost). */
+  cache_read_input_tokens?: number;
+}
+
 /** Response from the Anthropic Messages API. */
 export interface AnthropicResponse {
   id: string;
@@ -28,7 +38,7 @@ export interface AnthropicResponse {
   content: ContentBlock[];
   model: string;
   stop_reason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "compaction" | null;
-  usage: { input_tokens: number; output_tokens: number };
+  usage: TokenUsage;
 }
 
 // ── Anthropic streaming event types ──────────────────────────────────────────
@@ -59,7 +69,7 @@ export interface StreamMessageDelta {
 
 export interface StreamMessageStart {
   type: "message_start";
-  message: { id: string; model: string; usage: { input_tokens: number; output_tokens: number } };
+  message: { id: string; model: string; usage: TokenUsage };
 }
 
 export type StreamEvent =
@@ -89,4 +99,6 @@ export interface ChatMessage {
   text: string;
   toolCalls?: ToolCall[];
   timestamp: number;
+  /** Token usage for this assistant turn (only present on final response, not intermediate tool rounds). */
+  usage?: TokenUsage;
 }

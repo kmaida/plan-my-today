@@ -6,8 +6,23 @@ import { ChatMessage } from './ChatMessage'
 import type { ChatMessage as ChatMessageType } from '../../chat/types'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { buildSystemPrompt } from '../../chat/system-prompt'
+import type { SessionUsage } from '../../chat/useChat'
 import { extractToolCallAuthErrors } from '../../chat/auth-error-detection'
 import './ChatPanel.css'
+
+/** Format a token count as a compact string (e.g., 1234 → "1.2k"). */
+function formatTokenCount(tokens: number): string {
+  if (tokens < 1000) return String(tokens)
+  return `${(tokens / 1000).toFixed(1)}k`
+}
+
+/** Calculate cache hit percentage from session usage. */
+function getCacheHitPercent(usage: SessionUsage): number {
+  const totalInput =
+    usage.totalInputTokens + usage.totalCacheCreationTokens + usage.totalCacheReadTokens
+  if (totalInput === 0) return 0
+  return Math.round((usage.totalCacheReadTokens / totalInput) * 100)
+}
 
 interface ChatPanelProps {
   isOpen: boolean
@@ -76,9 +91,10 @@ function extractAuthErrors(messages: ChatMessageType[]): string[] {
 export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
-  const { messages, isLoading, error, sendMessage, clearMessages } = useChat(buildSystemPrompt)
+  const { messages, isLoading, error, sessionUsage, sendMessage, clearMessages } = useChat(buildSystemPrompt)
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [showTokenDetails, setShowTokenDetails] = useState(false)
   const [placeholder, setPlaceholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
   const [buttonLabel, setButtonLabel] = useState(() => BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
   const [welcomeMsg, setWelcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
@@ -187,6 +203,37 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
 
         <div ref={messagesEndRef} />
       </div>
+
+      {sessionUsage.totalInputTokens > 0 && (
+        <div className="token-stats">
+          <button
+            className="token-stats__toggle"
+            onClick={() => setShowTokenDetails((prev) => !prev)}
+            title="Toggle token usage details"
+          >
+            {formatTokenCount(sessionUsage.totalInputTokens + sessionUsage.totalOutputTokens)} tokens
+            {showTokenDetails ? ' \u25B4' : ' \u25BE'}
+          </button>
+          {showTokenDetails && (
+            <div className="token-stats__details">
+              <span className="token-stats__item">
+                <span className="token-stats__label">in:</span>
+                {formatTokenCount(sessionUsage.totalInputTokens)}
+              </span>
+              <span className="token-stats__item">
+                <span className="token-stats__label">out:</span>
+                {formatTokenCount(sessionUsage.totalOutputTokens)}
+              </span>
+              {sessionUsage.totalCacheReadTokens > 0 && (
+                <span className="token-stats__item token-stats__cache-hit">
+                  <span className="token-stats__label">cached:</span>
+                  {getCacheHitPercent(sessionUsage)}%
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <form className="chat-panel__input-area" onSubmit={handleSubmit}>
         <input

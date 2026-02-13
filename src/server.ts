@@ -22,7 +22,7 @@ import {
 import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { removeTaskFromCache } from "./utils/cache-utils";
-import { filterCompletedTasks, type CachedTaskData } from "./utils/filter-completed-tasks";
+import { type CachedTaskData, filterCompletedTasks } from "./utils/filter-completed-tasks";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -509,9 +509,19 @@ export function createApp(): express.Application {
         stream: true,
         messages: processedMessages,
       };
-      // Wrap system prompt as cacheable content block for Anthropic prompt caching
+      // Apply prompt caching to the system prompt. The UI sends system as an
+      // array of content blocks: [static instructions, dynamic time context].
+      // We cache only the first (static) block so the time-varying dynamic
+      // block doesn't bust the prompt cache on every request.
       if (system) {
-        body.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+        if (Array.isArray(system)) {
+          body.system = system.map((block: { type: string; text: string }, i: number) =>
+            i === 0 ? { ...block, cache_control: { type: "ephemeral" } } : block
+          );
+        } else {
+          // Backwards compat: single string wraps as a single cached block
+          body.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+        }
       }
       // Mark last tool definition as cacheable so the entire tool list is cached
       if (tools && tools.length > 0) {
@@ -548,17 +558,56 @@ export function createApp(): express.Application {
         return;
       }
 
-      // Pipe the SSE stream from Anthropic directly to the client
+      // Pipe the SSE stream from Anthropic to the client, inspecting
+      // the message_start event to log token usage and cache metrics.
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Convert web ReadableStream to Node.js Readable and pipe to response
-      const { Readable } = await import("node:stream");
+      const { Readable, Transform } = await import("node:stream");
       const nodeStream = Readable.fromWeb(
         anthropicRes.body as import("node:stream/web").ReadableStream
       );
-      nodeStream.pipe(res);
+
+      const logger = getLogger();
+      let sseBuffer = "";
+      let logged = false;
+      const inspector = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          // Pass data through unchanged; inspect for logging only.
+          // We only need the message_start event (always first), so once
+          // logged we skip all further inspection.
+          if (!logged) {
+            sseBuffer += chunk.toString();
+            const lines = sseBuffer.split("\n");
+            // Keep the last (potentially incomplete) line in the buffer
+            sseBuffer = lines.pop()!;
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ") || !line.includes('"message_start"')) continue;
+              try {
+                const event = JSON.parse(line.slice(6).trim());
+                if (event?.type === "message_start" && event?.message?.usage) {
+                  const u = event.message.usage;
+                  logger.info("Chat API input usage", {
+                    model: event.message.model,
+                    input_tokens: u.input_tokens,
+                    cache_creation_input_tokens: u.cache_creation_input_tokens ?? 0,
+                    cache_read_input_tokens: u.cache_read_input_tokens ?? 0,
+                  });
+                  logged = true;
+                }
+              } catch {
+                // Ignore parse errors on partial lines
+              }
+            }
+          }
+
+          callback(null, chunk);
+        },
+      });
+
+      nodeStream.pipe(inspector).pipe(res);
     } catch (err) {
       console.error("Chat proxy failed:", err);
       res.status(500).json({ error: "Chat proxy failed" });

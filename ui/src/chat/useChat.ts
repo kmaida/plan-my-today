@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
+import type { SystemPromptParts } from "./system-prompt";
 import type {
   AnthropicResponse,
   ChatMessage,
   ContentBlock,
   Message,
   StreamEvent,
+  TokenUsage,
   ToolCall,
   ToolDefinition,
 } from "./types";
@@ -44,19 +46,35 @@ function truncateToolResult(text: string): string {
   return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}\n\n[... result truncated due to size ...]`;
 }
 
+/** Accumulated token usage across all turns in the current session. */
+export interface SessionUsage {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheCreationTokens: number;
+  totalCacheReadTokens: number;
+}
+
 export interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
+  /** Accumulated token usage for the entire chat session. */
+  sessionUsage: SessionUsage;
   sendMessage: (text: string) => Promise<void>;
   clearMessages: () => void;
 }
 
-export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
+export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatReturn {
   const { callTool, tools: mcpTools, isConnected } = useMCP();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionUsage, setSessionUsage] = useState<SessionUsage>({
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCacheCreationTokens: 0,
+    totalCacheReadTokens: 0,
+  });
 
   // Keep a ref to the full Anthropic message history (for context continuity)
   const historyRef = useRef<Message[]>([]);
@@ -84,7 +102,12 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
       abortRef.current = abort;
 
       // Add user message to UI
-      const userMsg: ChatMessage = { id: uid(), role: "user", text: userText, timestamp: Date.now() };
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        text: userText,
+        timestamp: Date.now(),
+      };
       setMessages((prev) => [...prev, userMsg]);
 
       // Add to Anthropic history
@@ -92,6 +115,9 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
 
       try {
         const tools = toAnthropicTools(mcpTools);
+        // Compute system prompt once per user message (not per tool round)
+        // so the time context stays consistent across rounds.
+        const systemParts = buildSystemPrompt?.() ?? null;
         let rounds = 0;
 
         // Agentic loop: keep going while Claude wants to call tools
@@ -106,16 +132,28 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
           ]);
 
           const onTextDelta = (accumulated: string) => {
-            setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, text: accumulated } : m)));
+            setMessages((prev) =>
+              prev.map((m) => (m.id === msgId ? { ...m, text: accumulated } : m))
+            );
           };
 
           const response = await streamChatAPI(
             historyRef.current,
             tools,
-            buildSystemPrompt?.(),
+            systemParts,
             onTextDelta,
             abort.signal
           );
+
+          // Accumulate session-level token usage from this turn
+          setSessionUsage((prev) => ({
+            totalInputTokens: prev.totalInputTokens + response.usage.input_tokens,
+            totalOutputTokens: prev.totalOutputTokens + response.usage.output_tokens,
+            totalCacheCreationTokens:
+              prev.totalCacheCreationTokens + (response.usage.cache_creation_input_tokens ?? 0),
+            totalCacheReadTokens:
+              prev.totalCacheReadTokens + (response.usage.cache_read_input_tokens ?? 0),
+          }));
 
           // Extract text and tool_use blocks from the reconstructed response
           const textParts: string[] = [];
@@ -132,9 +170,11 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
           historyRef.current.push({ role: "assistant", content: response.content });
 
           if (response.stop_reason !== "tool_use" || toolUseBlocks.length === 0) {
-            // Final response — update the streaming message with final text
+            // Final response — update the streaming message with final text and usage
             setMessages((prev) =>
-              prev.map((m) => (m.id === msgId ? { ...m, text: fullText } : m))
+              prev.map((m) =>
+                m.id === msgId ? { ...m, text: fullText, usage: response.usage } : m
+              )
             );
             break;
           }
@@ -204,9 +244,15 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
     setMessages([]);
     historyRef.current = [];
     setError(null);
+    setSessionUsage({
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCacheCreationTokens: 0,
+      totalCacheReadTokens: 0,
+    });
   }, []);
 
-  return { messages, isLoading, error, sendMessage, clearMessages };
+  return { messages, isLoading, error, sessionUsage, sendMessage, clearMessages };
 }
 
 // ── Streaming API call ───────────────────────────────────────────────────────
@@ -219,12 +265,19 @@ export function useChat(buildSystemPrompt?: () => string): UseChatReturn {
 async function streamChatAPI(
   messages: Message[],
   tools: ToolDefinition[],
-  system: string | undefined,
+  systemParts: SystemPromptParts | null,
   onText: (text: string) => void,
   signal?: AbortSignal
 ): Promise<AnthropicResponse> {
   const body: Record<string, unknown> = { messages };
-  if (system) body.system = system;
+  // Send the system prompt as two content blocks so the server can cache
+  // the static block independently of the time-varying dynamic block.
+  if (systemParts) {
+    body.system = [
+      { type: "text", text: systemParts.staticPrompt },
+      { type: "text", text: systemParts.dynamicContext },
+    ];
+  }
   if (tools.length > 0) body.tools = tools;
 
   const res = await fetch(`${API_BASE}/chat`, {
@@ -248,7 +301,12 @@ async function streamChatAPI(
   let stopReason: AnthropicResponse["stop_reason"] = null;
   let messageId = "";
   let model = "";
-  const usage = { input_tokens: 0, output_tokens: 0 };
+  const usage: TokenUsage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  };
 
   // Track text accumulation across blocks for the onText callback
   const textParts: string[] = [];
@@ -287,6 +345,9 @@ async function streamChatAPI(
             messageId = event.message.id;
             model = event.message.model;
             usage.input_tokens = event.message.usage.input_tokens;
+            usage.cache_creation_input_tokens =
+              event.message.usage.cache_creation_input_tokens ?? 0;
+            usage.cache_read_input_tokens = event.message.usage.cache_read_input_tokens ?? 0;
             break;
 
           case "content_block_start":
