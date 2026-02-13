@@ -1,4 +1,5 @@
 import { FETCH_LIMITS } from "../../constants";
+import { getLogger } from "../../observability/logger";
 import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
@@ -59,14 +60,17 @@ export async function fetchAllAssignedIssues(
   options: {
     includeCompleted?: boolean;
     limit?: number;
+    /** Extra GraphQL IssueFilter fields merged into the base filter.
+     *  Used by fetchLinearIssues to push actionable-today logic to the API. */
+    additionalFilter?: Record<string, unknown>;
   } = {}
 ): Promise<LinearIssueDetail[]> {
-  const { includeCompleted = false, limit = 50 } = options;
+  const { includeCompleted = false, limit = 50, additionalFilter } = options;
 
   const query = `
     query MyIssues($first: Int, $filter: IssueFilter) {
       viewer {
-        assignedIssues(first: $first, filter: $filter) {
+        assignedIssues(first: $first, filter: $filter, orderBy: updatedAt) {
           nodes {
             id
             identifier
@@ -125,11 +129,17 @@ export async function fetchAllAssignedIssues(
     }
   `;
 
-  const filter = includeCompleted
+  const baseFilter = includeCompleted
     ? {}
     : {
         state: { type: { nin: ["completed", "canceled"] } },
       };
+
+  // Merge caller-supplied filter (e.g. `or` combinator) with the base exclusion.
+  // Keys don't overlap — base has `state`, caller typically adds `or`.
+  const filter = additionalFilter
+    ? { ...baseFilter, ...additionalFilter }
+    : baseFilter;
 
   const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",
@@ -147,6 +157,10 @@ export async function fetchAllAssignedIssues(
     if (response.status === 401 || response.status === 403) {
       throw new AuthenticationError("Linear", response.status);
     }
+    getLogger().withOperation("linear_utils").warn("Linear API error — returning empty results", {
+      status: response.status,
+      statusText: response.statusText,
+    });
     return [];
   }
 
@@ -222,34 +236,26 @@ export async function fetchLinearIssues(
     completedDaysBack: _completedDaysBack = 0,
   } = options;
 
-  // Fetch open issues (excludes completed and canceled at GraphQL level)
-  const issues = await fetchAllAssignedIssues(accessToken, {
+  // Push actionable-today logic to the Linear GraphQL API using the `or` combinator.
+  // Result: (NOT completed/canceled) AND (started OR high-priority OR due-within-window).
+  // This replaces the former client-side filter and lets us fetch fewer items overall.
+  // Build YYYY-MM-DD from local date parts (not toISOString which shifts to UTC).
+  const y = dueByDate.getFullYear();
+  const m = String(dueByDate.getMonth() + 1).padStart(2, "0");
+  const d = String(dueByDate.getDate()).padStart(2, "0");
+  const dueDateStr = `${y}-${m}-${d}`;
+  const actionableFilter = {
+    or: [
+      { state: { type: { eq: "started" } } },
+      { priority: { in: [1, 2] } },
+      { dueDate: { lte: dueDateStr } },
+    ],
+  };
+
+  return fetchAllAssignedIssues(accessToken, {
     includeCompleted: false,
     limit: FETCH_LIMITS.LINEAR,
-  });
-
-  // Filter: include issues that are actionable today
-  // 1. In-progress states (started, blocked, in review, etc.)
-  // 2. Due within the date window (or overdue)
-  // 3. High or Urgent priority (priority ≤ 2), even without a due date
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return issues.filter((issue) => {
-    // In-progress issues always included (started, blocked, in review, etc.)
-    if (issue.state?.type === "started") return true;
-
-    // High or Urgent priority always included (priority: 0=No, 1=Urgent, 2=High, 3=Medium, 4=Low)
-    if (issue.priority >= 1 && issue.priority <= 2) return true;
-
-    // Has a due date within the window or overdue
-    if (issue.dueDate) {
-      const dueDate = parseLocalDate(issue.dueDate);
-      return dueDate <= dueByDate;
-    }
-
-    // Unstarted/backlog with no due date and not high/urgent — skip
-    return false;
+    additionalFilter: actionableFilter,
   });
 }
 

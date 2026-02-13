@@ -1,4 +1,5 @@
 import { TIME_WINDOWS } from "../../constants";
+import { getLogger } from "../../observability/logger";
 import { AuthenticationError } from "../../utils/error-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { GitHubIssueDetail, GitHubPRDetail } from "./types";
@@ -47,16 +48,21 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
   const prs: GitHubPRDetail[] = [];
   const issues: GitHubIssueDetail[] = [];
 
+  // Build date cutoff for API-level filtering (local date parts to avoid UTC shift)
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - TIME_WINDOWS.GITHUB_DAYS);
+  const dateStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}-${String(cutoff.getDate()).padStart(2, "0")}`;
+
   try {
-    // Fetch PRs assigned to the user
+    // Fetch PRs assigned to the user — exclude drafts, limit to 30-day window
     const assignedPRResponse = await fetch(
-      `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}&per_page=10&sort=updated`,
+      `https://api.github.com/search/issues?q=is:pr+is:open+assignee:${username}+updated:>${dateStr}+draft:false&per_page=10&sort=updated`,
       { headers }
     );
 
-    // Fetch PRs requesting review
+    // Fetch PRs requesting review — keep drafts (you may need to review them)
     const reviewPRResponse = await fetch(
-      `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}&per_page=10&sort=updated`,
+      `https://api.github.com/search/issues?q=is:pr+is:open+review-requested:${username}+updated:>${dateStr}&per_page=10&sort=updated`,
       { headers }
     );
 
@@ -174,9 +180,9 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
       }
     }
 
-    // Fetch issues assigned to the user
+    // Fetch issues assigned to the user — limit to 30-day window
     const issuesResponse = await fetch(
-      `https://api.github.com/search/issues?q=is:issue+is:open+assignee:${username}&per_page=10&sort=updated`,
+      `https://api.github.com/search/issues?q=is:issue+is:open+assignee:${username}+updated:>${dateStr}&per_page=10&sort=updated`,
       { headers }
     );
 
@@ -212,25 +218,12 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     }
   } catch (err) {
     if (err instanceof AuthenticationError) throw err;
-    // Silently fail - GitHub is optional
+    getLogger().withOperation("github_utils").warn("GitHub API error — returning empty results", {
+      error: String(err),
+    });
   }
 
-  // Filter out items older than 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - TIME_WINDOWS.GITHUB_DAYS);
-  const thirtyDaysAgoTime = thirtyDaysAgo.getTime();
-
-  const recentPRs = prs.filter((pr) => {
-    const updatedAt = new Date(pr.updatedAt).getTime();
-    return updatedAt >= thirtyDaysAgoTime;
-  });
-
-  const recentIssues = issues.filter((issue) => {
-    const updatedAt = new Date(issue.updatedAt).getTime();
-    return updatedAt >= thirtyDaysAgoTime;
-  });
-
-  return { prs: recentPRs, issues: recentIssues };
+  return { prs, issues };
 }
 
 /**

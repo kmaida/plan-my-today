@@ -1,3 +1,4 @@
+import { getLogger } from "../../observability/logger";
 import { AuthenticationError } from "../../utils/error-utils";
 import type { DocCommentEmail } from "./drive-comments-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
@@ -489,6 +490,10 @@ export async function fetchMeetingSummaries(
     if (messagesResponse.status === 401 || messagesResponse.status === 403) {
       throw new AuthenticationError("Gmail", messagesResponse.status);
     }
+    getLogger().withOperation("email_utils").warn("Gmail meeting summaries API error — returning empty results", {
+      status: messagesResponse.status,
+      statusText: messagesResponse.statusText,
+    });
     return [];
   }
 
@@ -909,6 +914,10 @@ export async function fetchGmailTodos(
     if (messagesResponse.status === 401 || messagesResponse.status === 403) {
       throw new AuthenticationError("Gmail", messagesResponse.status);
     }
+    getLogger().withOperation("email_utils").warn("Gmail todos API error — returning empty results", {
+      status: messagesResponse.status,
+      statusText: messagesResponse.statusText,
+    });
     return { emails: [], docCommentEmails: [] };
   }
 

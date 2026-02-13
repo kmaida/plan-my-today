@@ -111,7 +111,7 @@ async function fetchSlackSavedMessages(
   maxResults: number
 ): Promise<SlackRawMessage[]> {
   const url = new URL("https://slack.com/api/reactions.list");
-  url.searchParams.set("limit", "100");
+  url.searchParams.set("limit", "50");
 
   const response = await fetch(url.toString(), {
     headers: {
