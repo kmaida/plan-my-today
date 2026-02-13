@@ -6,7 +6,7 @@ import { removeOverride, setOverride } from "../services/priority-override-store
 import { categorizeScore } from "../tools/today-todos/priority-utils";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
+const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
 
 /**
  * Map priority category names to midpoint scores.
@@ -56,23 +56,23 @@ const setTaskPriorityInputSchema = {
     .optional(),
 };
 
-// ── Cache helpers ────────────────────────────────────────────────────
+// ── Task store helpers ──────────────────────────────────────────────
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- cache items are untyped JSON */
+/* eslint-disable @typescript-eslint/no-explicit-any -- task store items are untyped JSON */
 
-/** Extract a display title from any cache item, falling back to stableId. */
+/** Extract a display title from any task store item, falling back to stableId. */
 function getTaskTitle(item: any, fallback: string): string {
   return item.title || item.summary || item.subject || item.text || item.fileTitle || fallback;
 }
 
 /**
- * Walk every array in the cache (flat or nested one level) and call `callback`
+ * Walk every array in the task store (flat or nested one level) and call `callback`
  * for each item matching `stableId`. Returns the containing array if found.
  *
- * The cache shape is `{ calendar: [...], github: { prs: [...], issues: [...] }, ... }`.
+ * The task store shape is `{ calendar: [...], github: { prs: [...], issues: [...] }, ... }`.
  * This traversal handles both cases without duplication.
  */
-function traverseCacheArrays(
+function traverseStoreArrays(
   data: Record<string, any>,
   stableId: string,
   callback: (item: any) => void
@@ -105,7 +105,7 @@ function traverseCacheArrays(
 }
 
 /**
- * Mutate a single cache item's priorityMetadata to apply or clear an override.
+ * Mutate a single task store item's priorityMetadata to apply or clear an override.
  * Returns true if the item was actually modified.
  */
 function mutateTaskOverride(
@@ -146,19 +146,19 @@ function mutateTaskOverride(
 
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// ── Cache read/write ─────────────────────────────────────────────────
+// ── Task store read/write ───────────────────────────────────────────
 
 /**
- * Find a task in the cache by stableId and return its current score + title.
- * Returns null if not found or cache is unreadable.
+ * Find a task in the task store by stableId and return its current score + title.
+ * Returns null if not found or task store is unreadable.
  */
-async function findTaskInCache(stableId: string): Promise<{ score: number; title: string } | null> {
+async function findTaskInStore(stableId: string): Promise<{ score: number; title: string } | null> {
   try {
-    const raw = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
+    const raw = await fs.readFile(TASK_STORE_PATH, "utf-8");
     const data = JSON.parse(raw);
     let result: { score: number; title: string } | null = null;
 
-    traverseCacheArrays(data, stableId, (item) => {
+    traverseStoreArrays(data, stableId, (item) => {
       result = {
         score: item.priorityMetadata?.score ?? 0,
         title: getTaskTitle(item, stableId),
@@ -172,10 +172,10 @@ async function findTaskInCache(stableId: string): Promise<{ score: number; title
 }
 
 /**
- * Update the cache in-place: apply or clear override on matching task, re-sort, write back.
+ * Update the task store in-place: apply or clear override on matching task, re-sort, write back.
  * Non-fatal on errors — the override store is the source of truth.
  */
-async function updateCacheWithOverride(
+async function updateStoreWithOverride(
   stableId: string,
   overrideScore: number,
   reason: string,
@@ -183,11 +183,11 @@ async function updateCacheWithOverride(
   clear: boolean
 ): Promise<void> {
   try {
-    const raw = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
+    const raw = await fs.readFile(TASK_STORE_PATH, "utf-8");
     const data = JSON.parse(raw);
     let modified = false;
 
-    const containingArray = traverseCacheArrays(data, stableId, (item) => {
+    const containingArray = traverseStoreArrays(data, stableId, (item) => {
       modified = mutateTaskOverride(item, overrideScore, reason, appliedAt, clear);
     });
 
@@ -198,7 +198,7 @@ async function updateCacheWithOverride(
           b: { priorityMetadata?: { score?: number } }
         ) => (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0)
       );
-      await fs.writeFile(TASKS_CACHE_PATH, JSON.stringify(data, null, 2));
+      await fs.writeFile(TASK_STORE_PATH, JSON.stringify(data, null, 2));
     }
   } catch {
     // Non-fatal — override store is the source of truth
@@ -212,7 +212,7 @@ async function updateCacheWithOverride(
  *
  * Allows the agent to boost or demote a task's priority score.
  * Overrides persist in data/priority-overrides.json and are applied
- * on every list-all-tasks-today call. The dashboard cache is also
+ * on every list-all-tasks-today call. The task store is also
  * updated immediately so the UI reflects changes without a full refetch.
  */
 export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
@@ -235,7 +235,7 @@ export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
         // Handle clear
         if (shouldClear) {
           await removeOverride(stableId);
-          await updateCacheWithOverride(stableId, 0, "", "", true);
+          await updateStoreWithOverride(stableId, 0, "", "", true);
           return {
             content: [
               {
@@ -262,10 +262,10 @@ export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
           };
         }
 
-        // Look up current score from cache
-        const cached = await findTaskInCache(stableId);
-        const originalScore = cached?.score ?? 0;
-        const taskTitle = cached?.title ?? stableId;
+        // Look up current score from task store
+        const existing = await findTaskInStore(stableId);
+        const originalScore = existing?.score ?? 0;
+        const taskTitle = existing?.title ?? stableId;
 
         const now = new Date().toISOString();
 
@@ -278,8 +278,8 @@ export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
           lastSeenAt: now,
         });
 
-        // Update cache so dashboard reflects the change immediately
-        await updateCacheWithOverride(stableId, targetScore, reason, now, false);
+        // Update task store so dashboard reflects the change immediately
+        await updateStoreWithOverride(stableId, targetScore, reason, now, false);
 
         const oldCategory = categorizeScore(originalScore);
         const newCategory = categorizeScore(targetScore);

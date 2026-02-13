@@ -2,10 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PATHS } from "../constants";
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
+const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
 
 /**
- * Remove a completed task from the cached tasks JSON file by taskId.
+ * Remove a completed task from the task store JSON file by taskId.
  * Searches both flat arrays (e.g., `linear: [...]`) and nested objects
  * (e.g., `github: { prs: [...], issues: [...] }`). Skips the `metadata` key.
  *
@@ -15,15 +15,15 @@ const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
  * If the agent writes a full refresh of latest-tasks.json at the same
  * time the dashboard evicts a single task, one write can overwrite the other.
  *
- * @param taskId - The taskId to remove from the cache
- * @param cachePath - Path to the JSON file (defaults to data/latest-tasks.json)
+ * @param taskId - The taskId to remove from the task store
+ * @param storePath - Path to the JSON file (defaults to data/latest-tasks.json)
  */
-export async function removeTaskFromCache(
+export async function removeTaskFromStore(
   taskId: string,
-  cachePath: string = TASKS_CACHE_PATH
+  storePath: string = TASK_STORE_PATH
 ): Promise<void> {
   try {
-    const raw = await fs.readFile(cachePath, "utf-8");
+    const raw = await fs.readFile(storePath, "utf-8");
     const data = JSON.parse(raw);
     let removed = false;
 
@@ -50,7 +50,7 @@ export async function removeTaskFromCache(
     }
 
     if (removed) {
-      await fs.writeFile(cachePath, JSON.stringify(data, null, 2));
+      await fs.writeFile(storePath, JSON.stringify(data, null, 2));
     }
   } catch {
     // Non-fatal — optimistic UI removal still works

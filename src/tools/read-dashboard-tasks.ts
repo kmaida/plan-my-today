@@ -3,12 +3,12 @@ import * as path from "node:path";
 import { z } from "zod/v3";
 import { PATHS } from "../constants";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
-import { filterCompletedTasks, type CachedTaskData } from "../utils/filter-completed-tasks";
+import { filterCompletedTasks, type TaskStoreData } from "../utils/filter-completed-tasks";
 
-const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
+const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
 
 /**
- * Valid source keys in the cached latest-tasks.json.
+ * Valid source keys in the task store (latest-tasks.json).
  * These match the top-level keys of ListAllTasksResponse.
  */
 const VALID_SOURCES = [
@@ -39,7 +39,7 @@ const readDashboardTasksInputSchema = {
 /**
  * Registers the read-dashboard-tasks tool with the MCP server.
  *
- * Reads the locally cached latest-tasks.json (written by list-all-tasks-today)
+ * Reads the task store file latest-tasks.json (written by list-all-tasks-today)
  * and returns the full task data. This is a free local file read with
  * no API calls or token exchanges. Use it when the agent needs to access
  * task details after a list-all-tasks-today fetch.
@@ -62,11 +62,11 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
     },
     (async (args, _extra) => {
       try {
-        const raw = await fs.readFile(TASKS_CACHE_PATH, "utf-8");
+        const raw = await fs.readFile(TASK_STORE_PATH, "utf-8");
         const data = JSON.parse(raw) as Record<string, unknown>;
 
         // Filter dismissed items so reads are consistent with the UI
-        await filterCompletedTasks(data as CachedTaskData);
+        await filterCompletedTasks(data as TaskStoreData);
 
         if (args.source) {
           // Return only the requested source + metadata for context
@@ -84,7 +84,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
           };
         }
 
-        // Return the full cached data
+        // Return the full task store data
         return {
           content: [
             {
@@ -105,7 +105,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
             content: [
               {
                 type: "text",
-                text: "No cached task data yet. Call list-all-tasks-today first to populate the cache.",
+                text: "No task store data yet. Call list-all-tasks-today first to populate the task store.",
               },
             ],
           };
@@ -116,7 +116,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
           content: [
             {
               type: "text",
-              text: `Error reading cached tasks: ${message}`,
+              text: `Error reading task store: ${message}`,
             },
           ],
         };

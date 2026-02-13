@@ -607,11 +607,11 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       };
 
       // Filter dismissed tasks at the source so every consumer
-      // (MCP response, cache file, REST readers) gets clean data.
+      // (MCP response, task store file, REST readers) gets clean data.
       await filterCompletedTasks(responseData);
 
       // Write full data to local file so the UI can read it without auth.
-      // Awaited so the cache is fresh when the UI re-fetches after a chat tool call.
+      // Awaited so the task store is fresh when the UI re-fetches after a chat tool call.
       try {
         const dataDir = path.join(process.cwd(), "data");
         await fs.mkdir(dataDir, { recursive: true });
@@ -620,7 +620,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           JSON.stringify(responseData, null, 2)
         );
       } catch {
-        // Non-fatal: UI cache write failed
+        // Non-fatal: task store write failed
       }
 
       // Return confirmation with per-source counts.
