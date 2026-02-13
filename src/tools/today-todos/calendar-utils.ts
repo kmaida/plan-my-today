@@ -128,7 +128,15 @@ export function calculateCalendarPriority(event: CalendarEventDetail, now: Date)
     return {
       score,
       category: categorizeScore(score),
-      signals: { eventType: "focusTime", reserved, isPrep, hasVideoLink: hasVideo, attendeeCount, minutesUntilStart, proximity },
+      signals: {
+        eventType: "focusTime",
+        reserved,
+        isPrep,
+        hasVideoLink: hasVideo,
+        attendeeCount,
+        minutesUntilStart,
+        proximity,
+      },
       reasons,
     };
   }
@@ -140,12 +148,23 @@ export function calculateCalendarPriority(event: CalendarEventDetail, now: Date)
     return {
       score,
       category: categorizeScore(score),
-      signals: { eventType: "outOfOffice", reserved, hasVideoLink: false, attendeeCount, minutesUntilStart, proximity },
+      signals: {
+        eventType: "outOfOffice",
+        reserved,
+        hasVideoLink: false,
+        attendeeCount,
+        minutesUntilStart,
+        proximity,
+      },
       reasons,
     };
   }
 
-  if (apiEventType === "workingLocation" || apiEventType === "birthday" || apiEventType === "fromGmail") {
+  if (
+    apiEventType === "workingLocation" ||
+    apiEventType === "birthday" ||
+    apiEventType === "fromGmail"
+  ) {
     const labelMap: Record<string, string> = {
       workingLocation: "Working location",
       birthday: "Birthday",
@@ -154,7 +173,14 @@ export function calculateCalendarPriority(event: CalendarEventDetail, now: Date)
     return {
       score: apiEventType === "birthday" ? 5 : 10,
       category: "low",
-      signals: { eventType: apiEventType, reserved, hasVideoLink: false, attendeeCount, minutesUntilStart, proximity },
+      signals: {
+        eventType: apiEventType,
+        reserved,
+        hasVideoLink: false,
+        attendeeCount,
+        minutesUntilStart,
+        proximity,
+      },
       reasons: [labelMap[apiEventType]],
     };
   }

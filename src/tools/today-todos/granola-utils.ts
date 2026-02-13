@@ -184,7 +184,12 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
     while (bulletMatch !== null) {
       const text = bulletMatch[1].trim();
       // Skip if it's a checkbox item (already captured)
-      if (text && isValidActionText(text) && !text.startsWith("[") && !seenItems.has(text.toLowerCase())) {
+      if (
+        text &&
+        isValidActionText(text) &&
+        !text.startsWith("[") &&
+        !seenItems.has(text.toLowerCase())
+      ) {
         seenItems.add(text.toLowerCase());
         const assignee = extractAssignee(text);
         actionItems.push({
@@ -261,8 +266,19 @@ export function extractActionItemsFromContent(content: string): ExtractedActionI
 
 /** Common label words that can start a line with a colon but aren't people names. */
 const NON_NAME_PREFIXES = new Set([
-  "note", "action", "todo", "fixme", "update", "important", "reminder",
-  "context", "background", "summary", "decision", "question", "example",
+  "note",
+  "action",
+  "todo",
+  "fixme",
+  "update",
+  "important",
+  "reminder",
+  "context",
+  "background",
+  "summary",
+  "decision",
+  "question",
+  "example",
 ]);
 
 /**

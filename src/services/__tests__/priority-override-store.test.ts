@@ -26,7 +26,7 @@ beforeEach(async () => {
   await fs.mkdir(path.dirname(OVERRIDES_FILE), { recursive: true });
   await fs.writeFile(
     OVERRIDES_FILE,
-    JSON.stringify({ overrides: {}, lastPruned: new Date().toISOString() }),
+    JSON.stringify({ overrides: {}, lastPruned: new Date().toISOString() })
   );
 });
 
@@ -239,7 +239,10 @@ describe("applyOverridesToTasks", () => {
     });
 
     const tasks = [
-      { stableId: "", priorityMetadata: { score: 100, category: "medium" as const, signals: {}, reasons: [] } },
+      {
+        stableId: "",
+        priorityMetadata: { score: 100, category: "medium" as const, signals: {}, reasons: [] },
+      },
       { stableId: "linear:KEY-1", priorityMetadata: undefined },
     ];
 

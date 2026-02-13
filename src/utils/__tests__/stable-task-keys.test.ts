@@ -45,7 +45,7 @@ describe("computeStableId", () => {
 
   it("should produce github-pr:{repo}:{number}", () => {
     expect(computeStableId("github-pr", { repo: "org/repo", number: 42 })).toBe(
-      "github-pr:org/repo:42",
+      "github-pr:org/repo:42"
     );
   });
 
@@ -61,7 +61,7 @@ describe("computeStableId", () => {
 
   it("should produce github-issue:{repo}:{number}", () => {
     expect(computeStableId("github-issue", { repo: "org/repo", number: 15 })).toBe(
-      "github-issue:org/repo:15",
+      "github-issue:org/repo:15"
     );
   });
 
@@ -73,13 +73,13 @@ describe("computeStableId", () => {
         dismissalId: "C012:1234567890.123",
         channel: "C012",
         timestamp: "1234567890.123",
-      }),
+      })
     ).toBe("slack:C012:1234567890.123");
   });
 
   it("should fall back to channel:timestamp when dismissalId is missing", () => {
     expect(computeStableId("slack", { channel: "C012", timestamp: "1234567890.123" })).toBe(
-      "slack:C012:1234567890.123",
+      "slack:C012:1234567890.123"
     );
   });
 
@@ -91,13 +91,13 @@ describe("computeStableId", () => {
 
   it("should produce docs:{fileLink} when fileLink present", () => {
     expect(computeStableId("docs", { fileLink: "https://docs.google.com/d/abc" })).toBe(
-      "docs:https://docs.google.com/d/abc",
+      "docs:https://docs.google.com/d/abc"
     );
   });
 
   it("should fall back to fileTitle when fileLink is null", () => {
     expect(computeStableId("docs", { fileLink: null, fileTitle: "My Document" })).toBe(
-      "docs:My Document",
+      "docs:My Document"
     );
   });
 
@@ -139,7 +139,7 @@ describe("computeStableId", () => {
 
   it("should produce meeting-summary:{link}", () => {
     expect(computeStableId("meeting-summary", { link: "https://mail.google.com/..." })).toBe(
-      "meeting-summary:https://mail.google.com/...",
+      "meeting-summary:https://mail.google.com/..."
     );
   });
 

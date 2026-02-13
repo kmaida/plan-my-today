@@ -710,13 +710,14 @@ export function extractDocCommentEmails(messages: GmailFullMessage[]): {
     const titleMatch = subject.match(DOC_COMMENT_SUBJECT_PATTERN);
     const fileTitle = titleMatch?.[1]?.trim() || subject || "Untitled";
 
-    const emailTimestamp = message.internalDate
-      ? parseInt(message.internalDate, 10)
-      : undefined;
+    const emailTimestamp = message.internalDate ? parseInt(message.internalDate, 10) : undefined;
 
     // Dedup: keep the most recent comment email per doc
     const existing = seenFileIds.get(fileId);
-    if (!existing || (emailTimestamp && (!existing.emailTimestamp || emailTimestamp > existing.emailTimestamp))) {
+    if (
+      !existing ||
+      (emailTimestamp && (!existing.emailTimestamp || emailTimestamp > existing.emailTimestamp))
+    ) {
       const entry: DocCommentEmail = { fileId, fileTitle, commentUrl, emailTimestamp };
       seenFileIds.set(fileId, entry);
     }

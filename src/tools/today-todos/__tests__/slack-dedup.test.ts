@@ -51,10 +51,10 @@ describe("deduplicateAndGroup", () => {
 
       const result = deduplicateAndGroup(
         [msg], // mentions
-        [],    // threads
+        [], // threads
         [msg], // dms (same ts)
-        [],    // saved
-        USER_ID,
+        [], // saved
+        USER_ID
       );
 
       expect(result).toHaveLength(1);
@@ -72,7 +72,7 @@ describe("deduplicateAndGroup", () => {
         [],
         [dmMsg], // dms
         [],
-        USER_ID,
+        USER_ID
       );
 
       expect(result).toHaveLength(1);
@@ -110,7 +110,7 @@ describe("deduplicateAndGroup", () => {
         [],
         [],
         [msg], // saved (processed first)
-        USER_ID,
+        USER_ID
       );
 
       expect(result).toHaveLength(1);
@@ -160,13 +160,7 @@ describe("deduplicateAndGroup", () => {
       const thread = makeRaw({ ts: "3000.000000" });
       const dm = makeRaw({ ts: "4000.000000" });
 
-      const result = deduplicateAndGroup(
-        [mention],
-        [thread],
-        [dm],
-        [saved],
-        USER_ID,
-      );
+      const result = deduplicateAndGroup([mention], [thread], [dm], [saved], USER_ID);
 
       expect(result).toHaveLength(4);
       // Sorted by timestamp descending
@@ -279,11 +273,7 @@ describe("deduplicateAndGroup", () => {
       // Feed in reverse order to confirm sorting happens
       const result = deduplicateAndGroup([old, recent, mid], [], [], [], USER_ID);
 
-      expect(result.map((r) => r.timestamp)).toEqual([
-        "3000.000000",
-        "2000.000000",
-        "1000.000000",
-      ]);
+      expect(result.map((r) => r.timestamp)).toEqual(["3000.000000", "2000.000000", "1000.000000"]);
     });
 
     it("should sort correctly when messages come from different categories", () => {
@@ -291,19 +281,9 @@ describe("deduplicateAndGroup", () => {
       const mentionNew = makeRaw({ ts: "3000.000000" });
       const dmMid = makeRaw({ ts: "2000.000000" });
 
-      const result = deduplicateAndGroup(
-        [mentionNew],
-        [],
-        [dmMid],
-        [savedOld],
-        USER_ID,
-      );
+      const result = deduplicateAndGroup([mentionNew], [], [dmMid], [savedOld], USER_ID);
 
-      expect(result.map((r) => r.timestamp)).toEqual([
-        "3000.000000",
-        "2000.000000",
-        "1000.000000",
-      ]);
+      expect(result.map((r) => r.timestamp)).toEqual(["3000.000000", "2000.000000", "1000.000000"]);
     });
   });
 

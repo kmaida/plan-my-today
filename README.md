@@ -27,10 +27,9 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 │  │  OAuth 2.0 + Token Exchange           │               │
 │  │  ├── Google (Calendar, Gmail, Docs)   │               │
 │  │  ├── Linear                           │               │
-│  │  └── GitHub                           │               │
+│  │  ├── GitHub                           │               │
+│  │  └── Slack                            │               │
 │  └───────────────────────────────────────┘               │
-│             + direct API token:                           │
-│             └── Slack (user OAuth token)                  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -118,7 +117,7 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 
 ### OAuth & Auth
 - OAuth 2.0 via Keycard with PKCE
-- Token exchange for Google, Linear, and GitHub APIs
+- Token exchange for Google, Linear, GitHub, and Slack APIs
 - Auth error banner with reauthorization flow
 - Session persistence
 
@@ -218,7 +217,7 @@ ui/
 
 ## Service Setup
 
-Each data source requires configuration in Keycard (or a direct API token for Slack).
+Each data source requires configuration in Keycard.
 
 ### Google Services (Calendar, Gmail, Docs, Drive)
 

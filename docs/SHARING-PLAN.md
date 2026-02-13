@@ -153,8 +153,7 @@ Create `config.schema.json` and document required settings:
 ```json
 {
   "slack": {
-    "userToken": "xoxp-...",
-    "emojiName": "my-custom-emoji"  // Per-user customization!
+    "emojiName": "my-custom-emoji"  // Per-user customization (optional)
   },
   "services": {
     "calendar": { "enabled": true },

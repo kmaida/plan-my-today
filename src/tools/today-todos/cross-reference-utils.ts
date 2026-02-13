@@ -23,7 +23,7 @@ export function detectLinearMentions(
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[],
   meetingNotes?: MeetingNoteActionDetail[],
-  meetingSummaries?: MeetingSummaryDetail[],
+  meetingSummaries?: MeetingSummaryDetail[]
 ): CrossReferenceMetadata {
   const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string; url?: string }> = [];
@@ -108,7 +108,7 @@ export function detectGitHubMentions(
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[],
   meetingNotes?: MeetingNoteActionDetail[],
-  meetingSummaries?: MeetingSummaryDetail[],
+  meetingSummaries?: MeetingSummaryDetail[]
 ): CrossReferenceMetadata {
   const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string; url?: string }> = [];

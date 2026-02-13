@@ -172,7 +172,7 @@ describe("detectLinearMentions", () => {
       "KIM-99",
       [],
       [],
-      [makeMeetingNote({ actionItem: "Follow up on KIM-99 auth migration" })],
+      [makeMeetingNote({ actionItem: "Follow up on KIM-99 auth migration" })]
     );
     expect(result.totalMentions).toBe(1);
     expect(result.mentionedIn).toContain("meeting-notes");
@@ -185,7 +185,7 @@ describe("detectLinearMentions", () => {
       [],
       [],
       [],
-      [makeMeetingSummary({ subject: "Meeting recap", snippet: "Discussed KIM-55 progress" })],
+      [makeMeetingSummary({ subject: "Meeting recap", snippet: "Discussed KIM-55 progress" })]
     );
     expect(result.totalMentions).toBe(1);
     expect(result.mentionedIn).toContain("gmail");
@@ -204,7 +204,12 @@ describe("detectLinearMentions", () => {
     const result = detectLinearMentions(
       "KIM-1",
       [],
-      [makeSlackMsg({ text: "KIM-1 is blocked", permalink: "https://slack.com/archives/C123/p123" })]
+      [
+        makeSlackMsg({
+          text: "KIM-1 is blocked",
+          permalink: "https://slack.com/archives/C123/p123",
+        }),
+      ]
     );
     expect(result.relatedItems[0].url).toBe("https://slack.com/archives/C123/p123");
   });
@@ -301,7 +306,7 @@ describe("detectGitHubMentions", () => {
       42,
       [],
       [],
-      [makeMeetingNote({ actionItem: "Merge github.com/org/repo/pull/42 before release" })],
+      [makeMeetingNote({ actionItem: "Merge github.com/org/repo/pull/42 before release" })]
     );
     expect(result.totalMentions).toBe(1);
     expect(result.mentionedIn).toContain("meeting-notes");
@@ -314,7 +319,7 @@ describe("detectGitHubMentions", () => {
       [],
       [],
       [],
-      [makeMeetingSummary({ subject: "Sprint recap", snippet: "Discussed org/repo#42" })],
+      [makeMeetingSummary({ subject: "Sprint recap", snippet: "Discussed org/repo#42" })]
     );
     expect(result.totalMentions).toBe(1);
   });
