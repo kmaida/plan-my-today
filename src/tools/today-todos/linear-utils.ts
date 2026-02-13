@@ -137,9 +137,7 @@ export async function fetchAllAssignedIssues(
 
   // Merge caller-supplied filter (e.g. `or` combinator) with the base exclusion.
   // Keys don't overlap — base has `state`, caller typically adds `or`.
-  const filter = additionalFilter
-    ? { ...baseFilter, ...additionalFilter }
-    : baseFilter;
+  const filter = additionalFilter ? { ...baseFilter, ...additionalFilter } : baseFilter;
 
   const response = await fetch("https://api.linear.app/graphql", {
     method: "POST",

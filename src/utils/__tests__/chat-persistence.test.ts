@@ -39,9 +39,7 @@ const sampleMessages: ChatMessage[] = [
     role: "assistant",
     text: "Here is your plan.",
     timestamp: 2000,
-    toolCalls: [
-      { id: "tc1", name: "list-all-tasks-today", input: {}, result: '{"calendar":[]}' },
-    ],
+    toolCalls: [{ id: "tc1", name: "list-all-tasks-today", input: {}, result: '{"calendar":[]}' }],
     usage: { input_tokens: 500, output_tokens: 200 },
   },
 ];
@@ -59,9 +57,7 @@ const sampleHistory: Message[] = [
   },
   {
     role: "user",
-    content: [
-      { type: "tool_result", tool_use_id: "tc1", content: '{"calendar":[]}' },
-    ],
+    content: [{ type: "tool_result", tool_use_id: "tc1", content: '{"calendar":[]}' }],
   },
 ];
 
@@ -128,7 +124,7 @@ describe("saveChatState + restoreChatState", () => {
 
     const restored = restoreChatState();
     const userMsg = restored!.history.find(
-      (m) => m.role === "user" && typeof m.content === "string",
+      (m) => m.role === "user" && typeof m.content === "string"
     );
     expect(userMsg).toEqual({ role: "user", content: "Plan my day" });
   });
@@ -139,7 +135,7 @@ describe("saveChatState + restoreChatState", () => {
     const restored = restoreChatState();
     // The tool_result message
     const toolResultMsg = restored!.history.find(
-      (m) => m.role === "user" && Array.isArray(m.content),
+      (m) => m.role === "user" && Array.isArray(m.content)
     );
     expect(toolResultMsg).toBeDefined();
     expect(toolResultMsg!.content).toEqual([
@@ -227,9 +223,7 @@ describe("error handling", () => {
     });
 
     // Should not throw
-    expect(() =>
-      saveChatState(sampleMessages, sampleHistory, sampleUsage),
-    ).not.toThrow();
+    expect(() => saveChatState(sampleMessages, sampleHistory, sampleUsage)).not.toThrow();
   });
 
   it("should return null when sessionStorage.getItem throws", () => {

@@ -218,9 +218,11 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     }
   } catch (err) {
     if (err instanceof AuthenticationError) throw err;
-    getLogger().withOperation("github_utils").warn("GitHub API error — returning empty results", {
-      error: String(err),
-    });
+    getLogger()
+      .withOperation("github_utils")
+      .warn("GitHub API error — returning empty results", {
+        error: String(err),
+      });
   }
 
   return { prs, issues };
