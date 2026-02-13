@@ -199,10 +199,6 @@
   font-style: italic;
 }
 
-.app-header__controls {
-  margin-top: var(--space-lg);
-}
-
 .app-main {
   flex: 1;
   max-width: 800px;

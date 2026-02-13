@@ -2,7 +2,7 @@
 
 import { config } from "./config";
 import { initializeLogger } from "./observability/logger";
-import { initializeTelemetry } from "./observability/telemetry";
+import { initializeTelemetry, shutdownTelemetry } from "./observability/telemetry";
 import { startServer } from "./server";
 
 // Initialize observability if enabled
@@ -16,5 +16,13 @@ initializeLogger({
   version: config.observability.serviceVersion,
   environment: config.observability.environment,
 });
+
+// Graceful shutdown: flush pending OTel spans before exit
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, async () => {
+    await shutdownTelemetry();
+    process.exit(0);
+  });
+}
 
 startServer();

@@ -3,6 +3,8 @@
  * Centralizes magic numbers for maintainability and documentation
  */
 
+import { config } from "./config";
+
 /** Calendar and scheduling defaults */
 export const CALENDAR = {
   /** Default work day start hour (24-hour format) */
@@ -38,7 +40,7 @@ export const TIME_WINDOWS = {
 /** Slack saved messages configuration */
 export const SLACK_SAVED_MESSAGES = {
   /** Emoji name to track as "saved" (without colons, e.g., "mcp-todo-reminder") */
-  EMOJI_NAME: process.env.SLACK_EMOJI_NAME || "mcp-todo-reminder",
+  EMOJI_NAME: config.slackEmojiName,
   /** Lookback window for saved messages (in days) */
   DAYS_BACK: 14,
   /** Maximum saved messages to fetch */
