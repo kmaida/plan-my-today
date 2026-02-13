@@ -145,6 +145,13 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
     [crossRefs?.mentionedIn, task.source],
   )
   const hasCrossReferences = otherSources.length > 0 || (crossRefs?.relatedItems && crossRefs.relatedItems.length > 0)
+  const labelSources = useMemo(() => {
+    const sources = new Set(otherSources.map(getSourceLabel))
+    crossRefs?.relatedItems?.forEach((item: RelatedItem) => {
+      sources.add(getSourceLabel(item.source))
+    })
+    return Array.from(sources)
+  }, [otherSources, crossRefs?.relatedItems])
 
   const priorityLabel = getPriorityLabel(task.priorityMetadata.category)
 
@@ -238,7 +245,7 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
           >
             <Chevron direction={isExpanded ? 'down' : 'right'} size={12} className="task-card__expand-icon" />
             <span className="task-card__cross-refs-label">
-              Referenced in: {otherSources.map((source: TaskSource) => getSourceLabel(source)).join(', ')}
+              Referenced in:{labelSources.length > 0 ? ` ${labelSources.join(', ')}` : ''}
             </span>
           </div>
 
@@ -254,7 +261,7 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
                         {item.snippet}
                       </a>
                     ) : (
-                      <span>{item.snippet}</span>
+                      <span className="task-card__related-snippet">{item.snippet}</span>
                     )
                   )}
                 </li>

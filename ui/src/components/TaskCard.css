@@ -150,6 +150,7 @@
   gap: var(--space-xs);
   padding: var(--space-xs) 0;
   color: var(--color-text-secondary);
+  min-width: 0;
 }
 
 .task-card__related-list li > .source-icon {
@@ -158,6 +159,14 @@
 
 .task-card__related-sep {
   color: var(--color-text-tertiary);
+}
+
+.task-card__related-link,
+.task-card__related-snippet {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .task-card__related-link {
