@@ -15,6 +15,42 @@ export interface DependencyMetadata {
 }
 
 /**
+ * A related Linear issue reference from the API
+ */
+export interface LinearRelatedIssueRef {
+  identifier: string;
+  title: string;
+  url: string;
+  state: { name: string; type: string } | null;
+}
+
+/**
+ * Linear relation types as returned by the API.
+ * "blocks" = this issue blocks the related issue (directional)
+ * "duplicate" = this issue is a duplicate of the related issue
+ * "related" = general relationship
+ */
+export type LinearRelationType = "blocks" | "duplicate" | "related";
+
+/**
+ * A single Linear issue relation
+ */
+export interface LinearRelation {
+  type: LinearRelationType;
+  relatedIssue: LinearRelatedIssueRef;
+}
+
+/**
+ * Aggregated relation metadata for a Linear issue.
+ * Built from the GraphQL parent/children/relations fields at fetch time.
+ */
+export interface LinearRelationMetadata {
+  parent: LinearRelatedIssueRef | null;
+  children: LinearRelatedIssueRef[];
+  relations: LinearRelation[];
+}
+
+/**
  * Cross-reference metadata (same item mentioned across multiple sources)
  */
 export interface CrossReferenceMetadata {
@@ -108,6 +144,7 @@ export interface LinearIssueDetail {
   priorityMetadata?: PriorityMetadata;
   dependencyMetadata?: DependencyMetadata;
   crossReferenceMetadata?: CrossReferenceMetadata;
+  relationMetadata?: LinearRelationMetadata;
 }
 
 /**
@@ -238,7 +275,11 @@ export interface MeetingNoteActionDetail {
 // ── Enriched types (after taskId + priority assignment in list-all-tasks-today) ──
 
 /** Fields added to every item during enrichment */
-export type Enriched<T> = T & { taskId: string; stableId: string; priorityMetadata: PriorityMetadata };
+export type Enriched<T> = T & {
+  taskId: string;
+  stableId: string;
+  priorityMetadata: PriorityMetadata;
+};
 
 export type EnrichedCalendarEvent = Enriched<CalendarEventDetail>;
 export type EnrichedLinearIssue = Enriched<LinearIssueDetail>;

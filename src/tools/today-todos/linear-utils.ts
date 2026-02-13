@@ -2,7 +2,50 @@ import { FETCH_LIMITS } from "../../constants";
 import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
-import type { CalendarEventDetail, CategorizedIssues, LinearIssueDetail } from "./types";
+import type {
+  CalendarEventDetail,
+  CategorizedIssues,
+  LinearIssueDetail,
+  LinearRelatedIssueRef,
+  LinearRelationType,
+} from "./types";
+
+/** Known Linear relation types we handle. Others are silently dropped. */
+const KNOWN_RELATION_TYPES = new Set<string>(["blocks", "duplicate", "related"]);
+
+/** Display labels for Linear relation types, used in cross-ref snippets and markdown output */
+export const RELATION_LABELS: Record<string, string> = {
+  blocks: "Blocks",
+  duplicate: "Duplicate of",
+  related: "Related",
+};
+
+/**
+ * Raw shape of a single issue node from the Linear GraphQL response.
+ * Kept local — consumers only see the cleaned LinearIssueDetail.
+ */
+interface RawLinearIssueNode {
+  id: string;
+  identifier: string;
+  title: string;
+  priority: number;
+  priorityLabel: string;
+  url: string;
+  state: { name: string; type: string } | null;
+  dueDate: string | null;
+  estimate: number | null;
+  project: { name: string } | null;
+  completedAt?: string | null;
+  updatedAt?: string | null;
+  parent?: LinearRelatedIssueRef | null;
+  children?: { nodes: LinearRelatedIssueRef[] };
+  relations?: {
+    nodes: Array<{
+      type: string;
+      relatedIssue: LinearRelatedIssueRef;
+    }>;
+  };
+}
 
 /**
  * Fetches all Linear issues assigned to the user
@@ -42,6 +85,40 @@ export async function fetchAllAssignedIssues(
             }
             completedAt
             updatedAt
+            parent {
+              identifier
+              title
+              url
+              state {
+                name
+                type
+              }
+            }
+            children {
+              nodes {
+                identifier
+                title
+                url
+                state {
+                  name
+                  type
+                }
+              }
+            }
+            relations {
+              nodes {
+                type
+                relatedIssue {
+                  identifier
+                  title
+                  url
+                  state {
+                    name
+                    type
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -77,13 +154,33 @@ export async function fetchAllAssignedIssues(
     data?: {
       viewer?: {
         assignedIssues?: {
-          nodes: LinearIssueDetail[];
+          nodes: RawLinearIssueNode[];
         };
       };
     };
   };
 
-  const issues = data.data?.viewer?.assignedIssues?.nodes || [];
+  const rawNodes = data.data?.viewer?.assignedIssues?.nodes || [];
+
+  // Map raw GraphQL nodes to LinearIssueDetail, building relationMetadata at fetch time
+  // so the domain type never carries raw GraphQL fields.
+  const issues: LinearIssueDetail[] = rawNodes.map((node) => {
+    const { parent: rawParent, children: rawChildren, relations: rawRelations, ...rest } = node;
+
+    return {
+      ...rest,
+      relationMetadata: {
+        parent: rawParent ?? null,
+        children: rawChildren?.nodes ?? [],
+        relations: (rawRelations?.nodes ?? [])
+          .filter((r) => KNOWN_RELATION_TYPES.has(r.type) && r.relatedIssue)
+          .map((r) => ({
+            type: r.type as LinearRelationType,
+            relatedIssue: r.relatedIssue,
+          })),
+      },
+    };
+  });
 
   // Belt-and-suspenders: Linear's API has eventual consistency on state
   // changes — both the GraphQL filter AND the returned field data can be
@@ -93,8 +190,7 @@ export async function fetchAllAssignedIssues(
   // is that the UI never auto-loads stale cache on mount.
   if (!includeCompleted) {
     return issues.filter(
-      (issue) =>
-        issue.state?.type !== "completed" && issue.state?.type !== "canceled"
+      (issue) => issue.state?.type !== "completed" && issue.state?.type !== "canceled"
     );
   }
 

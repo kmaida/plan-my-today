@@ -5,9 +5,9 @@ import { z } from "zod/v3";
 import { DISPLAY_LIMITS, FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
+import { applyOverridesToTasks } from "../../services/priority-override-store";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
-import { applyOverridesToTasks } from "../../services/priority-override-store";
 import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
 import { computeStableId } from "../../utils/stable-task-keys";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
@@ -27,10 +27,14 @@ import {
   fetchMeetingSummaries,
 } from "../today-todos/email-utils";
 import { calculateGitHubPriority, fetchGitHubTodos } from "../today-todos/github-utils";
-import { calculateMeetingNotePriority, fetchMeetingNoteActions } from "../today-todos/granola-utils";
+import {
+  calculateMeetingNotePriority,
+  fetchMeetingNoteActions,
+} from "../today-todos/granola-utils";
 import { calculateLinearPriority, fetchLinearIssues } from "../today-todos/linear-utils";
 import { generateMeetingContext } from "../today-todos/meeting-prep-utils";
 import type { PriorityMetadata } from "../today-todos/priority-utils";
+import { enrichRelations } from "../today-todos/relation-utils";
 import { calculateSlackPriorityWithMetadata, fetchSlackMessages } from "../today-todos/slack-utils";
 import type {
   AssignedActionDetail,
@@ -145,8 +149,9 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
  * usage when returning data to chat agents.
  *
  * Keeps: essential fields, priority category/score/reasons, links
- * Strips: signals, crossReferenceMetadata, dependencyMetadata,
- *         meetingContextMetadata, conferenceData, internal IDs, redundant fields
+ * Strips: signals, crossReferenceMetadata, meetingContextMetadata,
+ *         conferenceData, internal IDs, redundant fields
+ * Keeps for Linear: dependencyMetadata (blocking graph), relationMetadata (parent/child/relations)
  */
 function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown> {
   // Slim priority metadata: keep score, category, reasons — drop signals
@@ -197,6 +202,8 @@ function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown>
         "estimate",
         "project",
         "taskId",
+        "dependencyMetadata",
+        "relationMetadata",
       ])
     ),
     gmail: data.gmail.map((e) =>
@@ -610,7 +617,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         githubPRs,
         githubIssues,
         slackMessages,
-        meetingNoteActions,
+        meetingNoteActions
       );
 
       // Sort by priority score (highest first) and cap each source
@@ -677,7 +684,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries,
+          meetingSummaries
         );
       }
 
@@ -688,7 +695,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries,
+          meetingSummaries
         );
       }
 
@@ -699,9 +706,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries,
+          meetingSummaries
         );
       }
+
+      // 2.5. Relations: Merge API blocking into deps + inject into cross-refs
+      enrichRelations(linearIssues);
 
       // 3. Meeting prep: Generate context for calendar events (skip non-meeting types)
       for (const meeting of calendarEvents) {

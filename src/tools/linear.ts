@@ -3,7 +3,7 @@ import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { parseLocalDate } from "../utils/date-utils";
 import { handleToolError } from "../utils/tool-error-utils";
-import { fetchAllAssignedIssues } from "./today-todos/linear-utils";
+import { fetchAllAssignedIssues, RELATION_LABELS } from "./today-todos/linear-utils";
 import type { LinearIssueDetail } from "./today-todos/types";
 
 const LINEAR_RESOURCE = "https://api.linear.app";
@@ -147,6 +147,21 @@ export function registerLinearTool(mcpServer: McpServer): void {
             lines.push(`  ${priority} ${estimate} ${project}`);
             if (dueDate) {
               lines.push(`  ${dueDate}`);
+            }
+            // Relation context from Linear API
+            if (issue.relationMetadata?.parent) {
+              lines.push(`  ↑ Parent: ${issue.relationMetadata.parent.identifier}`);
+            }
+            const blockingRels =
+              issue.relationMetadata?.relations.filter((r) => r.type === "blocks") ?? [];
+            if (blockingRels.length > 0) {
+              lines.push(
+                `  ${RELATION_LABELS.blocks}: ${blockingRels.map((r) => r.relatedIssue.identifier).join(", ")}`
+              );
+            }
+            const childCount = issue.relationMetadata?.children.length ?? 0;
+            if (childCount > 0) {
+              lines.push(`  ${childCount} sub-issue${childCount > 1 ? "s" : ""}`);
             }
             lines.push(`  🔗 ${issue.url}`);
             lines.push(""); // Empty line between issues

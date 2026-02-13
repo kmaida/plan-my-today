@@ -58,6 +58,7 @@ function transformLinear(issue: ServerLinearIssue): LinearTask {
     priorityMetadata: transformPriority(issue.priorityMetadata),
     dependencies: issue.dependencyMetadata,
     crossReferences: issue.crossReferenceMetadata,
+    relations: issue.relationMetadata,
   };
 }
 

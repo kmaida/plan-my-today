@@ -47,6 +47,28 @@ export interface CrossReferenceMetadata {
   totalMentions?: number; // Count of total references
 }
 
+// ===== Linear Relation Metadata =====
+
+export interface LinearRelatedIssueRef {
+  identifier: string;
+  title: string;
+  url: string;
+  state?: { name: string; type: string };
+}
+
+export type LinearRelationType = "blocks" | "duplicate" | "related";
+
+export interface LinearRelation {
+  type: LinearRelationType;
+  relatedIssue: LinearRelatedIssueRef;
+}
+
+export interface LinearRelationMetadata {
+  parent: LinearRelatedIssueRef | null;
+  children: LinearRelatedIssueRef[];
+  relations: LinearRelation[];
+}
+
 // ===== Meeting Context Metadata =====
 
 export interface AttendeeContext {
@@ -82,6 +104,7 @@ export interface LinearTask {
   priorityMetadata: PriorityMetadata;
   dependencies?: DependencyMetadata;
   crossReferences?: CrossReferenceMetadata;
+  relations?: LinearRelationMetadata;
 }
 
 export interface GmailTask {
@@ -247,6 +270,7 @@ export interface ServerLinearIssue {
   priorityMetadata?: ServerPriorityMetadata;
   dependencyMetadata?: DependencyMetadata;
   crossReferenceMetadata?: CrossReferenceMetadata;
+  relationMetadata?: LinearRelationMetadata;
 }
 
 export interface ServerGmailMessage {
