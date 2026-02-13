@@ -79,7 +79,7 @@ describe("extractToolCallAuthErrors", () => {
       const errors = extractToolCallAuthErrors({
         id: "tc_1",
         name: "list-all-tasks-today",
-        input: { compact: true },
+        input: {},
         result,
       });
 
@@ -118,7 +118,7 @@ describe("extractToolCallAuthErrors", () => {
       const errors = extractToolCallAuthErrors({
         id: "tc_1",
         name: "list-all-tasks-today",
-        input: { compact: true },
+        input: {},
         result,
       });
 

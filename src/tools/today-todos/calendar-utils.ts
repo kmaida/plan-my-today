@@ -96,8 +96,8 @@ function isReservedByEmoji(summary?: string): boolean {
  *
  * Note: `signals.eventType` uses Google API values for non-default types ("focusTime",
  * "outOfOffice", etc.) but derived values for default events ("meeting", "focus_block",
- * "all_day"). Signals are stripped from the compact agent response, so this inconsistency
- * is internal only. The top-level `event.eventType` field is the canonical API value.
+ * "all_day"). Signals are internal scoring data; the top-level `event.eventType` field
+ * is the canonical API value shown to consumers.
  *
  * @param event - Calendar event detail
  * @param now - Current date/time for proximity calculations

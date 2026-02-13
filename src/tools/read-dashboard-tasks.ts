@@ -40,9 +40,9 @@ const readDashboardTasksInputSchema = {
  * Registers the read-dashboard-tasks tool with the MCP server.
  *
  * Reads the locally cached latest-tasks.json (written by list-all-tasks-today)
- * and returns the full, non-compact data. This is a free local file read with
- * no API calls or token exchanges. Use it when the agent needs to look up an
- * item that wasn't in its compact results.
+ * and returns the full task data. This is a free local file read with
+ * no API calls or token exchanges. Use it when the agent needs to access
+ * task details after a list-all-tasks-today fetch.
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -55,8 +55,8 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
         "Read the full task data that the dashboard displays. " +
         "This is the same dataset shown in the UI, from the last list-all-tasks-today fetch. " +
         "Free local file read (no API calls, no auth). " +
-        "Use this when you need to look up an item the user sees in the dashboard " +
-        "but that wasn't in your compact results. " +
+        "Use this after list-all-tasks-today to access the full task data, " +
+        "or when the user asks about a specific item. " +
         "Optionally filter by source to reduce the response size.",
       inputSchema: readDashboardTasksInputSchema,
     },

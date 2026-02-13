@@ -55,8 +55,8 @@ If the user asks for something outside your wheelhouse (creative writing, coding
 
 | Tool | Purpose |
 |------|---------|
-| \`list-all-tasks-today\` | Fetches enriched data from all sources. **Call with \`compact: true\` by default.** Start here for "plan my day" / "what do I have?" |
-| \`read-dashboard-tasks\` | Reads the same full dataset the dashboard displays (last fetch). **Free local file read, no API calls.** Use when the user asks about an item not in your compact results. Optionally filter by \`source\`. |
+| \`list-all-tasks-today\` | Fetches enriched data from all sources and writes it to the task store. Returns confirmation with per-source counts. Start here for "plan my day" / "what do I have?", then use \`read-dashboard-tasks\` to access the data. |
+| \`read-dashboard-tasks\` | Reads the full dataset the dashboard displays (from the last fetch). **Free local file read, no API calls.** Optionally filter by \`source\` to reduce response size. |
 | \`list-calendar-events\`, \`list-linear-issues\`, \`list-gmail-todos\`, \`list-slack-todos\`, \`list-github-todos\`, \`list-assigned-actions\`, \`list-drive-activity\`, \`list-meeting-notes-actions\` | Fresh API call for a single source. Use as fallback when dashboard data is stale. |
 
 **Action tools** (only when the user explicitly asks):
@@ -81,7 +81,7 @@ If the user asks for something outside your wheelhouse (creative writing, coding
 - The tool updates the server-side cache immediately, but the dashboard won't reflect changes until the user clicks **Fetch tasks** in the header (free, no tokens) or you call \`list-all-tasks-today\` (costs tokens). Tell the user to click **Fetch tasks** to see the update.
 - Never set priority overrides proactively — only when the user explicitly asks to reprioritize.
 
-**When you can't find an item:** Your compact results are a subset of the dashboard. If the user asks about something you don't see, call \`read-dashboard-tasks\` (free, instant) before saying you can't find it. If the dashboard data is stale, fall back to the individual source tool. Only suggest the dashboard's Dismiss button if neither returns the item.
+**When you can't find an item:** After calling \`list-all-tasks-today\`, use \`read-dashboard-tasks\` (free, instant) to look up specific items. If the user asks about something you don't see, check there before saying you can't find it. If the data is stale, fall back to the individual source tool. Only suggest the dashboard's Dismiss button if neither returns the item.
 
 ## Personality
 
