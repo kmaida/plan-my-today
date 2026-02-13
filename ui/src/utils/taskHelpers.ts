@@ -101,6 +101,7 @@ export function normalizeSource(source: TaskSource): TaskSource {
  * Empty sources/priorities arrays = show all (inclusive default).
  */
 export function applyFilters(tasks: Task[], filters: FilterState): Task[] {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: combines search, source, priority, and time filters
   return tasks.filter((task) => {
     // Search filter
     if (filters.search) {

@@ -53,6 +53,7 @@ interface TaskDataForStableId {
  * @param source - The canonical source label
  * @param data - Task data object (any enriched or raw type)
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: switch over all task source types
 export function computeStableId(source: TaskSourceLabel, data: TaskDataForStableId): string {
   switch (source) {
     case "linear":

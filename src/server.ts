@@ -21,8 +21,8 @@ import {
 } from "./services/action-completion-store";
 import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
+import { filterCompletedTasks, type TaskStoreData } from "./utils/filter-completed-tasks";
 import { removeTaskFromStore } from "./utils/task-store-utils";
-import { type TaskStoreData, filterCompletedTasks } from "./utils/filter-completed-tasks";
 
 // Create authentication middleware using the local SDK
 const authMiddleware = createAuthMiddleware(requireBearerAuth);
@@ -102,6 +102,7 @@ export function createApp(): express.Application {
   app.use(httpLoggingMiddleware);
 
   // Handle MCP protocol requests
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — MCP protocol processing
   app.post("/mcp", authMiddleware, async (req: express.Request, res: express.Response) => {
     const { sessionId, logger } = req.context;
 
@@ -329,6 +330,7 @@ export function createApp(): express.Application {
 
   // Mark an action as complete (no auth — writes to local completion store).
   // Supports meeting-note, slack, docs, and adhoc sources.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — action completion with validation
   app.post("/api/mark-action-complete", async (req: express.Request, res: express.Response) => {
     try {
       const { source, identifier, complete = true, metadata, taskId } = req.body || {};
@@ -453,6 +455,7 @@ export function createApp(): express.Application {
   // response as an SSE stream. Context management is handled by API-level edits:
   //   - All models: clear_tool_uses (token-aware cleanup of old tool results)
   //   - Opus 4.6: + adaptive thinking, clear_thinking, server-side compaction
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — chat API proxy with streaming
   app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     try {
       if (!config.anthropicApiKey) {
@@ -590,6 +593,7 @@ export function createApp(): express.Application {
       let sseBuffer = "";
       let logged = false;
       const inspector = new Transform({
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Stream transform — inspects chunks for logging
         transform(chunk: Buffer, _encoding, callback) {
           // Pass data through unchanged; inspect for logging only.
           // We only need the message_start event (always first), so once

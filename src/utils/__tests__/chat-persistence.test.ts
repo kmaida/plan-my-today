@@ -15,9 +15,9 @@
  */
 
 import {
-  saveChatState,
-  restoreChatState,
   clearPersistedChatState,
+  restoreChatState,
+  saveChatState,
 } from "../../../ui/src/chat/chat-persistence";
 import type { ChatMessage, Message, SessionUsage } from "../../../ui/src/chat/types";
 

@@ -132,6 +132,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
   }, [isLoading, messages, sessionUsage]);
 
   const sendMessage = useCallback(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: chat send handler — manages message state, streaming, and tool calls
     async (userText: string) => {
       if (!isConnected) {
         setError("MCP client not connected — sign in first");
@@ -310,6 +311,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
  * Calls `onText` with the accumulated text as each delta arrives (for real-time UI).
  * Returns the reconstructed AnthropicResponse so the agentic loop logic stays unchanged.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SSE stream parser with multi-event handling
 async function streamChatAPI(
   messages: Message[],
   tools: ToolDefinition[],

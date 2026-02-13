@@ -1,5 +1,5 @@
-import { isActionCompleted } from "../../services/action-completion-store";
 import { getLogger } from "../../observability/logger";
+import { isActionCompleted } from "../../services/action-completion-store";
 import { AuthenticationError } from "../../utils/error-utils";
 import type { DocCommentEmail } from "./drive-comments-utils";
 import { verifyAndEnrichDocComments } from "./drive-comments-utils";
@@ -25,6 +25,7 @@ export interface CommentEmailContext {
  * @param commentEmailContext - Optional: Gmail doc comment emails + Drive v3 token
  * @returns Array of assigned actions (mentions, assignments, and unresolved comments)
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates Drive Activity API calls and response parsing
 export async function fetchAssignedActions(
   accessToken: string,
   daysBack: number = 7,

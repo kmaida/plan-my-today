@@ -18,6 +18,7 @@ const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
  * @param taskId - The taskId to remove from the task store
  * @param storePath - Path to the JSON file (defaults to data/latest-tasks.json)
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: reads, mutates, and writes task store JSON
 export async function removeTaskFromStore(
   taskId: string,
   storePath: string = TASK_STORE_PATH

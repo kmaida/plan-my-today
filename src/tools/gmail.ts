@@ -63,6 +63,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
         "Get emails from Gmail that might be todos, need replies, or need attention. Use this when the user asks about their email, emails they need to reply to, or emails they need to catch up on.",
       inputSchema: gmailTodosInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {

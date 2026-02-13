@@ -26,7 +26,6 @@ jest.mock("../../../ui/src/components/SourceIcon", () => ({
 }));
 
 import type {
-  CalendarTask,
   GitHubTask,
   GmailTask,
   LinearTask,
@@ -38,10 +37,7 @@ import { groupTasks } from "../../../ui/src/utils/taskGrouping";
 
 // ── Factories ────────────────────────────────────────────────────────────────
 
-function makePriority(
-  category: PriorityMetadata["category"],
-  score: number,
-): PriorityMetadata {
+function makePriority(category: PriorityMetadata["category"], score: number): PriorityMetadata {
   return { score, category, signals: [], reasons: "" };
 }
 
@@ -103,22 +99,6 @@ function makeGitHub(overrides: Partial<GitHubTask> = {}): GitHubTask {
   };
 }
 
-function makeCalendar(
-  overrides: Partial<CalendarTask> = {},
-): CalendarTask {
-  return {
-    source: "calendar",
-    taskId: "cal-1",
-    stableId: "calendar:cal-1",
-    summary: "Standup",
-    start: new Date().toISOString(),
-    end: new Date(Date.now() + 3600_000).toISOString(),
-    htmlLink: "https://calendar.google.com",
-    priorityMetadata: makePriority("medium", 100),
-    ...overrides,
-  };
-}
-
 // ── Priority view ────────────────────────────────────────────────────────────
 
 describe("groupTasks — priority view", () => {
@@ -148,12 +128,7 @@ describe("groupTasks — priority view", () => {
 
     const groups = groupTasks(tasks, "priority");
 
-    expect(groups.map((g) => g.label)).toEqual([
-      "Critical",
-      "High",
-      "Medium",
-      "Low",
-    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Critical", "High", "Medium", "Low"]);
     expect(groups[0].count).toBe(1); // Critical
     expect(groups[1].count).toBe(1); // High
     expect(groups[2].count).toBe(1); // Medium

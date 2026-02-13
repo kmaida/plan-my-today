@@ -103,6 +103,7 @@ async function getUserId(accessToken: string): Promise<string> {
  * @param maxResults - Maximum number of messages to return
  * @returns Array of saved messages matching the criteria
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Slack API pagination and message filtering
 async function fetchSlackSavedMessages(
   accessToken: string,
   userId: string,
@@ -475,6 +476,7 @@ async function resolveChannelNames(
   const logger = getLogger().withOperation("slack_utils");
 
   await Promise.all(
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: DM/channel name resolution with API fallbacks
     Array.from(idsToResolve).map(async (channelId) => {
       try {
         if (channelId.startsWith("D")) {
@@ -591,6 +593,7 @@ async function ensurePermalinks(
  * @param options.maxMessages - Maximum messages to return (default: 5)
  * @returns Array of Slack messages sorted by priority
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates Slack API calls across multiple endpoints
 export async function fetchSlackMessages(
   accessToken: string,
   options: {

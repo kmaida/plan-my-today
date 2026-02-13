@@ -254,6 +254,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         "Get Google Drive files you own with unresolved comments, including recently modified files, files where you were mentioned in comments, and files with unresolved comments. Use this when the user asks about recent documents, active files, or wants to see what's been worked on recently.",
       inputSchema: driveActivityInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
@@ -414,6 +415,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         const filesWithCommentsSet = new Set(filesWithUnresolvedComments.map((f) => f.id));
 
         // Sort files: recently modified first, then files with comments, then mentioned files
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-criteria file sort comparator
         const sortedFiles = [...files].sort((a, b) => {
           const aIsRecent = a.modifiedTime && new Date(a.modifiedTime) > modifiedAfter;
           const bIsRecent = b.modifiedTime && new Date(b.modifiedTime) > modifiedAfter;

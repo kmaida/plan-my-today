@@ -51,6 +51,7 @@ function extractKeywords(text: string): Set<string> {
  * @param meetingSummaries - Array of meeting summaries
  * @returns Meeting context metadata with related items
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: aggregates context across Linear, GitHub, email, and Slack
 export function generateMeetingContext(
   meeting: CalendarEventDetail,
   linear: LinearIssueDetail[],

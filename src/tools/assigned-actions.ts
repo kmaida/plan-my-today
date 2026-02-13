@@ -2,7 +2,7 @@ import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
-import { fetchAssignedActions } from "./today-todos/docs-utils";
+import { type CommentEmailContext, fetchAssignedActions } from "./today-todos/docs-utils";
 import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { AssignedActionDetail } from "./today-todos/types";
 
@@ -95,7 +95,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
         ]);
 
         // Build comment email context if Gmail + Drive tokens are available
-        let commentEmailContext;
+        let commentEmailContext: CommentEmailContext | undefined;
         if (gmailToken && driveToken) {
           const gmailResult = await fetchGmailTodos(gmailToken.access_token, {
             daysBack,

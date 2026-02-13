@@ -72,6 +72,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
         "Get pull requests and issues assigned to you from GitHub. Use this when the user asks about their GitHub tasks, PRs, code reviews, or issues.",
       inputSchema: githubTodosInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {

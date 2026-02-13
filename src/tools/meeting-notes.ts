@@ -81,6 +81,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
         "Extract action items from Granola meeting notes synced to Google Drive. Searches for documents with meeting dates in the filename from the last 10 business days (weekdays only). Searches a specified folder (default: 'Meeting Notes') for recent documents and extracts todos, action items, and assignments. Use this when the user asks about action items from meetings, follow-ups from calls, or todos from meeting notes.",
       inputSchema: meetingNotesInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {

@@ -14,11 +14,7 @@ export function parseDate(dateStr: string): Date {
   // "2026-02-12T15:00:00-05:00" must fall through to new Date() so times are preserved.
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(?!\S)/);
   if (match) {
-    return new Date(
-      parseInt(match[1], 10),
-      parseInt(match[2], 10) - 1,
-      parseInt(match[3], 10),
-    );
+    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
   }
   return new Date(dateStr);
 }

@@ -296,6 +296,7 @@ export function categorizeIssues(issues: LinearIssueDetail[], today: Date): Cate
  * Detects themes/focus areas from meetings and tasks
  * Merges similar themes to avoid duplication
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cross-source theme detection with deduplication
 export function detectThemes(
   calendarEvents: CalendarEventDetail[],
   linearIssues: LinearIssueDetail[]
@@ -371,6 +372,7 @@ export function detectThemes(
  * @param now - Current date/time for temporal calculations
  * @returns Priority metadata
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-signal priority scoring
 export function calculateLinearPriority(issue: LinearIssueDetail, now: Date): PriorityMetadata {
   // Linear uses categorical priority, not numerical
   // Score based on temporal urgency + priority level

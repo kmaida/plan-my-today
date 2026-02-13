@@ -30,6 +30,7 @@ async function getGitHubUsername(accessToken: string): Promise<string | null> {
 /**
  * Fetches GitHub PRs and issues assigned to the user
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates GitHub API calls and response parsing
 export async function fetchGitHubTodos(accessToken: string): Promise<{
   prs: GitHubPRDetail[];
   issues: GitHubIssueDetail[];

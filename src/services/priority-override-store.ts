@@ -133,6 +133,7 @@ interface OverridableTask {
  *
  * Writes updated lastSeenAt timestamps back to the store.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: iterates nested task arrays to apply overrides
 export async function applyOverridesToTasks(...taskArrays: OverridableTask[][]): Promise<void> {
   const data = await readOverrides();
   const overrides = data.overrides;

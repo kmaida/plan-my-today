@@ -39,6 +39,7 @@ export interface ServerConfig {
  * @returns Validated server configuration
  * @throws Error if required environment variables are missing
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: sequential env var validation with fallback logic
 export function getConfig(): ServerConfig {
   const PORT = process.env.PORT || "9005";
 

@@ -169,6 +169,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         "Fetch tasks and events from all sources, enrich with priority metadata, and write to the task store. Returns a confirmation with per-source item counts — use read-dashboard-tasks to access the full data. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
       inputSchema: listAllTasksTodayInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — multi-source aggregation
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {
@@ -446,7 +447,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       });
 
       // Enrich meeting notes with taskId, stableId, and priorityMetadata
-      let meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map((note) => ({
+      const meetingNoteActions: EnrichedMeetingNote[] = rawMeetingNotes.map((note) => ({
         ...note,
         taskId: randomUUID(),
         stableId: computeStableId("meeting-note", note),

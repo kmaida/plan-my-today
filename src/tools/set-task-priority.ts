@@ -3,8 +3,23 @@ import path from "node:path";
 import { z } from "zod/v3";
 import { PATHS } from "../constants";
 import { removeOverride, setOverride } from "../services/priority-override-store";
+import type { PriorityMetadata } from "../tools/today-todos/priority-utils";
 import { categorizeScore } from "../tools/today-todos/priority-utils";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
+
+/**
+ * Minimal shape of a task item in the JSON task store.
+ * Covers the union of title-like fields across all sources.
+ */
+interface TaskStoreItem {
+  stableId: string;
+  priorityMetadata?: PriorityMetadata;
+  title?: string;
+  summary?: string;
+  subject?: string;
+  text?: string;
+  fileTitle?: string;
+}
 
 const TASK_STORE_PATH = path.join(process.cwd(), PATHS.TASK_STORE);
 
@@ -58,12 +73,13 @@ const setTaskPriorityInputSchema = {
 
 // ── Task store helpers ──────────────────────────────────────────────
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- task store items are untyped JSON */
-
-/** Extract a display title from any task store item, falling back to stableId. */
-function getTaskTitle(item: any, fallback: string): string {
+/** Extract a display title from a task store item, falling back to the provided default. */
+function getTaskTitle(item: TaskStoreItem, fallback: string): string {
   return item.title || item.summary || item.subject || item.text || item.fileTitle || fallback;
 }
+
+/** Shape of a task store section: either a flat array or a nested object of arrays. */
+type TaskStoreSection = TaskStoreItem[] | Record<string, TaskStoreItem[]>;
 
 /**
  * Walk every array in the task store (flat or nested one level) and call `callback`
@@ -72,29 +88,31 @@ function getTaskTitle(item: any, fallback: string): string {
  * The task store shape is `{ calendar: [...], github: { prs: [...], issues: [...] }, ... }`.
  * This traversal handles both cases without duplication.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: traverses nested task store sections
 function traverseStoreArrays(
-  data: Record<string, any>,
+  data: Record<string, TaskStoreSection | unknown>,
   stableId: string,
-  callback: (item: any) => void
-): any[] | null {
+  callback: (item: TaskStoreItem) => void
+): TaskStoreItem[] | null {
   for (const key of Object.keys(data)) {
     if (key === "metadata") continue;
     const section = data[key];
 
     if (Array.isArray(section)) {
-      for (const item of section) {
+      for (const item of section as TaskStoreItem[]) {
         if (item.stableId === stableId) {
           callback(item);
-          return section;
+          return section as TaskStoreItem[];
         }
       }
     } else if (section && typeof section === "object") {
-      for (const subKey of Object.keys(section)) {
-        if (Array.isArray(section[subKey])) {
-          for (const item of section[subKey]) {
+      for (const subKey of Object.keys(section as Record<string, unknown>)) {
+        const subSection = (section as Record<string, unknown>)[subKey];
+        if (Array.isArray(subSection)) {
+          for (const item of subSection as TaskStoreItem[]) {
             if (item.stableId === stableId) {
               callback(item);
-              return section[subKey];
+              return subSection as TaskStoreItem[];
             }
           }
         }
@@ -109,7 +127,7 @@ function traverseStoreArrays(
  * Returns true if the item was actually modified.
  */
 function mutateTaskOverride(
-  item: any,
+  item: TaskStoreItem,
   overrideScore: number,
   reason: string,
   appliedAt: string,
@@ -122,7 +140,7 @@ function mutateTaskOverride(
     item.priorityMetadata.score = item.priorityMetadata.override.originalScore;
     item.priorityMetadata.category = categorizeScore(item.priorityMetadata.override.originalScore);
     item.priorityMetadata.reasons = item.priorityMetadata.reasons.filter(
-      (r: string) => !r.startsWith("Priority override:")
+      (r) => !r.startsWith("Priority override:")
     );
     delete item.priorityMetadata.override;
     return true;
@@ -138,13 +156,11 @@ function mutateTaskOverride(
   item.priorityMetadata.category = categorizeScore(overrideScore);
   // Replace any existing override reason, then add the new one
   item.priorityMetadata.reasons = item.priorityMetadata.reasons.filter(
-    (r: string) => !r.startsWith("Priority override:")
+    (r) => !r.startsWith("Priority override:")
   );
   item.priorityMetadata.reasons.push(`Priority override: ${reason}`);
   return true;
 }
-
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ── Task store read/write ───────────────────────────────────────────
 

@@ -67,6 +67,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
         "Get issues assigned to you from Linear. Use this when the user asks about their tasks, issues, tickets, work items, or what they need to work on.",
       inputSchema: linearIssuesInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {

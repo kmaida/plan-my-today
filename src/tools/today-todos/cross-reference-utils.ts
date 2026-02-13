@@ -18,6 +18,7 @@ import type {
  * @param meetingSummaries - Optional array of meeting summaries to search
  * @returns Cross-reference metadata with mentions
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cross-source mention matching
 export function detectLinearMentions(
   issueId: string,
   gmail: GmailMessageDetail[],
@@ -102,6 +103,7 @@ export function detectLinearMentions(
  * @param meetingSummaries - Optional array of meeting summaries to search
  * @returns Cross-reference metadata with mentions
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cross-source mention matching
 export function detectGitHubMentions(
   repo: string,
   number: number,
@@ -208,6 +210,7 @@ function normalizeTitle(title: string): string {
  * - Granola document titles (often "<date> <meeting title>")
  * - Calendar event summaries (the meeting name itself)
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: links meetings across calendar, notes, and summaries
 export function linkMeetingAssets(
   meetingSummaries: MeetingSummaryDetail[],
   meetingNotes: MeetingNoteActionDetail[],

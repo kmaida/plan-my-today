@@ -21,15 +21,14 @@ interface PersistedChatState {
 export function saveChatState(
   messages: ChatMessage[],
   history: Message[],
-  sessionUsage: SessionUsage,
+  sessionUsage: SessionUsage
 ): void {
   try {
     // Strip thinking blocks from assistant turns — they're the bulkiest content
     // and not needed for conversation continuity (Claude generates fresh thinking
     // each turn, and the server's clear_thinking strategy discards old ones).
     const slimHistory = history.map((msg) => {
-      if (msg.role !== "assistant" || typeof msg.content === "string")
-        return msg;
+      if (msg.role !== "assistant" || typeof msg.content === "string") return msg;
       return {
         ...msg,
         content: msg.content.filter((b) => b.type !== "thinking"),

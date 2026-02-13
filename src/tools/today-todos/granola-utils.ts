@@ -150,6 +150,7 @@ function isValidActionText(text: string): boolean {
 /**
  * Extracts action items from document content using regex patterns
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-pattern regex extraction
 export function extractActionItemsFromContent(content: string): ExtractedActionItem[] {
   const actionItems: ExtractedActionItem[] = [];
   const seenItems = new Set<string>();

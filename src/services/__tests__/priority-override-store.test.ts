@@ -247,7 +247,7 @@ describe("applyOverridesToTasks", () => {
     ];
 
     // Should not throw
-    await expect(applyOverridesToTasks(tasks as any)).resolves.not.toThrow();
+    await expect(applyOverridesToTasks(tasks)).resolves.not.toThrow();
   });
 
   it("should be a no-op when no overrides exist", async () => {

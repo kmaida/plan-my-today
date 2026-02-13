@@ -58,6 +58,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
       description:
         "Get recent @mentions, DMs, and saved messages (marked with your custom emoji) from Slack with priority analysis. Shows the 5 most recent messages. Use this when the user asks about their Slack messages or what needs attention on Slack.",
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     async ({ authInfo }: AuthenticatedToolHandlerNoArgs) => {
       if (!authInfo) {
         return {

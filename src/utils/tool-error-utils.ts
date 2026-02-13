@@ -20,6 +20,7 @@ type ToolErrorResponse = {
  * troubleshooting with the resource URLs and scopes involved.
  * For everything else, returns a generic error message.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: classifies errors by type for user-friendly messages
 export function handleToolError(
   error: unknown,
   resources: string | string[],

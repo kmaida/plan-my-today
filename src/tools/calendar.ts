@@ -21,6 +21,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         "Get upcoming events from the user's Google Calendar. Use this when the user asks about their schedule, calendar, meetings, appointments, or what they have coming up.",
       inputSchema: calendarInputSchema,
     },
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
     (async (args, { authInfo }) => {
       if (!authInfo) {
         return {

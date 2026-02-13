@@ -103,6 +103,7 @@ function isReservedByEmoji(summary?: string): boolean {
  * @param now - Current date/time for proximity calculations
  * @returns Priority metadata
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-signal priority scoring
 export function calculateCalendarPriority(event: CalendarEventDetail, now: Date): PriorityMetadata {
   const startTime = event.start?.dateTime ? new Date(event.start.dateTime) : null;
   const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;

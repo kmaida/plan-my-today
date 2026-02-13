@@ -404,6 +404,7 @@ export function extractRecordingLink(body: string): string | null {
 /**
  * Extracts plain text body from Gmail message payload
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: recursive MIME part traversal
 export function extractEmailBody(payload?: {
   parts?: Array<{
     mimeType?: string;
@@ -454,6 +455,7 @@ export function extractEmailBody(payload?: {
  * Fetches meeting summaries from Gmail (Zoom, Google Meet, etc.)
  * Separate from regular email fetching
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Gmail API query + multi-format meeting summary parsing
 export async function fetchMeetingSummaries(
   accessToken: string,
   options: {
@@ -679,6 +681,7 @@ function extractMessageBody(message: GmailFullMessage): string {
  * @param messages - Full Gmail message objects (including payload.body/parts)
  * @returns commentEmails for the docs pipeline, and remainingMessages for the email pipeline
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: classifies emails by header patterns
 export function extractDocCommentEmails(messages: GmailFullMessage[]): {
   commentEmails: DocCommentEmail[];
   remainingMessages: GmailFullMessage[];
@@ -964,6 +967,7 @@ export async function fetchGmailTodos(
  * @param now - Current date/time for recency calculations
  * @returns Priority metadata
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-signal priority scoring
 export function calculateEmailPriority(email: GmailMessageDetail, now: Date): PriorityMetadata {
   let score = 30; // Base email score
   const reasons: string[] = [];
