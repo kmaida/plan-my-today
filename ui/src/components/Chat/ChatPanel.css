@@ -152,6 +152,8 @@
   gap: var(--space-xs);
   background: none;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
   padding: 2px var(--space-xs);
   cursor: pointer;
   font-family: var(--font-mono);
@@ -161,7 +163,14 @@
 }
 
 .token-stats__toggle:hover {
+  background: none;
+  box-shadow: none;
   color: var(--color-text-secondary);
+}
+
+.token-stats__toggle:active {
+  background: none;
+  box-shadow: none;
 }
 
 .token-stats__details {

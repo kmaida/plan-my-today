@@ -53,48 +53,6 @@ function createMcpServerForSession(): McpServer {
 
 const TASKS_CACHE_PATH = path.join(process.cwd(), PATHS.TASKS_CACHE);
 
-// ── Chat context management helpers ────────────────────────────────────────
-// Sliding window fallback for models that don't support API-level compaction.
-// Keeps the first 2 messages (initial context) + most recent messages,
-// inserting a placeholder where turns were dropped. Adjusts the boundary
-// so tool_use / tool_result pairs are never split.
-
-type RawMessage = { role: string; content: unknown };
-const MAX_HISTORY_MESSAGES = 20;
-
-function hasBlockType(msg: RawMessage, blockType: string): boolean {
-  return (
-    Array.isArray(msg.content) &&
-    (msg.content as Array<{ type: string }>).some((b) => b.type === blockType)
-  );
-}
-
-function windowMessages(messages: RawMessage[]): RawMessage[] {
-  if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
-
-  const headSize = 2;
-  let tailStart = messages.length - (MAX_HISTORY_MESSAGES - 3);
-
-  // Fix orphaned tool_result at the start of the tail
-  if (tailStart < messages.length && hasBlockType(messages[tailStart], "tool_result")) {
-    tailStart++;
-  }
-  // Fix orphaned tool_use right before the tail boundary
-  if (
-    tailStart > headSize &&
-    tailStart < messages.length &&
-    hasBlockType(messages[tailStart - 1], "tool_use") &&
-    !hasBlockType(messages[tailStart], "tool_result")
-  ) {
-    tailStart--;
-  }
-
-  return [
-    ...messages.slice(0, headSize),
-    { role: "user", content: "[Earlier conversation context omitted for brevity]" },
-    ...messages.slice(tailStart),
-  ];
-}
 
 /**
  * Creates and configures the Express application
@@ -480,10 +438,10 @@ export function createApp(): express.Application {
   });
 
   // Proxy chat messages to Anthropic Messages API (adds API key server-side).
-  // The UI sends { messages, system?, tools? } and gets back Claude's response.
-  // Context management strategy depends on the model:
-  //   - Opus 4.6: uses Anthropic's server-side compaction (intelligent summarization)
-  //   - Other models: falls back to a sliding window over message history
+  // The UI sends { messages, system?, tools?, effort? } and gets back Claude's
+  // response as an SSE stream. Context management is handled by API-level edits:
+  //   - All models: clear_tool_uses (token-aware cleanup of old tool results)
+  //   - Opus 4.6: + adaptive thinking, clear_thinking, server-side compaction
   app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     try {
       if (!config.anthropicApiKey) {
@@ -491,28 +449,45 @@ export function createApp(): express.Application {
         return;
       }
 
-      const { messages, system, tools, model } = req.body;
+      const { messages, system, tools, model, effort } = req.body;
       if (!messages || !Array.isArray(messages)) {
         res.status(400).json({ error: "Missing required field: messages (array)" });
         return;
       }
 
       const resolvedModel = model || config.anthropicModel;
-      const supportsCompaction = resolvedModel === "claude-opus-4-6";
+      const isOpus46 = resolvedModel === "claude-opus-4-6";
+      // Effort parameter is supported on Opus 4.6 and Opus 4.5
+      const supportsEffort = isOpus46 || resolvedModel === "claude-opus-4-5-20250918";
 
-      // For non-compaction models, apply sliding window to cap context size
-      const processedMessages = supportsCompaction ? messages : windowMessages(messages);
-
+      // Context management replaces the old sliding window for all models.
+      // Messages pass through unmodified; the API handles context edits.
       const body: Record<string, unknown> = {
         model: resolvedModel,
-        max_tokens: 4096,
+        max_tokens: isOpus46 ? 16000 : 4096,
         stream: true,
-        messages: processedMessages,
+        messages,
       };
-      // Apply prompt caching to the system prompt. The UI sends system as an
-      // array of content blocks: [static instructions, dynamic time context].
-      // We cache only the first (static) block so the time-varying dynamic
-      // block doesn't bust the prompt cache on every request.
+
+      // ── Adaptive thinking (Opus 4.6 only) ──────────────────────────────
+      // Lets the model decide when to reason deeply vs. respond quickly.
+      // No beta header required. Temperature cannot be set with thinking.
+      if (isOpus46) {
+        body.thinking = { type: "adaptive" };
+      }
+
+      // ── Effort parameter (Opus models only) ────────────────────────────
+      // Controls how much token budget Claude spends. The UI infers effort
+      // from message content (e.g., "plan my day" → high, "mark done" → low).
+      if (supportsEffort && effort) {
+        body.output_config = { effort };
+      }
+
+      // ── Prompt caching ─────────────────────────────────────────────────
+      // The UI sends system as an array of content blocks:
+      // [static instructions, dynamic time context]. We cache only the first
+      // (static) block so the time-varying dynamic block doesn't bust the
+      // prompt cache on every request.
       if (system) {
         if (Array.isArray(system)) {
           body.system = system.map((block: { type: string; text: string }, i: number) =>
@@ -530,16 +505,47 @@ export function createApp(): express.Application {
         );
         body.tools = cachedTools;
       }
-      // Enable server-side compaction for supported models (auto-summarizes older
-      // context when approaching the token limit, default trigger: 150K tokens)
-      if (supportsCompaction) {
-        body.context_management = {
-          edits: [{ type: "compact_20260112" }],
-        };
+
+      // ── Context management ─────────────────────────────────────────────
+      // Build the edits array with strategies applicable to this model:
+      // - clear_thinking: clears old thinking blocks (Opus 4.6 with thinking)
+      // - clear_tool_uses: clears old tool results (all models, replaces sliding window)
+      // - compact: server-side compaction for long conversations (Opus 4.6 only)
+      {
+        const edits: Record<string, unknown>[] = [];
+
+        // Thinking block cleanup (must be listed before other strategies).
+        // Keep thinking from last 2 assistant turns for reasoning continuity.
+        if (isOpus46) {
+          edits.push({
+            type: "clear_thinking_20251015",
+            keep: { type: "thinking_turns", value: 2 },
+          });
+        }
+
+        // Tool result clearing for all models. Triggers at 30K input tokens
+        // (well before any model's limit), keeping the 5 most recent tool
+        // use/result pairs. This replaces the old sliding-window approach
+        // which was token-unaware (one 30K-char tool result counted the
+        // same as a short user message).
+        edits.push({
+          type: "clear_tool_uses_20250919",
+          trigger: { type: "input_tokens", value: 30000 },
+          keep: { type: "tool_uses", value: 5 },
+        });
+
+        // Server-side compaction for Opus 4.6 (auto-summarizes older context
+        // when approaching the token limit, default trigger: 150K tokens)
+        if (isOpus46) {
+          edits.push({ type: "compact_20260112" });
+        }
+
+        body.context_management = { edits };
       }
 
-      const betas = ["prompt-caching-2024-07-31"];
-      if (supportsCompaction) betas.push("compact-2026-01-12");
+      // ── Beta headers ───────────────────────────────────────────────────
+      const betas = ["prompt-caching-2024-07-31", "context-management-2025-06-27"];
+      if (isOpus46) betas.push("compact-2026-01-12");
 
       const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",

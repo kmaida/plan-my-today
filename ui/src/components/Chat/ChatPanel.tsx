@@ -212,7 +212,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
             title="Toggle token usage details"
           >
             {formatTokenCount(sessionUsage.totalInputTokens + sessionUsage.totalOutputTokens)} tokens
-            {showTokenDetails ? ' \u25B4' : ' \u25BE'}
+            {showTokenDetails ? ' \u2212' : ' +'}
           </button>
           {showTokenDetails && (
             <div className="token-stats__details">

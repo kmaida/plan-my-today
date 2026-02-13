@@ -18,6 +18,28 @@ type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>;
 
 const MAX_TOOL_ROUNDS = 10; // Safety limit to prevent infinite loops
 
+/**
+ * Infer an effort level from the user's message to pass to the Anthropic API.
+ * High effort (default) for complex planning; low effort for quick actions
+ * like marking tasks complete. The server only applies this for supported models.
+ */
+type EffortLevel = "high" | "medium" | "low";
+
+function inferEffort(text: string): EffortLevel {
+  const lower = text.toLowerCase();
+
+  // Quick actions: imperative "mark X done/complete", dismiss, undo.
+  // Uses multi-word patterns to avoid false positives on common words
+  // like "done" in "what have I done today?"
+  if (/\b(mark\b.*\b(done|complete)|dismiss|undo)\b/.test(lower)) return "low";
+
+  // Complex planning: plan my day, prioritize, analyze, summarize
+  if (/\b(plan|prioritize|analyze|summarize|brief|review|what.*today|damage report)\b/.test(lower))
+    return "high";
+
+  return "medium";
+}
+
 /** Convert MCP tool schemas to Anthropic tool format. */
 function toAnthropicTools(
   mcpTools: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>
@@ -118,6 +140,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
         // Compute system prompt once per user message (not per tool round)
         // so the time context stays consistent across rounds.
         const systemParts = buildSystemPrompt?.() ?? null;
+        const effort = inferEffort(userText);
         let rounds = 0;
 
         // Agentic loop: keep going while Claude wants to call tools
@@ -141,6 +164,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
             historyRef.current,
             tools,
             systemParts,
+            effort,
             onTextDelta,
             abort.signal
           );
@@ -266,10 +290,11 @@ async function streamChatAPI(
   messages: Message[],
   tools: ToolDefinition[],
   systemParts: SystemPromptParts | null,
+  effort: EffortLevel,
   onText: (text: string) => void,
   signal?: AbortSignal
 ): Promise<AnthropicResponse> {
-  const body: Record<string, unknown> = { messages };
+  const body: Record<string, unknown> = { messages, effort };
   // Send the system prompt as two content blocks so the server can cache
   // the static block independently of the time-varying dynamic block.
   if (systemParts) {
@@ -353,6 +378,11 @@ async function streamChatAPI(
           case "content_block_start":
             if (event.content_block.type === "text") {
               content[event.index] = { type: "text", text: "" };
+            } else if (event.content_block.type === "thinking") {
+              // Adaptive thinking block — accumulate but don't stream to UI.
+              // Thinking blocks must be preserved in history for multi-turn
+              // conversations with tools (Anthropic API requirement).
+              content[event.index] = { type: "thinking", thinking: "" };
             } else if (event.content_block.type === "tool_use") {
               content[event.index] = {
                 type: "tool_use",
@@ -373,6 +403,9 @@ async function streamChatAPI(
               // Update accumulated text for the onText callback
               textParts[event.index] = block.text;
               onText(textParts.filter(Boolean).join(""));
+            } else if (event.delta.type === "thinking_delta" && block?.type === "thinking") {
+              // Accumulate thinking content (not streamed to UI)
+              block.thinking += event.delta.thinking;
             } else if (event.delta.type === "input_json_delta" && block?.type === "tool_use") {
               const current = partialJson.get(event.index) ?? "";
               partialJson.set(event.index, current + event.delta.partial_json);

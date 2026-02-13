@@ -3,6 +3,7 @@
 /** A single content block in a message. */
 export type ContentBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean }
   | { type: "compaction"; content: string };
@@ -48,6 +49,7 @@ export interface StreamContentBlockStart {
   index: number;
   content_block:
     | { type: "text"; text: string }
+    | { type: "thinking"; thinking: string }
     | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
     | { type: "compaction"; content: string };
 }
@@ -57,6 +59,7 @@ export interface StreamContentBlockDelta {
   index: number;
   delta:
     | { type: "text_delta"; text: string }
+    | { type: "thinking_delta"; thinking: string }
     | { type: "input_json_delta"; partial_json: string }
     | { type: "compaction_delta"; content: string };
 }
