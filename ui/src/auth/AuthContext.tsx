@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null)
     setUser(null)
     setAuthToken(null)
-    sessionStorage.removeItem(STORAGE_KEY)
+    sessionStorage.clear()
   }, [])
 
   // ── Render ─────────────────────────────────────────────────────────────────

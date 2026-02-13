@@ -8,6 +8,7 @@
     "src/**/*",
     "tests/**/*",
     "ui/src/chat/auth-error-detection.ts",
+    "ui/src/chat/chat-persistence.ts",
     "ui/src/chat/types.ts",
     "ui/src/api/transformers.ts",
     "ui/src/types/tasks.ts",

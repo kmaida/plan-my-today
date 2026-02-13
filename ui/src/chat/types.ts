@@ -84,6 +84,16 @@ export type StreamEvent =
   | { type: "message_stop" }
   | { type: "ping" };
 
+// ── Session-level types ─────────────────────────────────────────────────────
+
+/** Accumulated token usage across all turns in the current chat session. */
+export interface SessionUsage {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheCreationTokens: number;
+  totalCacheReadTokens: number;
+}
+
 // ── UI-level chat types ──────────────────────────────────────────────────────
 
 /** A tool call that was executed during an assistant turn. */

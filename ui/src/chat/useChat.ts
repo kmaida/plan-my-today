@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
+import { clearPersistedChatState, restoreChatState, saveChatState } from "./chat-persistence";
 import type { SystemPromptParts } from "./system-prompt";
 import type {
   AnthropicResponse,
   ChatMessage,
   ContentBlock,
   Message,
+  SessionUsage,
   StreamEvent,
   TokenUsage,
   ToolCall,
@@ -68,13 +70,7 @@ function truncateToolResult(text: string): string {
   return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}\n\n[... result truncated due to size ...]`;
 }
 
-/** Accumulated token usage across all turns in the current session. */
-export interface SessionUsage {
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCacheCreationTokens: number;
-  totalCacheReadTokens: number;
-}
+export type { SessionUsage } from "./types";
 
 export interface UseChatReturn {
   messages: ChatMessage[];
@@ -107,6 +103,33 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
   useEffect(() => {
     return () => abortRef.current?.abort();
   }, []);
+
+  // Restore persisted chat state on mount (survives reauth redirects and page refreshes).
+  // Guarded by a ref so React 18 strict mode double-firing doesn't restore twice.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const saved = restoreChatState();
+    if (saved) {
+      setMessages(saved.messages);
+      historyRef.current = saved.history;
+      setSessionUsage(saved.sessionUsage);
+    }
+  }, []);
+
+  // Persist chat state after each completed turn. Detects the isLoading true→false
+  // transition (same pattern ChatPanel uses for auth error scanning). This fires
+  // once per turn, not on every streaming delta. By the time isLoading flips false,
+  // both messages state and historyRef.current reflect the final turn state.
+  const prevIsLoadingRef = useRef(false);
+  useEffect(() => {
+    const wasLoading = prevIsLoadingRef.current;
+    prevIsLoadingRef.current = isLoading;
+    if (wasLoading && !isLoading && messages.length > 0) {
+      saveChatState(messages, historyRef.current, sessionUsage);
+    }
+  }, [isLoading, messages, sessionUsage]);
 
   const sendMessage = useCallback(
     async (userText: string) => {
@@ -274,6 +297,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
       totalCacheCreationTokens: 0,
       totalCacheReadTokens: 0,
     });
+    clearPersistedChatState();
   }, []);
 
   return { messages, isLoading, error, sessionUsage, sendMessage, clearMessages };

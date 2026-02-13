@@ -130,6 +130,11 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
       if (didFetchAllTasks || authErrors.length > 0) {
         onToolCallsComplete({ didFetchAllTasks, authErrors })
       }
+    } else {
+      // Messages changed without a loading transition (e.g., restored from
+      // sessionStorage). Mark them as already scanned so old auth errors
+      // from a previous session aren't re-reported on the next real turn.
+      scannedCountRef.current = messages.length
     }
   }, [isLoading, messages, onToolCallsComplete])
 
