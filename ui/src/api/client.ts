@@ -99,7 +99,7 @@ export interface TasksResult {
 
 /**
  * Fetch all tasks from all sources with enrichment data.
- * Reads the cached JSON file written by the list-all-tasks-today tool
+ * Reads the task store file written by the list-all-tasks-today tool
  * each time the agent calls it. Throws on failure (no mock fallback).
  */
 export async function listAllTasks(): Promise<TasksResult> {
@@ -116,7 +116,7 @@ export async function listAllTasks(): Promise<TasksResult> {
  * The tool fetches, enriches, and writes to the task store, then returns
  * a lightweight confirmation with counts. We read the full data from the
  * task store via REST after the tool completes.
- * Falls back to cache read if MCP is not connected.
+ * Falls back to task store read if MCP is not connected.
  */
 export async function refreshAllTasks(): Promise<TasksResult> {
   if (!_mcpCallTool) {

@@ -28,7 +28,7 @@ interface ChatPanelProps {
   isOpen: boolean
   onToggle: () => void
   /** Called after a chat turn completes with tool calls. Includes whether
-   *  list-all-tasks-today ran (so the caller can re-read the cache) and any
+   *  list-all-tasks-today ran (so the caller can re-read the task store) and any
    *  auth errors detected from tool results. */
   onToolCallsComplete?: (result: { didFetchAllTasks: boolean; authErrors: string[] }) => void
 }

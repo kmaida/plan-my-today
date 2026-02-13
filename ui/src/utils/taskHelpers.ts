@@ -78,7 +78,7 @@ export function getTaskUrl(task: Task): string | undefined {
 /**
  * Get the stable identifier used when marking a task complete.
  * Slack uses dismissalId (channel:ts) which is stable across fetches,
- * falling back to permalink for older cached data.
+ * falling back to permalink for older task store data.
  */
 export function getTaskIdentifier(task: Task): string {
   if (isGmailTask(task)) return task.id;
