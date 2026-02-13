@@ -1,4 +1,5 @@
 import { TIME_WINDOWS } from "../../constants";
+import { getLogger } from "../../observability/logger";
 import { AuthenticationError } from "../../utils/error-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { GitHubIssueDetail, GitHubPRDetail } from "./types";
@@ -217,7 +218,9 @@ export async function fetchGitHubTodos(accessToken: string): Promise<{
     }
   } catch (err) {
     if (err instanceof AuthenticationError) throw err;
-    // Silently fail - GitHub is optional
+    getLogger().withOperation("github_utils").warn("GitHub API error — returning empty results", {
+      error: String(err),
+    });
   }
 
   return { prs, issues };

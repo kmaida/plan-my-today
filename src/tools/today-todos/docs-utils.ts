@@ -1,4 +1,5 @@
 import { isActionCompleted } from "../../services/action-completion-store";
+import { getLogger } from "../../observability/logger";
 import { AuthenticationError } from "../../utils/error-utils";
 import type { DocCommentEmail } from "./drive-comments-utils";
 import { verifyAndEnrichDocComments } from "./drive-comments-utils";
@@ -49,6 +50,10 @@ export async function fetchAssignedActions(
     if (response.status === 401 || response.status === 403) {
       throw new AuthenticationError("Google Drive Activity", response.status);
     }
+    getLogger().withOperation("docs_utils").warn("Drive Activity API error — returning empty results", {
+      status: response.status,
+      statusText: response.statusText,
+    });
     return [];
   }
 

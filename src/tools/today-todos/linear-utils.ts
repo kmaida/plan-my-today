@@ -1,4 +1,5 @@
 import { FETCH_LIMITS } from "../../constants";
+import { getLogger } from "../../observability/logger";
 import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
@@ -156,6 +157,10 @@ export async function fetchAllAssignedIssues(
     if (response.status === 401 || response.status === 403) {
       throw new AuthenticationError("Linear", response.status);
     }
+    getLogger().withOperation("linear_utils").warn("Linear API error — returning empty results", {
+      status: response.status,
+      statusText: response.statusText,
+    });
     return [];
   }
 
