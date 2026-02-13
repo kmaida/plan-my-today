@@ -245,7 +245,7 @@ Configure in Keycard Console:
 
 Direct token (not via Keycard):
 1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
-2. Add user token scopes: `search:read`, `reactions:read`, `reactions:write`
+2. Add user token scopes: `search:read`, `reactions:read`
 3. Set `SLACK_USER_TOKEN` and optionally `SLACK_EMOJI_NAME` in `.env`
 
 ### Meeting Notes
