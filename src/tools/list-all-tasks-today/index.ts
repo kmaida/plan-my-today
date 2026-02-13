@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod/v3";
-import { DISPLAY_LIMITS, FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
+import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
 import { applyOverridesToTasks } from "../../services/priority-override-store";
@@ -145,171 +145,18 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
 }
 
 /**
- * Strip verbose enrichment metadata from the full response to reduce token
- * usage when returning data to chat agents.
- *
- * Keeps: essential fields, priority category/score/reasons, links
- * Strips: signals, crossReferenceMetadata, meetingContextMetadata,
- *         conferenceData, internal IDs, redundant fields
- * Keeps for Linear: dependencyMetadata (blocking graph), relationMetadata (parent/child/relations)
- */
-function compactifyResponse(data: ListAllTasksResponse): Record<string, unknown> {
-  // Slim priority metadata: keep score, category, reasons — drop signals
-  function slimPriority(item: { priorityMetadata?: PriorityMetadata }) {
-    if (!item.priorityMetadata) return undefined;
-    return {
-      score: item.priorityMetadata.score,
-      category: item.priorityMetadata.category,
-      reasons: item.priorityMetadata.reasons,
-    };
-  }
-
-  function stripItem(item: Record<string, unknown>, keepFields: string[]): Record<string, unknown> {
-    const slim: Record<string, unknown> = {};
-    for (const key of keepFields) {
-      if (item[key] !== undefined && item[key] !== null) slim[key] = item[key];
-    }
-    // Always include stableId and priorityMetadata so agents can use
-    // set-task-priority regardless of which fields each source keeps.
-    if (item.stableId) slim.stableId = item.stableId;
-    slim.priorityMetadata = slimPriority(item as { priorityMetadata?: PriorityMetadata });
-    return slim;
-  }
-
-  return {
-    calendar: data.calendar.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "summary",
-        "start",
-        "end",
-        "htmlLink",
-        "hangoutLink",
-        "attendees",
-        "taskId",
-        "eventType",
-        "meetingContextMetadata",
-      ])
-    ),
-    linear: data.linear.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "identifier",
-        "title",
-        "priority",
-        "priorityLabel",
-        "url",
-        "state",
-        "dueDate",
-        "estimate",
-        "project",
-        "taskId",
-        "dependencyMetadata",
-        "relationMetadata",
-      ])
-    ),
-    gmail: data.gmail.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "id",
-        "subject",
-        "from",
-        "link",
-        "needsReply",
-        "hasActionItems",
-        "taskId",
-        "threadMessageCount",
-        "threadParticipants",
-      ])
-    ),
-    meetingSummaries: data.meetingSummaries.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "platform",
-        "meetingTitle",
-        "subject",
-        "link",
-        "recordingLink",
-        "hasActionItems",
-        "taskId",
-      ])
-    ),
-    docs: data.docs.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "fileTitle",
-        "actionType",
-        "fileLink",
-        "taskId",
-      ])
-    ),
-    github: {
-      prs: data.github.prs.map((e) =>
-        stripItem(e as unknown as Record<string, unknown>, [
-          "number",
-          "title",
-          "url",
-          "repo",
-          "type",
-          "isDraft",
-          "taskId",
-        ])
-      ),
-      issues: data.github.issues.map((e) =>
-        stripItem(e as unknown as Record<string, unknown>, [
-          "number",
-          "title",
-          "url",
-          "repo",
-          "labels",
-          "taskId",
-        ])
-      ),
-    },
-    slack: data.slack.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "text",
-        "type",
-        "userName",
-        "permalink",
-        "dismissalId",
-        "taskId",
-      ])
-    ),
-    meetingNotes: data.meetingNotes.map((e) =>
-      stripItem(e as unknown as Record<string, unknown>, [
-        "actionItem",
-        "documentTitle",
-        "documentLink",
-        "assignee",
-        "isUrgent",
-        "taskId",
-      ])
-    ),
-    metadata: data.metadata,
-  };
-}
-
-/**
  * Input schema for the list-all-tasks-today tool
  */
 const listAllTasksTodayInputSchema = {
   includeGithub: z.boolean().describe("Include GitHub PRs and issues (default: true)").optional(),
-  compact: z
-    .boolean()
-    .describe(
-      "Return a compact response with only essential fields per item. Recommended for chat agents to reduce token usage. (default: false)"
-    )
-    .optional(),
 };
 
 /**
  * Registers the list-all-tasks-today tool with the MCP server
  *
- * This tool aggregates raw data from multiple sources without any intelligence or scheduling:
- * - Calendar events for today
- * - Linear issues
- * - Gmail emails (unread/starred)
- * - Assigned actions from Google Docs
- * - GitHub PRs and issues
- * - Slack messages
- *
- * Returns structured JSON data grouped by source for use by agents or other tools.
+ * This tool fetches from all sources, enriches with priority metadata, and writes
+ * to the task store. Returns a confirmation with per-source item counts.
+ * Use read-dashboard-tasks to access the full data.
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -317,9 +164,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
   mcpServer.registerTool(
     "list-all-tasks-today",
     {
-      title: "List All Tasks Today (Raw Data)",
+      title: "Fetch All Tasks Today",
       description:
-        "Fetch all tasks, events, and items for today from multiple sources, returning raw structured data grouped by source. Each item includes priority metadata (score, category, signals, reasons) to help with intelligent planning and prioritization. Scores range from 0-300 (higher = more urgent), with categories: critical (≥180), high (130-179), medium (80-129), low (<80). This tool provides data only - agents can use or override priority signals as needed. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
+        "Fetch tasks and events from all sources, enrich with priority metadata, and write to the task store. Returns a confirmation with per-source item counts — use read-dashboard-tasks to access the full data. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
       inputSchema: listAllTasksTodayInputSchema,
     },
     (async (args, { authInfo }) => {
@@ -342,7 +189,6 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       }
 
       const includeGithub = args.includeGithub ?? true;
-      const compact = args.compact ?? false;
       const today = new Date();
       const errors: string[] = [];
 
@@ -620,28 +466,22 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         meetingNoteActions
       );
 
-      // Sort by priority score (highest first) and cap each source
-      // Done BEFORE cross-reference enrichment so less work to do
+      // Sort by priority score (highest first) so the task store is in priority order
       const byPriority = (
         a: { priorityMetadata?: PriorityMetadata },
         b: { priorityMetadata?: PriorityMetadata }
       ) => (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0);
 
-      // Calendar is uncapped (you need to see all your meetings)
-      linearIssues = linearIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.LINEAR);
-      gmailTodos = gmailTodos.sort(byPriority).slice(0, DISPLAY_LIMITS.GMAIL);
-      slackMessages = slackMessages.sort(byPriority).slice(0, DISPLAY_LIMITS.SLACK);
-      githubPRs = githubPRs.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_PRS);
-      githubIssues = githubIssues.sort(byPriority).slice(0, DISPLAY_LIMITS.GITHUB_ISSUES);
-      assignedActions = assignedActions.sort(byPriority).slice(0, DISPLAY_LIMITS.DOCS);
-      meetingSummaries = meetingSummaries
-        .sort(byPriority)
-        .slice(0, DISPLAY_LIMITS.MEETING_SUMMARIES);
-      meetingNoteActions = meetingNoteActions.slice(0, DISPLAY_LIMITS.MEETING_NOTES);
+      linearIssues = linearIssues.sort(byPriority);
+      gmailTodos = gmailTodos.sort(byPriority);
+      slackMessages = slackMessages.sort(byPriority);
+      githubPRs = githubPRs.sort(byPriority);
+      githubIssues = githubIssues.sort(byPriority);
+      assignedActions = assignedActions.sort(byPriority);
+      meetingSummaries = meetingSummaries.sort(byPriority);
 
       // ============================================
       // ENRICHMENT PHASE: Cross-Item Intelligence
-      // Runs on capped arrays so less work to do
       // ============================================
 
       // 1. Dependencies: Parse blocking relationships from Linear issue titles
@@ -783,15 +623,26 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         // Non-fatal: UI cache write failed
       }
 
-      // In compact mode, strip verbose enrichment to reduce token usage for chat agents
-      const outputData = compact ? compactifyResponse(responseData) : responseData;
-
-      // Return JSON string
+      // Return confirmation with per-source counts.
+      // Full data is in the task store — use read-dashboard-tasks to access it.
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(outputData),
+            text: JSON.stringify({
+              status: "ok",
+              counts: {
+                calendar: calendarEvents.length,
+                linear: linearIssues.length,
+                gmail: gmailTodos.length,
+                slack: slackMessages.length,
+                github: { prs: githubPRs.length, issues: githubIssues.length },
+                docs: assignedActions.length,
+                meetingSummaries: meetingSummaries.length,
+                meetingNotes: meetingNoteActions.length,
+              },
+              metadata: responseData.metadata,
+            }),
           },
         ],
       };

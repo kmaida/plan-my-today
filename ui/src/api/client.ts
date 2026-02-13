@@ -113,20 +113,19 @@ export async function listAllTasks(): Promise<TasksResult> {
 
 /**
  * Fetch fresh task data from all sources via the MCP tool.
- * Unlike listAllTasks() (which reads cached JSON), this triggers
- * actual API calls to Calendar, Linear, Gmail, etc.
+ * The tool fetches, enriches, and writes to the task store, then returns
+ * a lightweight confirmation with counts. We read the full data from the
+ * task store via REST after the tool completes.
  * Falls back to cache read if MCP is not connected.
  */
 export async function refreshAllTasks(): Promise<TasksResult> {
   if (!_mcpCallTool) {
     return listAllTasks();
   }
-  const response = await callTool<ServerTasksResponse>("list-all-tasks-today", { compact: false });
-  return {
-    tasks: transformServerResponse(response),
-    fetchedAt: response.metadata?.fetched_at || null,
-    authErrors: response.metadata?.errors || [],
-  };
+  // Trigger fresh fetch + write to task store
+  await callTool("list-all-tasks-today", {});
+  // Read the freshly written data
+  return listAllTasks();
 }
 
 /**

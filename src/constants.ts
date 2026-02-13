@@ -59,22 +59,6 @@ export const FETCH_LIMITS = {
   MEETINGS: 5,
 } as const;
 
-/**
- * Display limits — max items per source returned in the tool response.
- * Applied after priority scoring: items are sorted by score (highest first)
- * and only the top N are kept. Calendar is uncapped (you need all your meetings).
- */
-export const DISPLAY_LIMITS = {
-  LINEAR: 15,
-  GMAIL: 8,
-  SLACK: 8,
-  GITHUB_PRS: 5,
-  GITHUB_ISSUES: 5,
-  DOCS: 5,
-  MEETING_SUMMARIES: 3,
-  MEETING_NOTES: 5,
-} as const;
-
 /** OAuth state management */
 export const OAUTH = {
   /** OAuth state expiry time in milliseconds (10 minutes) */
