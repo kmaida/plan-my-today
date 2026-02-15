@@ -2,7 +2,7 @@
 
 .thinking-indicator {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-sm);
   padding: var(--space-sm) 0;
 }
@@ -16,6 +16,7 @@
   color: var(--color-text-tertiary);
   transition: opacity 200ms ease-in-out, transform 200ms ease-in-out;
   opacity: 1;
+  padding-bottom: 2px;
   transform: translateY(0);
 }
 

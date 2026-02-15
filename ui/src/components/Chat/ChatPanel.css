@@ -149,8 +149,15 @@
   margin: 0;
 }
 
-.chat-panel__mascot-idle {
-  padding: var(--space-sm) 0;
+/* ── Pinned Mascot Strip (between messages and input, never scrolls) ──────── */
+
+.chat-panel__mascot-strip {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-md);
+}
+
+.chat-panel__mascot-strip--idle {
+  padding: var(--space-sm) var(--space-md);
 }
 
 .chat-panel__error {

@@ -155,7 +155,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
 
         {isConnected && messages.length === 0 && (
           <div className="chat-panel__welcome">
-            <TodogentMascot state="idle" size={80} className="chat-panel__welcome-mascot" />
+            <TodogentMascot state="idle" size={100} className="chat-panel__welcome-mascot" />
             <p className="chat-panel__welcome-text">{welcomeMsg}</p>
           </div>
         )}
@@ -164,20 +164,23 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
           <ChatMessage key={msg.id} message={msg} />
         ))}
 
-        {isLoading ? (
-          <ThinkingIndicator />
-        ) : lastMessageIsAssistant && (
-          <div className="chat-panel__mascot-idle">
-            <TodogentMascot state="idle" size={24} />
-          </div>
-        )}
-
         {error && (
           <div className="chat-panel__error">{error}</div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* ── Pinned mascot strip (between messages + input, doesn't scroll) ── */}
+      {isLoading ? (
+        <div className="chat-panel__mascot-strip">
+          <ThinkingIndicator />
+        </div>
+      ) : lastMessageIsAssistant && (
+        <div className="chat-panel__mascot-strip chat-panel__mascot-strip--idle">
+          <TodogentMascot state="idle" size={40} />
+        </div>
+      )}
 
       {sessionUsage.totalInputTokens > 0 && (
         <div className="token-stats">

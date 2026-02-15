@@ -37,7 +37,7 @@ const COMPACT_RATIO = 76 / 100;
  *
  * States:
  * - "idle": sparkle twinkle + occasional blink + indicator pulse (visible mascot)
- * - "thinking": shifty eyes + smirk (used during LLM response)
+ * - "thinking": subtle mouth drift + rare side-eye squint (used during LLM response)
  * - "static": no animations (fallback / reduced-motion)
  */
 export const TodogentMascot = memo(function TodogentMascot({
@@ -45,7 +45,7 @@ export const TodogentMascot = memo(function TodogentMascot({
   size = 32,
   className = "",
 }: TodogentMascotProps) {
-  const isCompact = size <= 32;
+  const isCompact = size <= 48;
   const stateClass = state !== "static" ? `todaygent--${state}` : "";
   const compactClass = isCompact ? "todaygent--compact" : "";
   const viewBox = isCompact ? COMPACT_VIEWBOX : FULL_VIEWBOX;
@@ -93,7 +93,7 @@ export const TodogentMascot = memo(function TodogentMascot({
         <circle className="eye-left" cx="41" cy="46" r="3.5" fill="#3D2E1F" />
         <circle className="eye-right" cx="59" cy="46" r="3.5" fill="#3D2E1F" />
 
-        {/* Neutral mouth */}
+        {/* Neutral mouth (smile — default visible) */}
         <path
           className="mouth-neutral"
           d="M44,55 Q50,60 56,55"
@@ -103,10 +103,20 @@ export const TodogentMascot = memo(function TodogentMascot({
           strokeLinecap="round"
         />
 
-        {/* Smirk mouth (hidden by default) */}
+        {/* Thinking mouth (straight "hmm" line — hidden by default) */}
         <path
-          className="mouth-smirk"
-          d="M43,55 Q49,60 55,54.5 Q57,53.5 59,53"
+          className="mouth-thinking"
+          d="M43,56 L57,56"
+          fill="none"
+          stroke="#3D2E1F"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+
+        {/* Pursed mouth (short tight curve — hidden by default) */}
+        <path
+          className="mouth-pursed"
+          d="M45,56 Q50,57.5 55,56"
           fill="none"
           stroke="#3D2E1F"
           strokeWidth="2"
@@ -114,10 +124,14 @@ export const TodogentMascot = memo(function TodogentMascot({
         />
       </g>
 
-      {/* ── Eyelids (same color as face screen, scale to cover eyes) ── */}
+      {/* ── Eyelids (two halves per eye meet in the middle for robotic blink) ── */}
       <g className="todaygent-eyelids">
-        <rect className="eyelid-left" x="35.5" y="40.5" width="11" height="11" rx="2" fill="#E5DDD3" />
-        <rect className="eyelid-right" x="53.5" y="40.5" width="11" height="11" rx="2" fill="#E5DDD3" />
+        {/* Left eye: top lid drops down, bottom lid rises up */}
+        <rect className="eyelid-top eyelid-top--left" x="35.5" y="40.5" width="11" height="5.5" rx="2" fill="#E5DDD3" />
+        <rect className="eyelid-bottom eyelid-bottom--left" x="35.5" y="46" width="11" height="5.5" rx="2" fill="#E5DDD3" />
+        {/* Right eye: same */}
+        <rect className="eyelid-top eyelid-top--right" x="53.5" y="40.5" width="11" height="5.5" rx="2" fill="#E5DDD3" />
+        <rect className="eyelid-bottom eyelid-bottom--right" x="53.5" y="46" width="11" height="5.5" rx="2" fill="#E5DDD3" />
       </g>
 
       {/* ── Status-light indicators (hidden in compact mode via CSS) ── */}

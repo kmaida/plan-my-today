@@ -68,7 +68,7 @@ export function ThinkingIndicator() {
 
   return (
     <div className="thinking-indicator">
-      <TodogentMascot state="thinking" size={24} />
+      <TodogentMascot state="thinking" size={40} />
       <span className={`thinking-indicator__word${fading ? " thinking-indicator__word--fading" : ""}`}>
         {word.charAt(0).toUpperCase() + word.slice(1)}...
       </span>

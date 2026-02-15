@@ -282,7 +282,7 @@ function App() {
             <div className="auth-error-banner__content">
               <div className="auth-error-banner__message">
                 <strong>Some sources couldn't be reached.</strong>
-                {' '}Your authorization grants may have expired or been revoked. Reauthorizing will refresh all source connections. <AuthHint />
+                {' '}Your authorization grants may have expired or been revoked. Reauthorizing will refresh all expired source connections. <AuthHint />
               </div>
               <div className="auth-error-banner__actions">
                 <button
