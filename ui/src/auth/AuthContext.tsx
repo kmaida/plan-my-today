@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { generateCodeVerifier, generateCodeChallenge, generateState } from './pkce'
-import { discoverEndpoints } from './discovery'
+import { discoverEndpoints, prefetchEndpoints } from './discovery'
 import { AUTH_CONFIG } from './config'
 import { setAuthToken } from '../api/client'
 
@@ -23,6 +23,7 @@ interface AuthUser {
 interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
+  isLoggingIn: boolean
   token: string | null
   user: AuthUser | null
   error: string | null
@@ -83,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const initialized = useRef(false)
 
@@ -91,6 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
+
+    // Eagerly discover OAuth endpoints so they're cached before the user
+    // clicks "Connect". The two-step .well-known fetch is the main bottleneck.
+    prefetchEndpoints(AUTH_CONFIG.discoveryBaseUrl)
 
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
@@ -170,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (opts?: { reauth?: boolean }) => {
     try {
       setError(null)
+      setIsLoggingIn(true)
 
       const codeVerifier = generateCodeVerifier()
       const codeChallenge = await generateCodeChallenge(codeVerifier)
@@ -184,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.setItem('pending_refresh', '1')
       }
 
-      // Discover authorization endpoint
+      // Discover authorization endpoint (usually cached from prefetch)
       const { authorization_endpoint } = await discoverEndpoints(AUTH_CONFIG.discoveryBaseUrl)
 
       // Build authorization URL
@@ -203,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Login failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to start login')
+      setIsLoggingIn(false)
     }
   }, [])
 
@@ -222,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         isAuthenticated: !!token,
         isLoading,
+        isLoggingIn,
         token,
         user,
         error,

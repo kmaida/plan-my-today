@@ -4,7 +4,7 @@ import { AuthHint } from './AuthHint'
 import './AuthGate.css'
 
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading, login, error } = useAuth()
+  const { isAuthenticated, isLoading, isLoggingIn, login, error } = useAuth()
 
   if (isLoading) {
     return (
@@ -26,8 +26,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
           {error && <p className="auth-gate__error">{error}</p>}
 
-          <button className="auth-gate__button btn--inverted" onClick={() => login()}>
-            Connect
+          <button
+            className="auth-gate__button btn--inverted"
+            onClick={() => login()}
+            disabled={isLoggingIn}
+          >
+            {isLoggingIn ? 'Connecting...' : 'Connect'}
           </button>
           <div className="auth-gate__hint">
             <AuthHint />

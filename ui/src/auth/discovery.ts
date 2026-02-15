@@ -13,9 +13,32 @@ interface OAuthEndpoints {
 
 let cachedEndpoints: OAuthEndpoints | null = null;
 
-export async function discoverEndpoints(baseUrl: string): Promise<OAuthEndpoints> {
-  if (cachedEndpoints) return cachedEndpoints;
+/** In-flight discovery promise — deduplicates concurrent requests. */
+let pendingDiscovery: Promise<OAuthEndpoints> | null = null;
 
+/**
+ * Kick off endpoint discovery early (e.g., on page load) so the result is
+ * cached by the time the user clicks "Connect". Safe to call multiple times —
+ * deduplicates concurrent requests and returns the cached result if available.
+ */
+export function prefetchEndpoints(baseUrl: string): void {
+  // Fire-and-forget; dedup and errors are handled inside discoverEndpoints
+  discoverEndpoints(baseUrl);
+}
+
+export function discoverEndpoints(baseUrl: string): Promise<OAuthEndpoints> {
+  if (cachedEndpoints) return Promise.resolve(cachedEndpoints);
+  if (pendingDiscovery) return pendingDiscovery;
+
+  // Store the promise *synchronously* before any awaits so concurrent callers
+  // see it immediately and piggyback instead of firing duplicate fetches.
+  pendingDiscovery = doDiscover(baseUrl).finally(() => {
+    pendingDiscovery = null;
+  });
+  return pendingDiscovery;
+}
+
+async function doDiscover(baseUrl: string): Promise<OAuthEndpoints> {
   try {
     // Step 1: Get the issuer from the MCP server's protected resource metadata
     const resourceRes = await fetch(`${baseUrl}/.well-known/oauth-protected-resource`);

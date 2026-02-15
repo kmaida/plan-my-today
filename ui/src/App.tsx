@@ -26,7 +26,7 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 }
 
 function App() {
-  const { login, logout } = useAuth()
+  const { login, logout, isLoggingIn } = useAuth()
   const { isConnected } = useMCP()
   const { theme, effectiveTheme, setTheme } = useTheme()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -291,8 +291,9 @@ function App() {
                 <button
                   className="auth-error-banner__reauth"
                   onClick={() => login({ reauth: true })}
+                  disabled={isLoggingIn}
                 >
-                  Reauthorize
+                  {isLoggingIn ? 'Redirecting...' : 'Reauthorize'}
                 </button>
               </div>
               <details className="auth-error-banner__details">
@@ -333,8 +334,12 @@ function App() {
                       <strong>Couldn't reach some sources.</strong>
                     </p>
                     <p>Your grants may have expired. Reauthorize to refresh them, then try again.</p>
-                    <button className="auth-error-banner__reauth" onClick={() => login({ reauth: true })}>
-                      Reauthorize
+                    <button
+                      className="auth-error-banner__reauth"
+                      onClick={() => login({ reauth: true })}
+                      disabled={isLoggingIn}
+                    >
+                      {isLoggingIn ? 'Redirecting...' : 'Reauthorize'}
                     </button>
                   </>
                 ) : (
