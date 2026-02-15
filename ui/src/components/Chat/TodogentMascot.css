@@ -166,21 +166,11 @@
   animation: todaygent-blink 4s ease-in-out infinite;
 }
 
-/* Thinking: sparkle pulse + rapid indicator cycling */
+/* Thinking: only sparkle-1 pulses faster (2 & 3 stay static to reduce noise).
+   Indicators are hidden in compact mode (the only size used for thinking),
+   so no thinking-specific indicator animations are needed. */
 .todaygent--thinking .sparkle-1 {
   animation: todaygent-twinkle 2s ease-in-out infinite;
-}
-
-.todaygent--thinking .indicator-dot--1 {
-  animation: todaygent-dot-green 1.5s ease-in-out infinite;
-}
-
-.todaygent--thinking .indicator-dot--2 {
-  animation: todaygent-dot-gold 1.5s ease-in-out 0.5s infinite;
-}
-
-.todaygent--thinking .indicator-dot--3 {
-  animation: todaygent-dot-teal 1.5s ease-in-out 1s infinite;
 }
 
 /* ── Dark mode ─────────────────────────────────────────────────────────────── */

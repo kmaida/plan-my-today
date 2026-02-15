@@ -31,13 +31,13 @@ const COMPACT_RATIO = 76 / 100;
  * belly, and gold sparkles.
  * Rendered inline (not via <img>) so CSS classes can control animation states.
  *
- * At compact sizes (≤ 32px) the viewBox crops to just the head: clip hat +
+ * At compact sizes (≤ 48px) the viewBox crops to just the head: clip hat +
  * face screen, with a shortened board that still has rounded bottom corners.
- * This makes expressions (blink, shifty eyes, smirk) visible at small sizes.
+ * This makes expressions (blink, side-eye, mouth changes) visible at small sizes.
  *
  * States:
  * - "idle": sparkle twinkle + occasional blink + indicator pulse (visible mascot)
- * - "thinking": subtle mouth drift + rare side-eye squint (used during LLM response)
+ * - "thinking": mouth expression cycling + rare side-eye squint with head-turn (used during LLM response)
  * - "static": no animations (fallback / reduced-motion)
  */
 export const TodogentMascot = memo(function TodogentMascot({
