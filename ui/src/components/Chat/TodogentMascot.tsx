@@ -89,9 +89,11 @@ export const TodogentMascot = memo(function TodogentMascot({
 
       {/* ── Face (on the screen area) ── */}
       <g className="todaygent-face">
-        {/* Eyes */}
-        <circle className="eye-left" cx="41" cy="46" r="3.5" fill="#3D2E1F" />
-        <circle className="eye-right" cx="59" cy="46" r="3.5" fill="#3D2E1F" />
+        {/* Eyes: rounded rects (not circles) so scaleY blink squishes to a
+            rounded-cap line instead of a pointy ellipse. At rest rx/ry = half
+            height, so they render as perfect circles. */}
+        <rect className="eye-left" x="37.5" y="42.5" width="7" height="7" rx="3.5" ry="3.5" fill="#3D2E1F" />
+        <rect className="eye-right" x="55.5" y="42.5" width="7" height="7" rx="3.5" ry="3.5" fill="#3D2E1F" />
 
         {/* Neutral mouth (smile — default visible) */}
         <path
@@ -122,16 +124,6 @@ export const TodogentMascot = memo(function TodogentMascot({
           strokeWidth="2"
           strokeLinecap="round"
         />
-      </g>
-
-      {/* ── Eyelids (two halves per eye meet in the middle for robotic blink) ── */}
-      <g className="todaygent-eyelids">
-        {/* Left eye: top lid drops down, bottom lid rises up */}
-        <rect className="eyelid-top eyelid-top--left" x="35.5" y="40.5" width="11" height="5.5" rx="2" fill="#E5DDD3" />
-        <rect className="eyelid-bottom eyelid-bottom--left" x="35.5" y="46" width="11" height="5.5" rx="2" fill="#E5DDD3" />
-        {/* Right eye: same */}
-        <rect className="eyelid-top eyelid-top--right" x="53.5" y="40.5" width="11" height="5.5" rx="2" fill="#E5DDD3" />
-        <rect className="eyelid-bottom eyelid-bottom--right" x="53.5" y="46" width="11" height="5.5" rx="2" fill="#E5DDD3" />
       </g>
 
       {/* ── Status-light indicators (hidden in compact mode via CSS) ── */}

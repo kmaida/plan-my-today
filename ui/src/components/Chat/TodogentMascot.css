@@ -2,8 +2,6 @@
 
 /* All animated SVG elements need fill-box for transform-origin to work correctly */
 .todaygent-mascot .todaygent-face,
-.todaygent-mascot .eyelid-top,
-.todaygent-mascot .eyelid-bottom,
 .todaygent-mascot .eye-left,
 .todaygent-mascot .eye-right,
 .todaygent-mascot .sparkle-1,
@@ -18,19 +16,6 @@
 .todaygent-mascot .mouth-thinking,
 .todaygent-mascot .mouth-pursed {
   display: none;
-}
-
-/* Eyelids: two halves per eye meet in the middle (robotic blink).
-   Top lids close downward, bottom lids close upward — visually distinct
-   from a natural blink and readable even at 32px. */
-.todaygent-mascot .eyelid-top {
-  transform-origin: center bottom;
-  transform: scaleY(0);
-}
-
-.todaygent-mascot .eyelid-bottom {
-  transform-origin: center top;
-  transform: scaleY(0);
 }
 
 /* ── Compact mode: hide details at small sizes ─────────────────────────────── */
@@ -59,14 +44,16 @@
   50% { opacity: 1; transform: scale(1.1); }
 }
 
-.todaygent--idle .eyelid-top,
-.todaygent--idle .eyelid-bottom {
+/* Blink: eyes squish to a thin rounded-cap line at center, then spring back.
+   Eyes are rounded rects so the squished shape keeps pill-shaped ends. */
+.todaygent--idle .eye-left,
+.todaygent--idle .eye-right {
   animation: todaygent-blink 6s ease-in-out infinite;
 }
 
 @keyframes todaygent-blink {
-  0%, 85%, 93%, 100% { transform: scaleY(0); }
-  88%, 90% { transform: scaleY(1); }
+  0%, 85%, 93%, 100% { transform: scaleY(1); }
+  88%, 90% { transform: scaleY(0.1); }
 }
 
 /* Indicator dots: subtle glow pulse, staggered */
@@ -144,26 +131,21 @@
   86%, 100% { transform: translateX(0); }
 }
 
-/* Eyes: occasional suspicious side-eye squint (~8s cycle).
-   Normal most of the time — one quick glance to the side with a
-   vertical squint, then back. Face shifts 2px + eyes shift 5px =
-   7px total displacement — sells the head turn. */
+/* Eyes: side-eye squint + blink merged into one 8s cycle.
+   Blink at ~35% (quick squish to line and back), side-eye at ~74%.
+   Face shifts 2px + eyes shift 5px = 7px total displacement. */
 .todaygent--thinking .eye-left,
 .todaygent--thinking .eye-right {
   animation: todaygent-side-eye 8s ease-in-out infinite;
 }
 
 @keyframes todaygent-side-eye {
-  0%, 70% { transform: translateX(0) scaleY(1); }
+  0%, 33% { transform: translateX(0) scaleY(1); }
+  35% { transform: translateX(0) scaleY(0.1); }
+  37%, 70% { transform: translateX(0) scaleY(1); }
   74% { transform: translateX(5px) scaleY(0.35); }
   75%, 82% { transform: translateX(5px) scaleY(0.35); }
   86%, 100% { transform: translateX(0) scaleY(1); }
-}
-
-/* Thinking blink: faster than idle (4s vs 6s) — alert feel */
-.todaygent--thinking .eyelid-top,
-.todaygent--thinking .eyelid-bottom {
-  animation: todaygent-blink 4s ease-in-out infinite;
 }
 
 /* Thinking: only sparkle-1 pulses faster (2 & 3 stay static to reduce noise).
@@ -188,8 +170,6 @@
   .todaygent-mascot .sparkle-2,
   .todaygent-mascot .sparkle-3,
   .todaygent-mascot .todaygent-face,
-  .todaygent-mascot .eyelid-top,
-  .todaygent-mascot .eyelid-bottom,
   .todaygent-mascot .eye-left,
   .todaygent-mascot .eye-right,
   .todaygent-mascot .mouth-neutral,
