@@ -7,6 +7,12 @@
  *
  * - Whether to refresh the task store (list-all-tasks-today was called)
  * - Whether to show the reauth banner (any tool returned isError: true)
+ *
+ * Auth errors reach the banner via two paths:
+ * 1. MCP isError flag (individual tool failures) — detected by evaluateToolRound()
+ * 2. metadata.errors in the task store (list-all-tasks-today partial failures) —
+ *    detected when App.tsx re-reads the task store after a didFetchAllTasks round.
+ *    Merged by mergeAuthErrors().
  */
 
 import type { ToolCall } from "./types";
@@ -43,4 +49,20 @@ export function evaluateToolRound(toolCalls: ToolCall[]): ToolRoundResult | null
   }
 
   return null;
+}
+
+/**
+ * Merge auth errors from the MCP tool round and the task store into a
+ * deduplicated array. Used by the App-level callback after re-reading
+ * the task store following a list-all-tasks-today call.
+ *
+ * This ensures partial failures from the aggregate tool (which doesn't set
+ * isError) still surface in the reauth banner without a page refresh.
+ */
+export function mergeAuthErrors(
+  existing: string[],
+  roundErrors: string[],
+  storeErrors: string[],
+): string[] {
+  return [...new Set([...existing, ...roundErrors, ...storeErrors])];
 }

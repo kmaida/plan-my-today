@@ -12,7 +12,7 @@
  * - Nothing actionable → returns null (callback doesn't fire)
  */
 
-import { evaluateToolRound } from "../../../ui/src/chat/tool-round-utils";
+import { evaluateToolRound, mergeAuthErrors } from "../../../ui/src/chat/tool-round-utils";
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 
@@ -220,5 +220,67 @@ describe("evaluateToolRound → edge cases", () => {
     expect(result!.didFetchAllTasks).toBe(true);
     expect(result!.authErrors).toHaveLength(1);
     expect(result!.authErrors[0]).toContain("list-meeting-notes-actions");
+  });
+});
+
+// ── mergeAuthErrors ─────────────────────────────────────────────────────────
+// Regression tests for the reauth banner bug where list-all-tasks-today
+// partial failures (metadata.errors) didn't surface until page refresh.
+// The fix: mergeAuthErrors() combines errors from both the MCP isError path
+// and the task store re-read path into a single deduplicated array.
+
+describe("mergeAuthErrors", () => {
+  it("should surface task store errors even when round errors are empty", () => {
+    // This is the exact scenario that caused the regression:
+    // list-all-tasks-today succeeds (isError: false) but has metadata.errors.
+    // evaluateToolRound produces empty authErrors.
+    // The task store re-read returns those errors.
+    const result = mergeAuthErrors(
+      [],
+      [], // round errors — empty because isError was false
+      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+    );
+
+    expect(result).toEqual([
+      "Gmail: Authentication failed — reauthorize to refresh grants",
+    ]);
+  });
+
+  it("should merge round errors and store errors together", () => {
+    const result = mergeAuthErrors(
+      [],
+      ["list-meeting-notes-actions: ❌ Authorization failed"],
+      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result).toContain("list-meeting-notes-actions: ❌ Authorization failed");
+    expect(result).toContain("Gmail: Authentication failed — reauthorize to refresh grants");
+  });
+
+  it("should preserve existing errors from previous rounds", () => {
+    const result = mergeAuthErrors(
+      ["Slack: token expired"],
+      [],
+      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result).toContain("Slack: token expired");
+    expect(result).toContain("Gmail: Authentication failed — reauthorize to refresh grants");
+  });
+
+  it("should deduplicate identical errors", () => {
+    const result = mergeAuthErrors(
+      ["Gmail: Authentication failed"],
+      ["Gmail: Authentication failed"],
+      ["Gmail: Authentication failed"],
+    );
+
+    expect(result).toEqual(["Gmail: Authentication failed"]);
+  });
+
+  it("should return empty array when all sources are empty", () => {
+    expect(mergeAuthErrors([], [], [])).toEqual([]);
   });
 });

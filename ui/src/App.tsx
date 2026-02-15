@@ -5,6 +5,7 @@ import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { ChatPanel } from './components/Chat/ChatPanel'
 import { listAllTasks, refreshAllTasks, markActionComplete } from './api/client'
+import { mergeAuthErrors } from './chat/tool-round-utils'
 import { useMCP } from './mcp'
 import { useTheme } from './hooks/useTheme'
 import type { Task, ViewMode, FilterState } from './types/tasks'
@@ -76,22 +77,24 @@ function App() {
   /**
    * Single callback for ChatPanel after each chat turn completes.
    * - Refreshes the dashboard when list-all-tasks-today wrote fresh task store data.
-   * - Shows the reauth banner when any tool (aggregate or individual) hit an
-   *   auth error. Detection uses the same pattern matching for all tools —
-   *   the underlying failure is always "Keycard token exchange failed."
+   * - Shows the reauth banner when any tool hit an auth error. Two sources:
+   *   1. MCP isError flag (individual tool failures caught by evaluateToolRound)
+   *   2. metadata.errors in the task store (partial failures from list-all-tasks-today)
    */
   const handleToolCallsComplete = useCallback(async (result: { didFetchAllTasks: boolean; authErrors: string[] }) => {
+    let storeErrors: string[] = []
     if (result.didFetchAllTasks) {
       try {
         const stored = await listAllTasks()
         setTasks(stored.tasks)
         setFetchedAt(stored.fetchedAt)
+        storeErrors = stored.authErrors
       } catch {
         // Non-fatal: task store read failed, tasks stay as-is
       }
     }
-    if (result.authErrors.length > 0) {
-      setAuthErrors((prev) => [...new Set([...prev, ...result.authErrors])])
+    if (result.authErrors.length > 0 || storeErrors.length > 0) {
+      setAuthErrors((prev) => mergeAuthErrors(prev, result.authErrors, storeErrors))
       setAuthErrorsDismissed(false)
     }
   }, [])

@@ -80,7 +80,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
     onToolCallsComplete,
   )
   const [input, setInput] = useState('')
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
   const [showTokenDetails, setShowTokenDetails] = useState(false)
   const [placeholder, setPlaceholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
   const [buttonLabel, setButtonLabel] = useState(() => BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
@@ -93,10 +93,13 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
     setWelcomeMsg(WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
   }, [isOpen])
 
-  // Auto-scroll to bottom when new messages arrive
+  // Keep the messages container scrolled to the bottom.
+  // Uses scrollTop on the container directly — no sentinel div, no rAF,
+  // no layout-timing fragility. Works for both restored and new messages.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const el = messagesRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages, isOpen])
 
   const lastMessageIsAssistant =
     messages.length > 0 && messages[messages.length - 1].role === 'assistant'
@@ -138,7 +141,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
         </div>
       </div>
 
-      <div className="chat-panel__messages">
+      <div className="chat-panel__messages" ref={messagesRef}>
         {!isConnected && !isAuthenticated && (
           <div className="chat-panel__notice">
             Sign in to start chatting.
@@ -168,7 +171,6 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
           <div className="chat-panel__error">{error}</div>
         )}
 
-        <div ref={messagesEndRef} />
       </div>
 
       {/* ── Pinned mascot strip (between messages + input, doesn't scroll) ── */}
