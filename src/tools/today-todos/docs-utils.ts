@@ -116,12 +116,13 @@ export async function fetchAssignedActions(
         fileLink,
         timestamp: activity.timestamp,
         isAssignment: !!comment.assignment,
+        docsType: comment.assignment ? "assignment" : "mention",
       });
     }
   }
 
   // Filter out completed actions
-  // The identifier used by mark-action-complete is the fileLink URL or fileTitle
+  // The identifier used by dismiss-task is the fileLink URL or fileTitle
   const filteredActions: AssignedActionDetail[] = [];
   for (const action of actionItems) {
     const identifier = action.fileLink || action.fileTitle;

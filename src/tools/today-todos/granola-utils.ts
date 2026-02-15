@@ -476,7 +476,7 @@ export async function fetchMeetingNoteActions(
   });
 
   // Filter out completed actions
-  // The identifier used by mark-action-complete may be just the documentId
+  // The identifier used by dismiss-task may be just the documentId
   // (dismisses all actions from that doc) or documentId:hash (specific action)
   const filteredActions: MeetingNoteActionDetail[] = [];
   for (const action of allActionItems) {

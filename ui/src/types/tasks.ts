@@ -1,5 +1,9 @@
 // TypeScript interfaces for Todo MCP Server data model
 
+// ===== Docs Action Types =====
+
+export type DocsType = "mention" | "assignment" | "unresolved-comment";
+
 // ===== Task Sources =====
 
 export type TaskSource =
@@ -190,6 +194,7 @@ export interface DocsActionTask {
   actionType: string;
   fileLink: string;
   timestamp: string;
+  docsType?: DocsType;
 
   // Enrichment
   priorityMetadata: PriorityMetadata;
@@ -361,6 +366,7 @@ export interface ServerDocsAction {
   fileLink: string | null;
   timestamp?: string;
   isAssignment?: boolean;
+  docsType?: DocsType;
   priorityMetadata?: ServerPriorityMetadata;
 }
 
@@ -380,7 +386,7 @@ export interface ServerMeetingNote {
 
 // ===== API Response Types =====
 
-export interface MarkCompleteResponse {
+export interface DismissalResponse {
   success: boolean;
   message?: string;
 }

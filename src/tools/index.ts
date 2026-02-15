@@ -6,7 +6,8 @@ import { registerGithubTool } from "./github";
 import { registerGmailTool } from "./gmail";
 import { registerLinearTool } from "./linear";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
-import { registerMarkActionCompleteTool } from "./mark-action-complete";
+import { registerDismissTaskTool } from "./dismiss-task";
+import { registerRestoreDismissedTaskTool } from "./restore-dismissed-task";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
 import { registerSetTaskPriorityTool } from "./set-task-priority";
@@ -21,7 +22,8 @@ export const TOOL_REGISTRY = [
   { name: "list-assigned-actions", register: registerAssignedActionsTool },
   { name: "list-drive-activity", register: registerDriveActivityTool },
   { name: "list-gmail-todos", register: registerGmailTool },
-  { name: "mark-action-complete", register: registerMarkActionCompleteTool },
+  { name: "dismiss-task", register: registerDismissTaskTool },
+  { name: "restore-dismissed-task", register: registerRestoreDismissedTaskTool },
   { name: "list-github-todos", register: registerGithubTool },
   { name: "list-slack-todos", register: registerSlackListTool },
   { name: "list-all-tasks-today", register: registerListAllTasksTodayTool },

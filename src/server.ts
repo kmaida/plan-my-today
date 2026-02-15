@@ -328,12 +328,12 @@ export function createApp(): express.Application {
     }
   });
 
-  // Mark an action as complete (no auth — writes to local completion store).
+  // Dismiss a task (no auth — writes to local completion store).
   // Supports meeting-note, slack, docs, and adhoc sources.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — action completion with validation
-  app.post("/api/mark-action-complete", async (req: express.Request, res: express.Response) => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — dismissal with validation
+  app.post("/api/dismiss-task", async (req: express.Request, res: express.Response) => {
     try {
-      const { source, identifier, complete = true, metadata, taskId } = req.body || {};
+      const { source, identifier, metadata, taskId } = req.body || {};
 
       if (!source || !identifier) {
         return res.status(400).json({ error: "Missing required fields: source, identifier" });
@@ -358,11 +358,6 @@ export function createApp(): express.Application {
         }
       }
 
-      if (!complete) {
-        await storeIncomplete(source, identifier);
-        return res.json({ success: true, message: `Unmarked: ${source}:${identifier}` });
-      }
-
       await storeComplete(source, identifier, metadata);
 
       // Remove from task store so it disappears on next UI reload
@@ -370,16 +365,42 @@ export function createApp(): express.Application {
         await removeTaskFromStore(taskId);
       }
 
-      return res.json({ success: true, message: `Marked complete: ${source}:${identifier}` });
+      return res.json({ success: true, message: `Dismissed: ${source}:${identifier}` });
     } catch (error) {
       res.status(500).json({
-        error: "Failed to mark action complete",
+        error: "Failed to dismiss task",
         message: error instanceof Error ? error.message : String(error),
       });
     }
   });
 
-  // Remove a task from the task store by taskId (called by the UI after mark-action-complete)
+  // Restore a dismissed task (no auth — modifies local completion store).
+  app.post("/api/restore-dismissed-task", async (req: express.Request, res: express.Response) => {
+    try {
+      const { source, identifier } = req.body || {};
+
+      if (!source || !identifier) {
+        return res.status(400).json({ error: "Missing required fields: source, identifier" });
+      }
+
+      const validSources = ["meeting-note", "slack", "docs", "adhoc"];
+      if (!validSources.includes(source)) {
+        return res
+          .status(400)
+          .json({ error: `Invalid source. Must be one of: ${validSources.join(", ")}` });
+      }
+
+      await storeIncomplete(source, identifier);
+      return res.json({ success: true, message: `Restored: ${source}:${identifier}` });
+    } catch (error) {
+      res.status(500).json({
+        error: "Failed to restore dismissed task",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
+  // Remove a task from the task store by taskId (called by the UI after dismiss-task)
   app.post("/api/tasks/evict", async (req: express.Request, res: express.Response) => {
     const { taskId } = req.body || {};
     if (!taskId) {

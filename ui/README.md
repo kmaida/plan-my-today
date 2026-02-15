@@ -50,7 +50,7 @@ src/
 │   ├── system-prompt.ts       # Builds system prompt with current task context
 │   └── types.ts               # Chat message types
 ├── api/                       # REST API client
-│   ├── client.ts              # Fetch wrappers (listAllTasks, markComplete, etc.)
+│   ├── client.ts              # Fetch wrappers (listAllTasks, dismissTask, restoreDismissedTask)
 │   └── transformers.ts        # Raw API → typed Task objects
 ├── components/
 │   ├── Chat/

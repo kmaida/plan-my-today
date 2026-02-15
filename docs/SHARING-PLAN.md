@@ -145,7 +145,7 @@ Files to update:
 - [src/constants.ts](src/constants.ts) - Make emoji configurable
 - [src/tools/today-todos/slack-utils.ts](src/tools/today-todos/slack-utils.ts) - Uses emoji constant
 - [src/tools/slack-list.ts](src/tools/slack-list.ts) - References emoji
-- [src/tools/mark-action-complete.ts](src/tools/mark-action-complete.ts) - Removes emoji
+- [src/tools/dismiss-task.ts](src/tools/dismiss-task.ts) - Removes emoji
 
 **3.2 stdio configuration file**
 
@@ -339,7 +339,7 @@ After implementation, verify:
    - [ ] Custom emoji name configurable via `SLACK_EMOJI_NAME`
    - [ ] Different users can use different emoji names
    - [ ] `list-slack-todos` shows saved messages with user's emoji
-   - [ ] `mark-action-complete` removes user's custom emoji
+   - [ ] `dismiss-task` removes user's custom emoji
 
 4. **End-to-End Tool Testing:**
    - [ ] `whoami` - Returns user info
@@ -349,7 +349,7 @@ After implementation, verify:
    - [ ] `list-github-todos` - Shows PRs and issues
    - [ ] `list-slack-todos` - Shows mentions, DMs, saved messages
    - [ ] `list-all-tasks-today` - Aggregates all tasks with priorities
-   - [ ] `mark-action-complete` - Marks items complete across sources
+   - [ ] `dismiss-task` - Dismisses items across sources
 
 5. **Documentation:**
    - [ ] README-STDIO.md complete with setup instructions

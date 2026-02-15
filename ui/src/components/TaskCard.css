@@ -236,9 +236,9 @@
   text-decoration: none;
 }
 
-/* Mark complete — right-aligned subdued text link */
+/* Dismiss — right-aligned subdued text link */
 
-.task-card__action--complete {
+.task-card__action--dismiss {
   margin-left: auto;
   font-size: var(--font-size-small);
   color: var(--color-text-tertiary);
@@ -250,13 +250,13 @@
   transition: color var(--transition-fast);
 }
 
-.task-card__action--complete:hover {
+.task-card__action--dismiss:hover {
   color: var(--color-text-secondary);
   background: none;
   box-shadow: none;
 }
 
-.task-card__action--complete:disabled {
+.task-card__action--dismiss:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -268,6 +268,8 @@
 .task-card__action--error:hover {
   color: color-mix(in srgb, var(--color-critical) 85%, black);
 }
+
+/* Dismiss hint — uses shared .hint-tooltip utility (styles/hint-tooltip.css) */
 
 /* Mobile responsiveness */
 

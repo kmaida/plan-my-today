@@ -204,6 +204,7 @@ export interface AssignedActionDetail {
   timestamp?: string; // When the comment/assignment was created
   isAssignment?: boolean; // True if assigned, false if just mentioned
   commentCount?: number; // Number of unresolved comments (for comment-email items)
+  docsType?: "mention" | "assignment" | "unresolved-comment"; // Discriminator for UI warnings
   priorityMetadata?: PriorityMetadata;
 }
 

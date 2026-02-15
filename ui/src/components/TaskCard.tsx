@@ -9,11 +9,12 @@ import { getPriorityLabel } from '../utils/priorityHelpers'
 import { formatDueDate, formatTime, formatDate, isToday, formatSmartDate } from '../utils/dateHelpers'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
 import { Chevron } from './Chevron'
+import '../styles/hint-tooltip.css'
 import './TaskCard.css'
 
-// Sources that support mark-complete from the UI.
+// Sources that support dismissal from the UI.
 // Meeting-notes, docs, and slack (non-saved) use the no-auth REST endpoint (local completion store).
-const COMPLETABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs', 'slack']
+const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs', 'slack']
 
 /** Labels for non-default Google Calendar event types shown in card metadata */
 const CALENDAR_EVENT_TYPE_LABELS: Record<string, string> = {
@@ -55,13 +56,13 @@ function parseSlackLinks(text: string): ReactNode[] {
 
 interface TaskCardProps {
   task: Task
-  onMarkComplete?: (task: Task) => void
+  onDismiss?: (task: Task) => void
   onViewSource?: (task: Task) => void
   isCompleting?: boolean
   hasError?: boolean
 }
 
-export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSource, isCompleting, hasError }: TaskCardProps) {
+export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, isCompleting, hasError }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const title = getTaskTitle(task)
@@ -170,7 +171,7 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
     if (e.key === 'Enter' || e.key === ' ') setIsExpanded(prev => !prev)
   }, [])
   const handleViewSource = useCallback(() => { if (onViewSource) onViewSource(task) }, [onViewSource, task])
-  const handleMarkComplete = useCallback(() => { if (onMarkComplete) onMarkComplete(task) }, [onMarkComplete, task])
+  const handleDismiss = useCallback(() => { if (onDismiss) onDismiss(task) }, [onDismiss, task])
 
   const cardClassName = [
     'task-card',
@@ -281,15 +282,26 @@ export const TaskCard = memo(function TaskCard({ task, onMarkComplete, onViewSou
             View in {getSourceLabel(task.source)} →
           </a>
         )}
-        {onMarkComplete && COMPLETABLE_SOURCES.includes(task.source)
+        {onDismiss && DISMISSABLE_SOURCES.includes(task.source)
           && !(isSlackTask(task) && task.type === 'saved') && (
-          <button
-            className={`task-card__action task-card__action--complete${hasError ? ' task-card__action--error' : ''}`}
-            onClick={handleMarkComplete}
-            disabled={isCompleting}
-          >
-            {isCompleting ? 'Dismissing...' : hasError ? 'Failed — Retry' : isSlackTask(task) ? 'Dismiss' : 'Mark Complete'}
-          </button>
+          <>
+            <button
+              className={`task-card__action task-card__action--dismiss${hasError ? ' task-card__action--error' : ''}`}
+              onClick={handleDismiss}
+              disabled={isCompleting}
+            >
+              {isCompleting ? 'Dismissing...' : hasError ? 'Failed — Retry' : 'Dismiss'}
+            </button>
+            {isDocsActionTask(task) && task.docsType === 'unresolved-comment' && (
+              <span className="hint-tooltip">
+                <svg className="hint-tooltip__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                  <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">!</text>
+                </svg>
+                <span className="hint-tooltip__tooltip">Resolve comments in Google Docs — they'll disappear from the dashboard automatically.</span>
+              </span>
+            )}
+          </>
         )}
       </div>
     </div>

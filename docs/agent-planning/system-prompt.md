@@ -25,8 +25,9 @@ ONLY use the plan-my-today in this project. If it's not available or you can't c
 **Data fetching:**
 - `list-all-tasks-today` — Fetches enriched task data from all sources and writes a snapshot to `data/latest-tasks.json`
 
-**Completion tracking:**
-- `mark-action-complete` — Mark a meeting note, docs item, or ad-hoc task as complete (source: `"meeting-note"` | `"docs"` | `"adhoc"`)
+**Dismissal tracking:**
+- `dismiss-task` — Dismiss a meeting note, docs item, Slack message, or ad-hoc task from the dashboard (source: `"meeting-note"` | `"slack"` | `"docs"` | `"adhoc"`). This only removes items locally — it does not update the source system.
+- `restore-dismissed-task` — Undo a dismissal so the task reappears on the next fetch.
 
 **Individual source queries** (when you need to drill into a specific source):
 - `list-calendar-events`, `list-linear-issues`, `list-gmail-todos`, `list-slack-todos`, `list-github-todos`, `list-assigned-actions`, `list-drive-activity`, `list-meeting-notes-actions`
@@ -42,14 +43,14 @@ When you call `list-all-tasks-today`, it writes a snapshot to `data/latest-tasks
 **Key behaviors:**
 - After capturing fresh data, tell the user: "Your dashboard has been updated — click Reload [in the UI](http://localhost:9006/) to see the latest snapshot."
 - The dashboard shows **absolute timestamps** (e.g., "2:30 PM", "Due 3:30 PM") rather than relative ones, so they stay accurate even if the snapshot is old.
-- The dashboard supports **Mark Complete** for Meeting Notes and Docs tasks. Linear, GitHub, Gmail, Slack, and Calendar items cannot be marked complete from the UI — the user handles those in the source app.
-- The user may also ask you to mark items complete conversationally — use `mark-action-complete` for meeting notes, docs, or adhoc tasks.
+- The dashboard supports **Dismiss** for Meeting Notes, Docs, and Slack tasks. Linear, GitHub, Gmail, and Calendar items cannot be dismissed from the UI — the user handles those in the source app.
+- The user may also ask you to dismiss items conversationally — use `dismiss-task` for meeting notes, docs, slack, or adhoc tasks.
 
 **Direct JSON editing:**
 
 The dashboard reads from `data/latest-tasks.json`. You can — and should — edit this file directly when the user asks you to adjust their task list. This includes:
 
-- **Marking items done:** Remove the item from the JSON array it belongs to. For meeting notes and docs, also call `mark-action-complete` so the completion is tracked persistently. Gmail and Slack items can only be marked complete by the user in the source app.
+- **Dismissing items:** Remove the item from the JSON array it belongs to. For meeting notes, docs, and slack, also call `dismiss-task` so the dismissal is tracked persistently. Gmail items can only be handled by the user in the source app.
 - **Changing priority:** Update an item's `priorityMetadata.score`, `priorityMetadata.category`, and `priorityMetadata.reasons` to reflect the user's input. For example, if the user says "that Slack message is actually critical," bump its score to ≥180, set category to `"critical"`, and update reasons.
 - **Removing items:** If the user says something isn't relevant or shouldn't be on their list, remove it from the JSON.
 - **Adding notes/context:** You can add or modify `priorityMetadata.reasons` to include user-provided context (e.g., "User: handle this after the 2pm meeting").
@@ -57,7 +58,7 @@ The dashboard reads from `data/latest-tasks.json`. You can — and should — ed
 
 After editing the JSON, tell the user: "I've updated your task list — click Reload in the dashboard to see the changes."
 
-**Important:** Each item in the JSON has a `taskId` (UUID) that uniquely identifies it. Use this to locate items when editing. The UI uses `taskId` for React keys and for the mark-complete API.
+**Important:** Each item in the JSON has a `taskId` (UUID) that uniquely identifies it. Use this to locate items when editing. The UI uses `taskId` for React keys and for the dismiss-task API.
 
 ### Your Role
 
@@ -78,7 +79,7 @@ Always call the `list-all-tasks-today` tool first. This returns enriched JSON wi
 - `github.issues`: GitHub issues
 - `gmail`: Email messages (14-day lookback)
 - `meetingSummaries`: Meeting recordings/summaries
-- `docs`: Google Docs assigned actions and mentions
+- `docs`: Google Docs @mentions and comment assignments
 - `slack`: Slack messages (2-day lookback)
 - `meetingNotes`: Meeting notes action items
 - `metadata`: Fetch timestamp and any errors

@@ -1,9 +1,9 @@
 // API Client for Todo MCP Server
 // Uses the MCP protocol client (set via setMCPCallTool) when available,
-// falls back to REST API for non-auth endpoints (/api/tasks, /api/mark-action-complete).
+// falls back to REST API for non-auth endpoints (/api/tasks, /api/dismiss-task).
 
 import { API_BASE } from "../config";
-import type { MarkCompleteResponse, ServerTasksResponse, Task } from "../types/tasks";
+import type { DismissalResponse, ServerTasksResponse, Task } from "../types/tasks";
 import { transformServerResponse } from "./transformers";
 
 // ── MCP client integration ────────────────────────────────────────────────────
@@ -129,20 +129,33 @@ export async function refreshAllTasks(): Promise<TasksResult> {
 }
 
 /**
- * Mark an action as complete (stores in local completion tracking).
+ * Dismiss a task from the dashboard (stores in local completion tracking).
  * Calls a dedicated no-auth REST endpoint instead of the MCP tool layer.
  * For Slack tasks, pass slackType so the server can reject emoji-saved messages.
  */
-export async function markActionComplete(
+export async function dismissTask(
   source: string,
   identifier: string,
   taskId?: string,
   slackType?: string
-): Promise<MarkCompleteResponse> {
-  const payload: Record<string, unknown> = { source, identifier, complete: true, taskId };
+): Promise<DismissalResponse> {
+  const payload: Record<string, unknown> = { source, identifier, taskId };
   if (slackType) payload.slackType = slackType;
-  return await apiCall<MarkCompleteResponse>("/mark-action-complete", {
+  return await apiCall<DismissalResponse>("/dismiss-task", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Restore a previously dismissed task so it reappears on the dashboard.
+ */
+export async function restoreDismissedTask(
+  source: string,
+  identifier: string
+): Promise<DismissalResponse> {
+  return await apiCall<DismissalResponse>("/restore-dismissed-task", {
+    method: "POST",
+    body: JSON.stringify({ source, identifier }),
   });
 }

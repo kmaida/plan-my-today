@@ -2,7 +2,7 @@
  * Completion identifier consistency tests
  *
  * These tests verify that the identifier format used when STORING a completion
- * (what the UI / mark-action-complete tool sends) matches the identifier format
+ * (what the UI / dismiss-task tool sends) matches the identifier format
  * used when FILTERING completed items out of task lists (what the fetch utils check).
  *
  * This is the exact class of bug we hit in production: Slack stored permalink URLs
@@ -165,7 +165,7 @@ describe("Cross-source isolation", () => {
 });
 
 describe("ActionSource type coverage", () => {
-  // Every source in the mark-action-complete tool schema must be representable
+  // Every source in the dismiss-task tool schema must be representable
   // in ActionSource. This test acts as a compile-time + runtime guard: if someone
   // adds a source to the tool but forgets ActionSource, this fails to compile.
   const TOOL_SOURCES = ["meeting-note", "slack", "docs", "adhoc"] as const;

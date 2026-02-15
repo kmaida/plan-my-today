@@ -2,7 +2,7 @@
  * Tests for the UI's task helper utilities.
  *
  * These are pure functions that the dashboard uses for:
- * - getTaskIdentifier: the stable ID sent to mark-action-complete
+ * - getTaskIdentifier: the stable ID sent to dismiss-task
  *   (MUST agree with filter-completed-tasks.ts or dismissals break)
  * - getTaskSearchText: full-text search across task fields
  * - applyFilters: combined search/source/priority/time filtering

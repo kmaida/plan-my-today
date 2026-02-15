@@ -48,7 +48,7 @@
    Eyes are rounded rects so the squished shape keeps pill-shaped ends. */
 .todaygent--idle .eye-left,
 .todaygent--idle .eye-right {
-  animation: todaygent-blink 6s ease-in-out infinite;
+  animation: todaygent-blink 4s ease-in-out infinite;
 }
 
 @keyframes todaygent-blink {

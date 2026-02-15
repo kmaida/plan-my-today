@@ -159,6 +159,7 @@ function transformDocs(action: ServerDocsAction): DocsActionTask {
     actionType: action.actionType,
     fileLink: action.fileLink || "",
     timestamp: action.timestamp || new Date().toISOString(),
+    docsType: action.docsType,
     priorityMetadata: transformPriority(action.priorityMetadata),
   };
 }

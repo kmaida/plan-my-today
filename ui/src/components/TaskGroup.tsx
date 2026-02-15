@@ -12,10 +12,10 @@ interface TaskGroupProps {
   count: number
   tasks: Task[]
   defaultCollapsed?: boolean
-  onMarkComplete?: (task: Task) => void
+  onDismiss?: (task: Task) => void
   onViewSource?: (task: Task) => void
-  completingTaskId?: string | null
-  completeError?: string | null
+  dismissingTaskId?: string | null
+  dismissError?: string | null
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -23,10 +23,10 @@ export const TaskGroup = memo(function TaskGroup({
   count,
   tasks,
   defaultCollapsed = false,
-  onMarkComplete,
+  onDismiss,
   onViewSource,
-  completingTaskId,
-  completeError,
+  dismissingTaskId,
+  dismissError,
 }: TaskGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
@@ -62,10 +62,10 @@ export const TaskGroup = memo(function TaskGroup({
                 <TaskCard
                   key={task.taskId || `${task.source}-${index}`}
                   task={task}
-                  onMarkComplete={onMarkComplete}
+                  onDismiss={onDismiss}
                   onViewSource={onViewSource}
-                  isCompleting={completingTaskId === task.taskId}
-                  hasError={completeError === task.taskId}
+                  isCompleting={dismissingTaskId === task.taskId}
+                  hasError={dismissError === task.taskId}
                 />
               ))}
               {remaining > 0 && (

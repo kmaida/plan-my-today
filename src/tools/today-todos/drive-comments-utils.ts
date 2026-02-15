@@ -123,6 +123,7 @@ export async function verifyAndEnrichDocComments(
           (email.emailTimestamp ? new Date(email.emailTimestamp).toISOString() : undefined),
         isAssignment: false,
         commentCount: count,
+        docsType: "unresolved-comment" as const,
       };
     })
   );

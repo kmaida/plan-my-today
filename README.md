@@ -134,7 +134,8 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-assigned-actions` | Google Docs action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
-| `mark-action-complete` | Mark meeting note todos, docs items, or ad-hoc tasks complete (local store) |
+| `dismiss-task` | Dismiss meeting note todos, docs items, Slack messages, or ad-hoc tasks from dashboard (local store) |
+| `restore-dismissed-task` | Restore a previously dismissed task so it reappears on the dashboard |
 
 ## REST API
 
@@ -187,7 +188,8 @@ src/
 │   ├── assigned-actions.ts   # Google Docs actions
 │   ├── drive-activity.ts     # Google Drive activity
 │   ├── meeting-notes.ts      # Meeting notes (via Google Drive)
-│   ├── mark-action-complete.ts
+│   ├── dismiss-task.ts
+│   ├── restore-dismissed-task.ts
 │   ├── mark-email-complete.ts
 │   └── list-all-tasks-today/ # Aggregation tool
 ├── utils/                    # Shared utilities

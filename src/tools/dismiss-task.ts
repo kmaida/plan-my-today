@@ -1,19 +1,16 @@
 import { z } from "zod/v3";
-import {
-  markActionComplete as storeMarkComplete,
-  markActionIncomplete as storeMarkIncomplete,
-} from "../services/action-completion-store";
+import { markActionComplete as storeDismiss } from "../services/action-completion-store";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import type { ActionSource } from "../utils/action-identifiers";
 
 /**
- * Input schema for the mark-action-complete tool
+ * Input schema for the dismiss-task tool
  */
-const markActionCompleteInputSchema = {
+const dismissTaskInputSchema = {
   source: z
     .enum(["meeting-note", "slack", "docs", "adhoc"])
     .describe(
-      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), 'docs' for Google Docs assigned actions/mentions, or 'adhoc' for custom tasks"
+      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), 'docs' for Google Docs @mentions and comment assignments (local dismissal only - does not resolve comments in Google Docs), or 'adhoc' for custom tasks"
     ),
   identifier: z
     .string()
@@ -23,10 +20,6 @@ const markActionCompleteInputSchema = {
         "slack uses '{channelId}:{messageTs}' (e.g., 'C0123ABCDEF:1234567890.123456'), " +
         "docs uses the file link or file title, adhoc uses any custom ID"
     ),
-  complete: z
-    .boolean()
-    .describe("Set to true to mark complete, false to unmark (default: true)")
-    .optional(),
   slackType: z
     .enum(["mention", "thread", "dm", "saved"])
     .describe(
@@ -35,34 +28,40 @@ const markActionCompleteInputSchema = {
         "'saved' (emoji-bookmarked) messages must be managed in Slack by removing the emoji."
     )
     .optional(),
+  docsType: z
+    .enum(["mention", "assignment", "unresolved-comment"])
+    .describe(
+      "Optional when source is 'docs'. The Google Docs task type from the task data. " +
+        "When 'unresolved-comment', a warning is returned suggesting the user resolve comments in Google Docs."
+    )
+    .optional(),
   metadata: z
     .record(z.any())
-    .describe("Optional metadata to store with the completion (e.g., title, context)")
+    .describe("Optional metadata to store with the dismissal (e.g., title, context)")
     .optional(),
 };
 
 /**
- * Registers the mark-action-complete tool with the MCP server
+ * Registers the dismiss-task tool with the MCP server
  *
- * This tool marks action items as complete by storing them in a local JSON file.
- * Completed items are automatically filtered from task lists and auto-pruned after 30 days.
+ * This tool dismisses action items from the dashboard by storing them in a local JSON file.
+ * Dismissed items are automatically filtered from task lists and auto-pruned after 30 days.
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
-export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
+export function registerDismissTaskTool(mcpServer: McpServer): void {
   mcpServer.registerTool(
-    "mark-action-complete",
+    "dismiss-task",
     {
-      title: "Mark Action Complete",
+      title: "Dismiss Task",
       description:
-        "Mark an action item as complete (or incomplete). This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), Google Docs assigned actions/mentions, and ad-hoc tasks that don't have native completion tracking. Completed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores completion state locally.",
-      inputSchema: markActionCompleteInputSchema,
+        "Dismiss an action item from the dashboard. This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), Google Docs @mentions and comment assignments, and ad-hoc tasks that don't have native completion tracking. Dismissed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores dismissal state locally.",
+      inputSchema: dismissTaskInputSchema,
     },
     (async (args, _extra) => {
       try {
         const source = args.source as ActionSource;
         const identifier = args.identifier;
-        const shouldComplete = args.complete ?? true;
 
         // Reject emoji-saved Slack messages: those are dismissed in Slack
         // itself by removing the emoji reaction, not via local completion state.
@@ -91,28 +90,17 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
           }
         }
 
-        if (shouldComplete) {
-          await storeMarkComplete(source, identifier, args.metadata);
+        await storeDismiss(source, identifier, args.metadata);
 
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Action marked as complete: ${source}:${identifier}`,
-              },
-            ],
-          };
-        } else {
-          await storeMarkIncomplete(source, identifier);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Action unmarked as complete: ${source}:${identifier}`,
-              },
-            ],
-          };
+        let text = `Task dismissed: ${source}:${identifier}`;
+        if (source === "docs" && args.docsType === "unresolved-comment") {
+          text +=
+            "\n\nNote: This item has unresolved comments. Suggest the user resolve them directly in Google Docs — once resolved, the item will disappear from the dashboard automatically on the next fetch.";
         }
+
+        return {
+          content: [{ type: "text", text }],
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown error";
         return {
@@ -124,6 +112,6 @@ export function registerMarkActionCompleteTool(mcpServer: McpServer): void {
           ],
         };
       }
-    }) satisfies AuthenticatedToolHandlerWithArgs<typeof markActionCompleteInputSchema>
+    }) satisfies AuthenticatedToolHandlerWithArgs<typeof dismissTaskInputSchema>
   );
 }

@@ -10,6 +10,7 @@
 import { transformServerResponse } from "../../../ui/src/api/transformers";
 import type {
   CalendarTask,
+  DocsActionTask,
   GitHubTask,
   GmailTask,
   LinearTask,
@@ -466,6 +467,41 @@ describe("Per-source transforms", () => {
 
     expect(task.link).toBe("https://workspace.slack.com/archives/C123/p1234567890000001");
     expect(task.dismissalId).toBe("C123:1234567890.000001");
+  });
+
+  it("Docs: preserves docsType field from server", () => {
+    const data = emptyResponse();
+    data.docs = [
+      {
+        fileTitle: "Design doc",
+        actionType: "comment_added",
+        fileLink: "https://docs.google.com/document/d/abc",
+        docsType: "unresolved-comment",
+      },
+    ];
+
+    const tasks = transformServerResponse(data);
+    const task = tasks[0] as DocsActionTask;
+
+    expect(task.source).toBe("docs");
+    expect(task.docsType).toBe("unresolved-comment");
+  });
+
+  it("Docs: docsType is undefined when server omits it", () => {
+    const data = emptyResponse();
+    data.docs = [
+      {
+        fileTitle: "Spec",
+        actionType: "mentioned",
+        fileLink: "https://docs.google.com/document/d/def",
+        // no docsType
+      },
+    ];
+
+    const tasks = transformServerResponse(data);
+    const task = tasks[0] as DocsActionTask;
+
+    expect(task.docsType).toBeUndefined();
   });
 
   it("missing taskId defaults to empty string", () => {

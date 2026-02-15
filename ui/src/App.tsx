@@ -4,7 +4,7 @@ import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { ChatPanel } from './components/Chat/ChatPanel'
-import { listAllTasks, refreshAllTasks, markActionComplete } from './api/client'
+import { listAllTasks, refreshAllTasks, dismissTask, restoreDismissedTask } from './api/client'
 import { mergeAuthErrors } from './chat/tool-round-utils'
 import { useMCP } from './mcp'
 import { useTheme } from './hooks/useTheme'
@@ -13,6 +13,7 @@ import { DEFAULT_FILTERS, isSlackTask } from './types/tasks'
 import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
+import { Toast } from './components/Toast'
 import './App.css'
 
 function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount: number, groupIndex: number): boolean {
@@ -36,11 +37,12 @@ function App() {
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('priority')
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
-  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
-  const [completeError, setCompleteError] = useState<string | null>(null)
+  const [dismissingTaskId, setDismissingTaskId] = useState<string | null>(null)
+  const [dismissError, setDismissError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [authErrors, setAuthErrors] = useState<string[]>([])
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
+  const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -139,24 +141,39 @@ function App() {
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
 
-  const handleMarkComplete = useCallback(async (task: Task) => {
-    setCompletingTaskId(task.taskId)
-    setCompleteError(null)
+  const handleDismiss = useCallback(async (task: Task) => {
+    setDismissingTaskId(task.taskId)
+    setDismissError(null)
     try {
       // Meeting-notes, docs, slack — use no-auth REST endpoint (local completion store)
       const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
       const identifier = getTaskIdentifier(task)
       // Pass slackType for defense-in-depth: server rejects emoji-saved messages
       const slackType = isSlackTask(task) ? task.type : undefined
-      await markActionComplete(source, identifier, task.taskId, slackType)
+      await dismissTask(source, identifier, task.taskId, slackType)
       setTasks(prev => prev.filter(t => t !== task))
+      setDismissedInfo({ task, source, identifier })
     } catch (err) {
-      console.error('Failed to mark complete:', err)
-      setCompleteError(task.taskId)
+      console.error('Failed to dismiss task:', err)
+      setDismissError(task.taskId)
     } finally {
-      setCompletingTaskId(null)
+      setDismissingTaskId(null)
     }
   }, [])
+
+  const handleUndoDismiss = useCallback(async () => {
+    if (!dismissedInfo) return
+    const { task, source, identifier } = dismissedInfo
+    try {
+      await restoreDismissedTask(source, identifier)
+      // Re-insert into the task list (re-sort by priority score)
+      setTasks(prev => [...prev, task].sort((a, b) => b.priorityMetadata.score - a.priorityMetadata.score))
+      setDismissedInfo(null)
+    } catch (err) {
+      console.error('Failed to restore task:', err)
+      // Toast stays visible so the user can retry
+    }
+  }, [dismissedInfo])
 
   const snapshotLabel = fetchedAt
     ? `Last updated ${isToday(fetchedAt) ? 'today' : formatDate(fetchedAt)} at ${formatTime(fetchedAt)}`
@@ -391,9 +408,9 @@ function App() {
                       count={group.count}
                       tasks={group.tasks}
                       defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
-                      onMarkComplete={handleMarkComplete}
-                      completingTaskId={completingTaskId}
-                      completeError={completeError}
+                      onDismiss={handleDismiss}
+                      dismissingTaskId={dismissingTaskId}
+                      dismissError={dismissError}
                     />
                   ))
                 )}
@@ -419,6 +436,15 @@ function App() {
         onToggle={() => setChatOpen((o) => !o)}
         onToolCallsComplete={handleToolCallsComplete}
       />
+
+      {dismissedInfo && (
+        <Toast
+          message="Task dismissed"
+          actionLabel="Undo"
+          onAction={handleUndoDismiss}
+          onDismiss={() => setDismissedInfo(null)}
+        />
+      )}
     </div>
     </AuthGate>
   )

@@ -1,0 +1,46 @@
+/* Shared hint-tooltip utility — icon + hover tooltip pattern.
+   Used by dismiss-hint (TaskCard) and auth-hint (AuthHint).
+   Apply .hint-tooltip to the wrapper, __icon to the SVG, __tooltip to the text. */
+
+.hint-tooltip {
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+  position: relative;
+}
+
+.hint-tooltip__icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-tertiary);
+  transition: color 0.15s;
+}
+
+.hint-tooltip:hover .hint-tooltip__icon {
+  color: var(--color-text-secondary);
+}
+
+.hint-tooltip__tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--color-text-primary);
+  color: var(--color-bg);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  white-space: normal;
+  width: 240px;
+  text-align: left;
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.hint-tooltip:hover .hint-tooltip__tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
