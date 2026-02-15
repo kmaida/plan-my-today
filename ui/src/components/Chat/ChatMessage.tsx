@@ -1,7 +1,7 @@
-import { useMemo, memo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import type { ChatMessage as ChatMessageType } from '../../chat/types'
-import { ToolCallCard } from './ToolCallCard'
+import { useMemo, memo } from "react";
+import ReactMarkdown from "react-markdown";
+import type { ChatMessage as ChatMessageType } from "../../chat/types";
+import { ToolCallCard } from "./ToolCallCard";
 
 /** Static ReactMarkdown overrides — extracted to module level to avoid re-creation */
 const markdownComponents = {
@@ -46,8 +46,8 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
         )}
       </div>
       <div className="chat-message__meta">
-        {isUser ? 'You' : 'Todaygent'} &middot; {formattedTime}
+        {isUser ? "You" : "Todaygent"} &middot; {formattedTime}
       </div>
     </div>
-  )
+  );
 })

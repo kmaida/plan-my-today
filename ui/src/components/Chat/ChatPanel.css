@@ -125,6 +125,34 @@
   padding: var(--space-xl) var(--space-md);
 }
 
+/* ── Welcome State (with mascot) ───────────────────────────────────────────── */
+
+.chat-panel__welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl) var(--space-md) var(--space-xl);
+}
+
+.chat-panel__welcome-mascot {
+  opacity: 0.85;
+}
+
+.chat-panel__welcome-text {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  max-width: 300px;
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.chat-panel__mascot-idle {
+  padding: var(--space-sm) 0;
+}
+
 .chat-panel__error {
   color: var(--color-critical);
   font-family: var(--font-sans);

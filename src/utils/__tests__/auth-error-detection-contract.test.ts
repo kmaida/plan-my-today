@@ -74,18 +74,22 @@ describe("handleToolError response structure", () => {
     expect(result.content[0].text.length).toBeGreaterThan(0);
   });
 
-  it("should include detailed troubleshooting for TokenExchangeError", () => {
+  it("should return clean LLM-facing message for TokenExchangeError (no developer details)", () => {
     const error = new TokenExchangeError("Token exchange failed: 400", 400);
     const result = handleToolError(error, "https://www.googleapis.com/auth/gmail.readonly", [
       "https://www.googleapis.com/auth/gmail.readonly",
     ]);
 
-    expect(result.content[0].text).toContain("Possible fixes:");
-    expect(result.content[0].text).toContain("resource:");
-    expect(result.content[0].text).toContain("scope:");
+    // LLM-facing message guides reauthorization
+    expect(result.content[0].text).toContain("Authorization failed");
+    expect(result.content[0].text).toContain("Reauthorize");
+    // Developer details are logged server-side, NOT in the response
+    expect(result.content[0].text).not.toContain("resource:");
+    expect(result.content[0].text).not.toContain("scope:");
+    expect(result.content[0].text).not.toContain("googleapis.com");
   });
 
-  it("should include error_description in troubleshooting when available", () => {
+  it("should NOT include raw error_description in response (logged server-side instead)", () => {
     const error = new TokenExchangeError(
       "Token exchange failed: 400",
       400,
@@ -93,13 +97,19 @@ describe("handleToolError response structure", () => {
     );
     const result = handleToolError(error, "https://api.example.com", ["read"]);
 
-    expect(result.content[0].text).toContain("Token has been revoked");
+    // Raw error_description goes to server logs, not LLM response
+    expect(result.content[0].text).not.toContain("Token has been revoked");
+    expect(result.content[0].text).toContain("Authorization failed");
   });
 
-  it("should prefix generic errors with ❌ Error:", () => {
-    const error = new Error("Connection refused");
+  it("should return clean message for generic errors (no raw error.message)", () => {
+    const error = new Error("ECONNREFUSED 127.0.0.1:8080");
     const result = handleToolError(error, "https://api.example.com", ["read"]);
-    expect(result.content[0].text).toMatch(/^❌ Error:/);
+
+    expect(result.content[0].text).toContain("unexpected error");
+    // Raw error message goes to server logs, NOT the LLM response
+    expect(result.content[0].text).not.toContain("ECONNREFUSED");
+    expect(result.content[0].text).not.toContain("127.0.0.1");
   });
 });
 

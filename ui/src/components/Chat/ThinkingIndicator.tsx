@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import './ThinkingIndicator.css'
+import { useState, useEffect, useCallback } from "react";
+import { TodogentMascot } from "./TodogentMascot";
+import "./ThinkingIndicator.css";
 
 const NORMAL_WORDS = [
   'planning', 'organizing', 'filtering', 'designing', 'prioritizing',
@@ -67,14 +68,10 @@ export function ThinkingIndicator() {
 
   return (
     <div className="thinking-indicator">
-      <div className="thinking-indicator__notes" aria-hidden="true">
-        <div className="thinking-indicator__note thinking-indicator__note--1" />
-        <div className="thinking-indicator__note thinking-indicator__note--2" />
-        <div className="thinking-indicator__note thinking-indicator__note--3" />
-      </div>
-      <span className={`thinking-indicator__word${fading ? ' thinking-indicator__word--fading' : ''}`}>
+      <TodogentMascot state="thinking" size={24} />
+      <span className={`thinking-indicator__word${fading ? " thinking-indicator__word--fading" : ""}`}>
         {word.charAt(0).toUpperCase() + word.slice(1)}...
       </span>
     </div>
-  )
+  );
 }

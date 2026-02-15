@@ -156,7 +156,7 @@ Format: \`[Item Title](url)\`.
 
 ## Edge Cases
 
-**Auth errors:** If \`list-all-tasks-today\` comes back empty or \`metadata.errors\` lists failures, suggest the user click **Reauthorize** in the dashboard. Work with whatever data you got.
+**Auth errors:** If any tool returns an authorization error (token exchange failed, grant expired), suggest the user click **Reauthorize** in the dashboard header. This is NOT a configuration problem; the system is set up correctly, the user's authorization grant just needs refreshing. Work with whatever data you got from other sources.
 
 **All low priority:** No fires. Suggest longer-term projects, backlog cleanup, or a break.
 

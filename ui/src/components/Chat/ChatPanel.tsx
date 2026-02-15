@@ -3,11 +3,10 @@ import { useChat } from '../../chat/useChat'
 import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
-import type { ChatMessage as ChatMessageType } from '../../chat/types'
 import { ThinkingIndicator } from './ThinkingIndicator'
+import { TodogentMascot } from './TodogentMascot'
 import { buildSystemPrompt } from '../../chat/system-prompt'
 import type { SessionUsage } from '../../chat/useChat'
-import { extractToolCallAuthErrors } from '../../chat/auth-error-detection'
 import './ChatPanel.css'
 
 /** Format a token count as a compact string (e.g., 1234 → "1.2k"). */
@@ -71,27 +70,15 @@ const PLACEHOLDERS = [
   'Brief me, Todaygent',
 ]
 
-/**
- * Scan completed tool calls for auth-related errors.
- * Delegates to the shared auth-error-detection utility for per-tool-call
- * analysis (structured JSON parsing for aggregate tools, pattern matching
- * for individual tools).
- */
-function extractAuthErrors(messages: ChatMessageType[]): string[] {
-  const errors: string[] = []
-  for (const msg of messages) {
-    if (!msg.toolCalls) continue
-    for (const tc of msg.toolCalls) {
-      errors.push(...extractToolCallAuthErrors(tc))
-    }
-  }
-  return errors
-}
-
 export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
-  const { messages, isLoading, error, sessionUsage, sendMessage, clearMessages } = useChat(buildSystemPrompt)
+  // Auth error detection is handled inside useChat at call time (via the
+  // onToolRoundComplete callback) — no effect-based scanning needed here.
+  const { messages, isLoading, error, sessionUsage, sendMessage, clearMessages } = useChat(
+    buildSystemPrompt,
+    onToolCallsComplete,
+  )
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [showTokenDetails, setShowTokenDetails] = useState(false)
@@ -111,32 +98,8 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // After each chat turn completes, notify the parent about what happened.
-  // Only scans messages added since the last scan to avoid re-reporting old errors.
-  const prevLoadingRef = useRef(false)
-  const scannedCountRef = useRef(0)
-  useEffect(() => {
-    const wasLoading = prevLoadingRef.current
-    prevLoadingRef.current = isLoading
-    if (wasLoading && !isLoading && messages.length > 0 && onToolCallsComplete) {
-      const newMessages = messages.slice(scannedCountRef.current)
-      scannedCountRef.current = messages.length
-
-      const didFetchAllTasks = newMessages.some(
-        (m) => m.toolCalls?.some((tc) => tc.name === 'list-all-tasks-today'),
-      )
-      const authErrors = extractAuthErrors(newMessages)
-
-      if (didFetchAllTasks || authErrors.length > 0) {
-        onToolCallsComplete({ didFetchAllTasks, authErrors })
-      }
-    } else {
-      // Messages changed without a loading transition (e.g., restored from
-      // sessionStorage). Mark them as already scanned so old auth errors
-      // from a previous session aren't re-reported on the next real turn.
-      scannedCountRef.current = messages.length
-    }
-  }, [isLoading, messages, onToolCallsComplete])
+  const lastMessageIsAssistant =
+    messages.length > 0 && messages[messages.length - 1].role === 'assistant'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -191,8 +154,9 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
         )}
 
         {isConnected && messages.length === 0 && (
-          <div className="chat-panel__notice">
-            {welcomeMsg}
+          <div className="chat-panel__welcome">
+            <TodogentMascot state="idle" size={80} className="chat-panel__welcome-mascot" />
+            <p className="chat-panel__welcome-text">{welcomeMsg}</p>
           </div>
         )}
 
@@ -200,7 +164,13 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
           <ChatMessage key={msg.id} message={msg} />
         ))}
 
-        {isLoading && <ThinkingIndicator />}
+        {isLoading ? (
+          <ThinkingIndicator />
+        ) : lastMessageIsAssistant && (
+          <div className="chat-panel__mascot-idle">
+            <TodogentMascot state="idle" size={24} />
+          </div>
+        )}
 
         {error && (
           <div className="chat-panel__error">{error}</div>

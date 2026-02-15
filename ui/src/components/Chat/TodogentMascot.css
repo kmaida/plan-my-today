@@ -1,0 +1,147 @@
+/* ── Todaygent Mascot ───────────────────────────────────────────────────────── */
+
+/* All animated SVG elements need fill-box for transform-origin to work correctly */
+.todaygent-mascot .eyelid-left,
+.todaygent-mascot .eyelid-right,
+.todaygent-mascot .eye-left,
+.todaygent-mascot .eye-right,
+.todaygent-mascot .sparkle-1,
+.todaygent-mascot .sparkle-2,
+.todaygent-mascot .sparkle-3,
+.todaygent-mascot .indicator-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Eyelids: iris-shutter from center (robotic) */
+
+/* ── Compact mode: hide details at small sizes ─────────────────────────────── */
+
+.todaygent--compact .todaygent-indicators,
+.todaygent--compact .todaygent-sparkles {
+  display: none;
+}
+
+/* ── Mouth toggling ────────────────────────────────────────────────────────── */
+
+/* Smirk hidden by default */
+.todaygent-mascot .mouth-smirk {
+  display: none;
+}
+
+/* ── Idle state: sparkle twinkle + blink + indicator pulse ─────────────────── */
+
+.todaygent--idle .sparkle-1 {
+  animation: todaygent-twinkle 3s ease-in-out infinite;
+}
+
+.todaygent--idle .sparkle-2 {
+  animation: todaygent-twinkle 3s ease-in-out 1s infinite;
+}
+
+.todaygent--idle .sparkle-3 {
+  animation: todaygent-twinkle 3s ease-in-out 2s infinite;
+}
+
+@keyframes todaygent-twinkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1); }
+}
+
+.todaygent--idle .eyelid-left,
+.todaygent--idle .eyelid-right {
+  animation: todaygent-blink 6s ease-in-out infinite;
+}
+
+@keyframes todaygent-blink {
+  0%, 87%, 100% { transform: scaleY(0); }
+  89% { transform: scaleY(1); }
+}
+
+/* Indicator dots: subtle glow pulse, staggered */
+.todaygent--idle .indicator-dot--1 {
+  animation: todaygent-dot-green 4s ease-in-out infinite;
+}
+
+.todaygent--idle .indicator-dot--2 {
+  animation: todaygent-dot-gold 4s ease-in-out 1.3s infinite;
+}
+
+.todaygent--idle .indicator-dot--3 {
+  animation: todaygent-dot-teal 4s ease-in-out 2.6s infinite;
+}
+
+@keyframes todaygent-dot-green {
+  0%, 100% { fill: #4A8B4A; }
+  50% { fill: #C0392B; }
+}
+
+@keyframes todaygent-dot-gold {
+  0%, 100% { fill: #FFBF2E; }
+  50% { fill: #4A8B4A; }
+}
+
+@keyframes todaygent-dot-teal {
+  0%, 100% { fill: #7A9C9F; }
+  50% { fill: #FFBF2E; }
+}
+
+/* ── Thinking state: shifty eyes + smirk + sparkle wobble ──────────────────── */
+
+.todaygent--thinking .eye-left,
+.todaygent--thinking .eye-right {
+  animation: todaygent-shifty 2.5s ease-in-out infinite;
+}
+
+@keyframes todaygent-shifty {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(3px); }
+  50% { transform: translateX(0); }
+  80% { transform: translateX(-3px); }
+}
+
+.todaygent--thinking .mouth-neutral {
+  display: none;
+}
+
+.todaygent--thinking .mouth-smirk {
+  display: inline;
+}
+
+/* Thinking: sparkle pulse + rapid indicator cycling */
+.todaygent--thinking .sparkle-1 {
+  animation: todaygent-twinkle 2s ease-in-out infinite;
+}
+
+.todaygent--thinking .indicator-dot--1 {
+  animation: todaygent-dot-green 1.5s ease-in-out infinite;
+}
+
+.todaygent--thinking .indicator-dot--2 {
+  animation: todaygent-dot-gold 1.5s ease-in-out 0.5s infinite;
+}
+
+.todaygent--thinking .indicator-dot--3 {
+  animation: todaygent-dot-teal 1.5s ease-in-out 1s infinite;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .todaygent-mascot {
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.15));
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .todaygent-mascot .sparkle-1,
+  .todaygent-mascot .sparkle-2,
+  .todaygent-mascot .sparkle-3,
+  .todaygent-mascot .eyelid-left,
+  .todaygent-mascot .eyelid-right,
+  .todaygent-mascot .eye-left,
+  .todaygent-mascot .eye-right,
+  .todaygent-mascot .indicator-dot {
+    animation: none !important;
+  }
+}

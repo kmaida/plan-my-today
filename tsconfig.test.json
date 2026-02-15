@@ -8,7 +8,7 @@
   "include": [
     "src/**/*",
     "tests/**/*",
-    "ui/src/chat/auth-error-detection.ts",
+    "ui/src/chat/tool-round-utils.ts",
     "ui/src/chat/chat-persistence.ts",
     "ui/src/chat/types.ts",
     "ui/src/api/transformers.ts",

@@ -24,85 +24,10 @@
   transform: translateY(-4px);
 }
 
-/* ── Sticky-Note Peel Animation ─────────────────────────────────────────────── */
-
-.thinking-indicator__notes {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.thinking-indicator__note {
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  background: var(--color-divider);
-}
-
-/* Bottom note — static base */
-.thinking-indicator__note--1 {
-  opacity: 0.3;
-  transform: rotate(-2deg);
-}
-
-/* Middle note — subtle shift */
-.thinking-indicator__note--2 {
-  opacity: 0.5;
-  animation: note-shift 2.4s ease-in-out infinite;
-}
-
-/* Top note — peeling away */
-.thinking-indicator__note--3 {
-  opacity: 0.9;
-  transform-origin: bottom left;
-  animation: note-peel 2.4s ease-in-out infinite;
-}
-
-@keyframes note-peel {
-  0%, 100% {
-    transform: rotate(0deg) translateY(0);
-    opacity: 0.9;
-  }
-  40% {
-    transform: rotate(-12deg) translateY(-6px);
-    opacity: 0.7;
-  }
-  60% {
-    transform: rotate(-12deg) translateY(-6px);
-    opacity: 0.5;
-  }
-  80% {
-    transform: rotate(-20deg) translateY(-10px);
-    opacity: 0;
-  }
-  81% {
-    transform: rotate(0deg) translateY(0);
-    opacity: 0;
-  }
-  95% {
-    opacity: 0.9;
-  }
-}
-
-@keyframes note-shift {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(1.5deg) translateX(1px);
-  }
-}
-
 /* ── Reduced Motion ─────────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   .thinking-indicator__word {
     transition: none;
-  }
-
-  .thinking-indicator__note--2,
-  .thinking-indicator__note--3 {
-    animation: none;
   }
 }

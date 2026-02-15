@@ -3,6 +3,7 @@ import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
 import { clearPersistedChatState, restoreChatState, saveChatState } from "./chat-persistence";
 import type { SystemPromptParts } from "./system-prompt";
+import { evaluateToolRound, type ToolRoundResult } from "./tool-round-utils";
 import type {
   AnthropicResponse,
   ChatMessage,
@@ -82,7 +83,10 @@ export interface UseChatReturn {
   clearMessages: () => void;
 }
 
-export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatReturn {
+export function useChat(
+  buildSystemPrompt?: () => SystemPromptParts,
+  onToolRoundComplete?: (result: ToolRoundResult) => void,
+): UseChatReturn {
   const { callTool, tools: mcpTools, isConnected } = useMCP();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -119,9 +123,8 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
   }, []);
 
   // Persist chat state after each completed turn. Detects the isLoading true→false
-  // transition (same pattern ChatPanel uses for auth error scanning). This fires
-  // once per turn, not on every streaming delta. By the time isLoading flips false,
-  // both messages state and historyRef.current reflect the final turn state.
+  // transition so we fire once per turn, not on every streaming delta. By the time
+  // isLoading flips false, both messages state and historyRef reflect the final turn.
   const prevIsLoadingRef = useRef(false);
   useEffect(() => {
     const wasLoading = prevIsLoadingRef.current;
@@ -263,6 +266,15 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
             });
           }
 
+          // Notify caller about tool round results (auth errors, task fetches).
+          // Fires synchronously at call time — no React effect or timing dependency.
+          if (onToolRoundComplete) {
+            const roundResult = evaluateToolRound(toolCalls);
+            if (roundResult) {
+              onToolRoundComplete(roundResult);
+            }
+          }
+
           // Update the streaming message with tool calls (intermediate turn)
           setMessages((prev) =>
             prev.map((m) => (m.id === msgId ? { ...m, text: fullText, toolCalls } : m))
@@ -284,7 +296,7 @@ export function useChat(buildSystemPrompt?: () => SystemPromptParts): UseChatRet
         setIsLoading(false);
       }
     },
-    [isConnected, mcpTools, callTool, buildSystemPrompt]
+    [isConnected, mcpTools, callTool, buildSystemPrompt, onToolRoundComplete]
   );
 
   const clearMessages = useCallback(() => {
