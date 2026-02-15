@@ -56,7 +56,7 @@ export const TodogentMascot = memo(function TodogentMascot({
       viewBox={viewBox}
       width={size}
       height={size * ratio}
-      className={`todaygent-mascot ${stateClass} ${compactClass} ${className}`.trim()}
+      className={["todaygent-mascot", stateClass, compactClass, className].filter(Boolean).join(" ")}
       role="img"
       aria-label="Todaygent"
     >

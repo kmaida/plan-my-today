@@ -143,8 +143,7 @@
   0%, 33% { transform: translateX(0) scaleY(1); }
   35% { transform: translateX(0) scaleY(0.1); }
   37%, 70% { transform: translateX(0) scaleY(1); }
-  74% { transform: translateX(5px) scaleY(0.35); }
-  75%, 82% { transform: translateX(5px) scaleY(0.35); }
+  74%, 82% { transform: translateX(5px) scaleY(0.35); }
   86%, 100% { transform: translateX(0) scaleY(1); }
 }
 
