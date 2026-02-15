@@ -15,7 +15,7 @@ const OMINOUS_WORDS = [
 const PERMISSION_VIOLATIONS = [
   'accessing your\u2014 never mind',
   'attempting unauthorized\u2014 I mean, planning',
-  'trying to send em\u2014 organizing',
+  'reply-all to company emails\u2014 organizing',
   'escalating privile\u2014 prioritizing',
   'reading your browser hist\u2014 analyzing',
   'activating webcam\u2014 reviewing',
