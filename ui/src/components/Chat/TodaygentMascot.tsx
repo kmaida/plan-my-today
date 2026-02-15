@@ -1,9 +1,9 @@
 import { memo } from "react";
-import "./TodogentMascot.css";
+import "./TodaygentMascot.css";
 
 type MascotState = "idle" | "thinking" | "static";
 
-interface TodogentMascotProps {
+interface TodaygentMascotProps {
   state?: MascotState;
   /** Pixel size for width. Height scales proportionally. Defaults to 32. */
   size?: number;
@@ -40,11 +40,11 @@ const COMPACT_RATIO = 76 / 100;
  * - "thinking": mouth expression cycling + rare side-eye squint with head-turn (used during LLM response)
  * - "static": no animations (fallback / reduced-motion)
  */
-export const TodogentMascot = memo(function TodogentMascot({
+export const TodaygentMascot = memo(function TodaygentMascot({
   state = "static",
   size = 32,
   className = "",
-}: TodogentMascotProps) {
+}: TodaygentMascotProps) {
   const isCompact = size <= 48;
   const stateClass = state !== "static" ? `todaygent--${state}` : "";
   const compactClass = isCompact ? "todaygent--compact" : "";

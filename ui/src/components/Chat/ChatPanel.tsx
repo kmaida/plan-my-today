@@ -4,7 +4,7 @@ import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { TodogentMascot } from './TodogentMascot'
+import { TodaygentMascot } from './TodaygentMascot'
 import { buildSystemPrompt } from '../../chat/system-prompt'
 import type { SessionUsage } from '../../chat/useChat'
 import './ChatPanel.css'
@@ -115,7 +115,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   if (!isOpen) {
     return (
       <button className="chat-toggle" onClick={onToggle} title="Open chat">
-        <TodogentMascot state="idle" size={40} className="chat-toggle__mascot" />
+        <TodaygentMascot state="idle" size={40} className="chat-toggle__mascot" />
         <span className="chat-toggle__label">{buttonLabel}</span>
       </button>
     )
@@ -158,7 +158,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
 
         {isConnected && messages.length === 0 && (
           <div className="chat-panel__welcome">
-            <TodogentMascot state="idle" size={100} className="chat-panel__welcome-mascot" />
+            <TodaygentMascot state="idle" size={100} className="chat-panel__welcome-mascot" />
             <p className="chat-panel__welcome-text">{welcomeMsg}</p>
           </div>
         )}
@@ -180,7 +180,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
         </div>
       ) : lastMessageIsAssistant && (
         <div className="chat-panel__mascot-strip chat-panel__mascot-strip--idle">
-          <TodogentMascot state="idle" size={40} />
+          <TodaygentMascot state="idle" size={40} />
         </div>
       )}
 

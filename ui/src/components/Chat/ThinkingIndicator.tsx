@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { TodogentMascot } from "./TodogentMascot";
+import { TodaygentMascot } from "./TodaygentMascot";
 import "./ThinkingIndicator.css";
 
 const NORMAL_WORDS = [
@@ -68,7 +68,7 @@ export function ThinkingIndicator() {
 
   return (
     <div className="thinking-indicator">
-      <TodogentMascot state="thinking" size={40} />
+      <TodaygentMascot state="thinking" size={40} />
       <span className={`thinking-indicator__word${fading ? " thinking-indicator__word--fading" : ""}`}>
         {word.charAt(0).toUpperCase() + word.slice(1)}...
       </span>
