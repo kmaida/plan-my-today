@@ -154,6 +154,19 @@
 .chat-panel__mascot-strip {
   flex-shrink: 0;
   padding: var(--space-xs) var(--space-md);
+  position: relative;
+}
+
+/* Soft fade from messages into the mascot strip — no hard horizontal line */
+.chat-panel__mascot-strip::before {
+  content: "";
+  position: absolute;
+  top: -24px;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--color-bg));
+  pointer-events: none;
 }
 
 .chat-panel__mascot-strip--idle {
