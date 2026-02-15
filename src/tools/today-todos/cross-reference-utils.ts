@@ -8,6 +8,16 @@ import type {
 } from "./types";
 
 /**
+ * Returns true when `token` appears in `text` as a whole word — i.e., the
+ * match is not followed by additional digits or letters. Prevents "#1" from
+ * matching "#196" and "KIM-12" from matching "KIM-123".
+ */
+export function containsExactToken(text: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${escaped}\\b`).test(text);
+}
+
+/**
  * Detects mentions of a Linear issue across email, Slack, meeting notes,
  * and meeting summaries by searching for the exact issue identifier.
  *
@@ -32,7 +42,7 @@ export function detectLinearMentions(
   // Search emails for issue ID (subject + body snippet)
   for (const email of gmail) {
     const searchText = `${email.subject || ""} ${email.snippet || ""}`;
-    if (searchText.includes(issueId)) {
+    if (containsExactToken(searchText, issueId)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
@@ -46,7 +56,7 @@ export function detectLinearMentions(
   // Search Slack messages for issue ID
   for (const msg of slack) {
     const text = msg.text || "";
-    if (text.includes(issueId)) {
+    if (containsExactToken(text, issueId)) {
       mentionedIn.add("slack");
       relatedItems.push({
         source: "slack",
@@ -59,7 +69,7 @@ export function detectLinearMentions(
 
   // Search meeting note action items for issue ID
   for (const note of meetingNotes ?? []) {
-    if (note.actionItem.includes(issueId)) {
+    if (containsExactToken(note.actionItem, issueId)) {
       mentionedIn.add("meeting-notes");
       relatedItems.push({
         source: "meeting-notes",
@@ -73,7 +83,7 @@ export function detectLinearMentions(
   // Search meeting summaries for issue ID (subject + snippet)
   for (const summary of meetingSummaries ?? []) {
     const searchText = `${summary.subject || ""} ${summary.snippet || ""}`;
-    if (searchText.includes(issueId)) {
+    if (containsExactToken(searchText, issueId)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
@@ -115,16 +125,15 @@ export function detectGitHubMentions(
   const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string; url?: string }> = [];
 
-  // Patterns to search: "#123", "owner/repo#123", github.com URLs
-  const prNumberPattern = `#${number}`;
+  // Patterns to search: "owner/repo#123" and github.com URLs.
+  // Bare "#123" is intentionally omitted — it's too ambiguous (every
+  // system uses #number for IDs, causing false positives like #1 matching #196).
   const repoNumberPattern = `${repo}#${number}`;
   const githubUrlPattern = `github.com/${repo}/`;
 
   /** Check if text contains any GitHub reference pattern */
   const hasGitHubRef = (text: string) =>
-    text.includes(prNumberPattern) ||
-    text.includes(repoNumberPattern) ||
-    text.includes(githubUrlPattern);
+    containsExactToken(text, repoNumberPattern) || text.includes(githubUrlPattern);
 
   // Search emails (subject + body snippet)
   for (const email of gmail) {

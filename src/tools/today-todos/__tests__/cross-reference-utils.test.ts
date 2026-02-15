@@ -4,12 +4,12 @@
  * assets" emails to matching Granola meeting notes and calendar events.
  *
  * Known limitations documented as tests:
- * - detectGitHubMentions matches bare #123, which can false-positive
  * - linkMeetingAssets uses bidirectional substring matching, which can
  *   match too broadly for short titles
  */
 
 import {
+  containsExactToken,
   detectGitHubMentions,
   detectLinearMentions,
   linkMeetingAssets,
@@ -122,17 +122,14 @@ describe("detectLinearMentions", () => {
     expect(result.mentionedIn).toEqual([]);
   });
 
-  it("should match partial issue ID when it appears as substring", () => {
-    // "KIM-12" is a substring of "KIM-123" — this is a limitation of
-    // using simple string.includes() for matching
+  it("should NOT match when issue ID is a prefix of a longer ID", () => {
+    // "KIM-12" must not match "KIM-123" — word boundary prevents this
     const result = detectLinearMentions(
       "KIM-12",
       [makeEmail({ subject: "Working on KIM-123 today" })],
       []
     );
-    // This WILL match because "KIM-12" is in "KIM-123"
-    // This is a known limitation — not a bug per se, but worth documenting
-    expect(result.totalMentions).toBe(1);
+    expect(result.totalMentions).toBe(0);
   });
 
   it("should truncate snippet to 100 chars", () => {
@@ -213,19 +210,84 @@ describe("detectLinearMentions", () => {
     );
     expect(result.relatedItems[0].url).toBe("https://slack.com/archives/C123/p123");
   });
+
+  it("should NOT match KIM-1 inside KIM-10 or KIM-100", () => {
+    const result = detectLinearMentions(
+      "KIM-1",
+      [
+        makeEmail({ id: "e1", subject: "Working on KIM-10" }),
+        makeEmail({ id: "e2", subject: "Blocked by KIM-100" }),
+      ],
+      []
+    );
+    expect(result.totalMentions).toBe(0);
+  });
+
+  it("should match KIM-1 at end of string", () => {
+    const result = detectLinearMentions(
+      "KIM-1",
+      [makeEmail({ subject: "Please check KIM-1" })],
+      []
+    );
+    expect(result.totalMentions).toBe(1);
+  });
+
+  it("should match KIM-1 followed by punctuation", () => {
+    const result = detectLinearMentions(
+      "KIM-1",
+      [],
+      [makeSlackMsg({ text: "Done with KIM-1, moving on" })]
+    );
+    expect(result.totalMentions).toBe(1);
+  });
+});
+
+// ── containsExactToken ─────────────────────────────────────────────────────
+
+describe("containsExactToken", () => {
+  it("should match token at end of string", () => {
+    expect(containsExactToken("fix #1", "#1")).toBe(true);
+  });
+
+  it("should match token followed by space", () => {
+    expect(containsExactToken("#1 is ready", "#1")).toBe(true);
+  });
+
+  it("should match token followed by punctuation", () => {
+    expect(containsExactToken("merged #1, closing", "#1")).toBe(true);
+  });
+
+  it("should NOT match token followed by more digits", () => {
+    expect(containsExactToken("Request #196", "#1")).toBe(false);
+  });
+
+  it("should NOT match partial Linear ID", () => {
+    expect(containsExactToken("KIM-123", "KIM-12")).toBe(false);
+  });
+
+  it("should match exact Linear ID", () => {
+    expect(containsExactToken("KIM-12 is done", "KIM-12")).toBe(true);
+  });
+
+  it("should handle regex-special characters in token", () => {
+    // The # in "#1" is regex-special; escaping ensures it matches literally
+    expect(containsExactToken("fix #42 now", "#42")).toBe(true);
+    expect(containsExactToken("fix #42 now", "#4")).toBe(false);
+  });
 });
 
 // ── detectGitHubMentions ─────────────────────────────────────────────────────
 
 describe("detectGitHubMentions", () => {
-  it("should match bare #number in email subject", () => {
+  it("should NOT match bare #number in email subject (too ambiguous)", () => {
+    // Bare #number is no longer matched — only repo#number and github.com URLs
     const result = detectGitHubMentions(
       "org/repo",
       42,
       [makeEmail({ subject: "Review needed for #42" })],
       []
     );
-    expect(result.totalMentions).toBe(1);
+    expect(result.totalMentions).toBe(0);
   });
 
   it("should match owner/repo#number pattern", () => {
@@ -248,19 +310,16 @@ describe("detectGitHubMentions", () => {
     expect(result.totalMentions).toBe(1);
   });
 
-  it("bare #number can false-positive on unrelated references", () => {
-    // KNOWN LIMITATION: #42 matches even when it's about something
-    // entirely different (e.g., a Slack channel reference, a ticket
-    // from another system, etc.)
+  it("should NOT match bare #number from unrelated systems", () => {
+    // Bare #number is no longer matched, so unrelated references
+    // like "Request #196" or "item #42" no longer false-positive
     const result = detectGitHubMentions(
       "org/repo",
       42,
       [makeEmail({ subject: "See item #42 in the backlog" })],
       []
     );
-    // This matches even though "item #42 in the backlog" isn't about
-    // the GitHub PR — it's a known limitation of bare #number matching
-    expect(result.totalMentions).toBe(1);
+    expect(result.totalMentions).toBe(0);
   });
 
   it("should return empty when no mentions exist", () => {
@@ -278,8 +337,8 @@ describe("detectGitHubMentions", () => {
       "org/repo",
       42,
       [
-        makeEmail({ id: "msg-1", subject: "#42 review" }),
-        makeEmail({ id: "msg-2", subject: "#42 merged" }),
+        makeEmail({ id: "msg-1", subject: "org/repo#42 review" }),
+        makeEmail({ id: "msg-2", subject: "org/repo#42 merged" }),
       ],
       []
     );
@@ -289,11 +348,11 @@ describe("detectGitHubMentions", () => {
     expect(result.mentionedIn).toEqual(["gmail"]);
   });
 
-  it("should find PR number in email snippet", () => {
+  it("should find repo#number in email snippet", () => {
     const result = detectGitHubMentions(
       "org/repo",
       42,
-      [makeEmail({ subject: "Code review", snippet: "Please review #42 when you can" })],
+      [makeEmail({ subject: "Code review", snippet: "Please review org/repo#42 when you can" })],
       []
     );
     expect(result.totalMentions).toBe(1);
@@ -312,7 +371,7 @@ describe("detectGitHubMentions", () => {
     expect(result.mentionedIn).toContain("meeting-notes");
   });
 
-  it("should find PR number in meeting summary", () => {
+  it("should find repo#number in meeting summary", () => {
     const result = detectGitHubMentions(
       "org/repo",
       42,
@@ -320,6 +379,51 @@ describe("detectGitHubMentions", () => {
       [],
       [],
       [makeMeetingSummary({ subject: "Sprint recap", snippet: "Discussed org/repo#42" })]
+    );
+    expect(result.totalMentions).toBe(1);
+  });
+
+  it("should NOT match #1 inside #196 (the original bug)", () => {
+    const result = detectGitHubMentions(
+      "kmaida/plan-my-today",
+      1,
+      [
+        makeEmail({
+          subject:
+            "Kamil Potrec is requesting Engineering - Temporary Admin Access to AWS (Request #196)",
+        }),
+      ],
+      []
+    );
+    expect(result.totalMentions).toBe(0);
+  });
+
+  it("repo#number should NOT match longer numbers (repo#1 vs repo#10)", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      1,
+      [makeEmail({ subject: "Merged org/repo#10" })],
+      []
+    );
+    expect(result.totalMentions).toBe(0);
+  });
+
+  it("repo#number should match at end of string", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      1,
+      [makeEmail({ subject: "Review org/repo#1" })],
+      []
+    );
+    expect(result.totalMentions).toBe(1);
+  });
+
+  it("repo#number should match followed by punctuation", () => {
+    const result = detectGitHubMentions(
+      "org/repo",
+      1,
+      [makeEmail({ subject: "Merged org/repo#1, closing" })],
+      []
     );
     expect(result.totalMentions).toBe(1);
   });

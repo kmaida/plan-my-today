@@ -3,6 +3,7 @@ import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { hashActionText } from "../../utils/action-identifiers";
 import { isWithinBusinessDays, parseDateFromFilename } from "../../utils/date-utils";
+import { containsExactToken } from "./cross-reference-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { MeetingNoteActionDetail } from "./types";
 
@@ -436,7 +437,8 @@ export async function fetchMeetingNoteActions(
                   const assigneeLower = item.assignee.toLowerCase();
                   const textLower = item.text.toLowerCase();
                   return userNames.some(
-                    (name) => assigneeLower.includes(name) || textLower.includes(name)
+                    (name) =>
+                      containsExactToken(assigneeLower, name) || containsExactToken(textLower, name)
                   );
                 })
               : extractedItems;
