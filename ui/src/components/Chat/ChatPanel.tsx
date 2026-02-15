@@ -112,8 +112,8 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   if (!isOpen) {
     return (
       <button className="chat-toggle" onClick={onToggle} title="Open chat">
-        <img src="/logo-sm.svg" alt="" className="chat-toggle__icon" />
-        {buttonLabel}
+        <TodogentMascot state="idle" size={40} className="chat-toggle__mascot" />
+        <span className="chat-toggle__label">{buttonLabel}</span>
       </button>
     )
   }
