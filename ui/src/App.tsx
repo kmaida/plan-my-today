@@ -14,6 +14,7 @@ import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import { Toast } from './components/Toast'
+import { Chevron } from './components/Chevron'
 import './App.css'
 
 const ChatPanel = lazy(() => import('./components/Chat/ChatPanel'))
@@ -334,7 +335,7 @@ function App() {
                   className="auth-error-banner__toggle"
                   onClick={() => setAuthErrorsExpanded(prev => !prev)}
                 >
-                  <span className={`auth-error-banner__chevron${authErrorsExpanded ? ' auth-error-banner__chevron--open' : ''}`}>&#x25B6;</span>
+                  <Chevron direction={authErrorsExpanded ? 'down' : 'right'} size={10} />
                   {authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}
                 </button>
                 <div className={`auth-error-banner__collapse${authErrorsExpanded ? ' auth-error-banner__collapse--open' : ''}`}>

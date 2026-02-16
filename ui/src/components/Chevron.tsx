@@ -1,5 +1,5 @@
 interface ChevronProps {
-  direction: 'right' | 'down'
+  direction: 'right' | 'down' | 'left'
   size?: number
   className?: string
 }
@@ -18,7 +18,7 @@ export function Chevron({ direction, size = 12, className }: ChevronProps) {
       className={className}
       style={{
         flexShrink: 0,
-        transform: direction === 'down' ? 'rotate(90deg)' : 'rotate(0deg)',
+        transform: `rotate(${{ right: 0, down: 90, left: 180 }[direction]}deg)`,
         transition: 'transform 150ms ease-in-out',
       }}
     >

@@ -228,6 +228,10 @@
   cursor: not-allowed;
 }
 
+.chat-panel__send {
+  padding: var(--space-sm) var(--space-md);
+}
+
 .chat-panel__send:disabled {
   opacity: 0.4;
   cursor: not-allowed;

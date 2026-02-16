@@ -6,6 +6,7 @@ import { ChatMessage } from './ChatMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { TodaygentMascot } from './TodaygentMascot'
 import { buildSystemPrompt } from '../../chat/system-prompt'
+import { Chevron } from '../Chevron'
 import type { SessionUsage } from '../../chat/useChat'
 import './ChatPanel.css'
 
@@ -163,7 +164,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
             title="Toggle token usage details"
           >
             {formatTokenCount(sessionUsage.totalInputTokens + sessionUsage.totalOutputTokens)} tokens
-            {showTokenDetails ? ' \u2212' : ' +'}
+            <Chevron direction={showTokenDetails ? 'left' : 'right'} size={10} />
           </button>
           {showTokenDetails && (
             <div className="token-stats__details">

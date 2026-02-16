@@ -260,15 +260,6 @@
   color: var(--color-text-primary);
 }
 
-.auth-error-banner__chevron {
-  display: inline-block;
-  font-size: 0.5em;
-  transition: transform var(--transition-normal);
-}
-
-.auth-error-banner__chevron--open {
-  transform: rotate(90deg);
-}
 
 .auth-error-banner__collapse {
   display: grid;
