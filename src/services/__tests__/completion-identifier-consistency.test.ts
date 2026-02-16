@@ -81,29 +81,29 @@ describe("Meeting notes completion identifier consistency", () => {
   });
 });
 
-describe("Docs (Google Docs assigned actions) completion identifier consistency", () => {
-  // UI sends: source="docs", identifier=fileLink (Google Docs URL) or fileTitle
-  // Filter checks: isActionCompleted("docs", action.fileLink || action.fileTitle)
+describe("Drive (Google Drive assigned actions) completion identifier consistency", () => {
+  // UI sends: source="drive", identifier=fileLink (Google Docs URL) or fileTitle
+  // Filter checks: isActionCompleted("drive", action.fileLink || action.fileTitle)
   const FILE_LINK = "https://docs.google.com/document/d/abc123def456";
   const FILE_TITLE = "Q3 Planning Notes";
 
   it("should find a completed docs action by fileLink", async () => {
-    await markActionComplete("docs", FILE_LINK);
-    const completed = await isActionCompleted("docs", FILE_LINK);
+    await markActionComplete("drive", FILE_LINK);
+    const completed = await isActionCompleted("drive", FILE_LINK);
     expect(completed).toBe(true);
   });
 
   it("should find a completed docs action by fileTitle fallback", async () => {
     // When fileLink is null, fileTitle is used as identifier
-    await markActionComplete("docs", FILE_TITLE);
-    const completed = await isActionCompleted("docs", FILE_TITLE);
+    await markActionComplete("drive", FILE_TITLE);
+    const completed = await isActionCompleted("drive", FILE_TITLE);
     expect(completed).toBe(true);
   });
 
   it("fileLink completion should NOT match fileTitle lookup", async () => {
     // If someone completes by fileLink, looking up by fileTitle should NOT match
-    await markActionComplete("docs", FILE_LINK);
-    const wrongId = await isActionCompleted("docs", FILE_TITLE);
+    await markActionComplete("drive", FILE_LINK);
+    const wrongId = await isActionCompleted("drive", FILE_TITLE);
     expect(wrongId).toBe(false);
   });
 });
@@ -151,13 +151,13 @@ describe("Slack completion identifier consistency", () => {
 
 describe("Cross-source isolation", () => {
   // Completions for one source must never match another source.
-  // The store key is "${source}:${identifier}", so "docs:foo" !== "meeting-note:foo".
+  // The store key is "${source}:${identifier}", so "drive:foo" !== "meeting-note:foo".
   const IDENTIFIER = "shared-identifier-value";
 
   it("should not cross-match completions between sources", async () => {
-    await markActionComplete("docs", IDENTIFIER);
+    await markActionComplete("drive", IDENTIFIER);
 
-    expect(await isActionCompleted("docs", IDENTIFIER)).toBe(true);
+    expect(await isActionCompleted("drive", IDENTIFIER)).toBe(true);
     expect(await isActionCompleted("meeting-note", IDENTIFIER)).toBe(false);
     expect(await isActionCompleted("slack", IDENTIFIER)).toBe(false);
     expect(await isActionCompleted("adhoc", IDENTIFIER)).toBe(false);
@@ -168,7 +168,7 @@ describe("ActionSource type coverage", () => {
   // Every source in the dismiss-task tool schema must be representable
   // in ActionSource. This test acts as a compile-time + runtime guard: if someone
   // adds a source to the tool but forgets ActionSource, this fails to compile.
-  const TOOL_SOURCES = ["meeting-note", "slack", "docs", "adhoc"] as const;
+  const TOOL_SOURCES = ["meeting-note", "slack", "drive", "adhoc"] as const;
 
   it.each(TOOL_SOURCES)(
     "should accept '%s' as a valid ActionSource for storage and lookup",

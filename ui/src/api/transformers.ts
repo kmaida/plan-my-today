@@ -2,14 +2,14 @@
 
 import type {
   CalendarTask,
-  DocsActionTask,
+  DriveActionTask,
   GitHubTask,
   GmailTask,
   LinearTask,
   MeetingNotesTask,
   PriorityMetadata,
   ServerCalendarEvent,
-  ServerDocsAction,
+  ServerDriveAction,
   ServerGitHubIssue,
   ServerGitHubPR,
   ServerGmailMessage,
@@ -150,16 +150,16 @@ function transformCalendar(event: ServerCalendarEvent): CalendarTask {
   };
 }
 
-function transformDocs(action: ServerDocsAction): DocsActionTask {
+function transformDrive(action: ServerDriveAction): DriveActionTask {
   return {
-    source: "docs",
+    source: "drive",
     taskId: action.taskId || "",
     stableId: action.stableId || "",
     fileTitle: action.fileTitle,
     actionType: action.actionType,
     fileLink: action.fileLink || "",
     timestamp: action.timestamp || new Date().toISOString(),
-    docsType: action.docsType,
+    driveType: action.driveType,
     priorityMetadata: transformPriority(action.priorityMetadata),
   };
 }
@@ -195,7 +195,9 @@ export function transformServerResponse(data: ServerTasksResponse): Task[] {
   if (data.github?.prs) tasks.push(...data.github.prs.map(transformGitHubPR));
   if (data.github?.issues) tasks.push(...data.github.issues.map(transformGitHubIssue));
   if (data.slack) tasks.push(...data.slack.map(transformSlack));
-  if (data.docs) tasks.push(...data.docs.map(transformDocs));
+  // Support stale task store files that still use the old "docs" key
+  const driveActions = data.drive || (data as any).docs;
+  if (driveActions) tasks.push(...driveActions.map(transformDrive));
   if (data.meetingNotes) tasks.push(...data.meetingNotes.map(transformMeetingNote));
 
   // Sort by priority score descending

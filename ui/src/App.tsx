@@ -54,7 +54,7 @@ const SOURCE_ORDER: TaskSource[] = [
   'gmail',           // communication (inbound)
   'slack',           // communication (messages)
   'meeting-notes',   // reference (extracted actions)
-  'docs',            // reference (doc mentions)
+  'drive',           // reference (Drive mentions)
 ]
 
 function App() {

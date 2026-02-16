@@ -11,7 +11,7 @@
 
 import type {
   CalendarTask,
-  DocsActionTask,
+  DriveActionTask,
   FilterState,
   GitHubTask,
   GmailTask,
@@ -68,14 +68,14 @@ function makeGmail(overrides: Partial<GmailTask> = {}): GmailTask {
   };
 }
 
-function makeDocs(overrides: Partial<DocsActionTask> = {}): DocsActionTask {
+function makeDrive(overrides: Partial<DriveActionTask> = {}): DriveActionTask {
   return {
-    source: "docs",
-    taskId: "docs-1",
-    stableId: "docs:https://docs.google.com/document/d/abc",
+    source: "drive",
+    taskId: "drive-1",
+    stableId: "drive:https://drive.google.com/open?id=abc",
     fileTitle: "Q3 Planning",
     actionType: "assigned_action_item",
-    fileLink: "https://docs.google.com/document/d/abc",
+    fileLink: "https://drive.google.com/open?id=abc",
     timestamp: new Date().toISOString(),
     priorityMetadata: DEFAULT_PRIORITY,
     ...overrides,
@@ -173,15 +173,15 @@ describe("getTaskIdentifier", () => {
     expect(getTaskIdentifier(task)).toBe("msg-abc123");
   });
 
-  it("Docs: returns fileLink when available", () => {
-    const task = makeDocs({
-      fileLink: "https://docs.google.com/document/d/abc",
+  it("Drive: returns fileLink when available", () => {
+    const task = makeDrive({
+      fileLink: "https://drive.google.com/open?id=abc",
     });
-    expect(getTaskIdentifier(task)).toBe("https://docs.google.com/document/d/abc");
+    expect(getTaskIdentifier(task)).toBe("https://drive.google.com/open?id=abc");
   });
 
-  it("Docs: falls back to fileTitle when fileLink is empty", () => {
-    const task = makeDocs({ fileLink: "", fileTitle: "My Document" });
+  it("Drive: falls back to fileTitle when fileLink is empty", () => {
+    const task = makeDrive({ fileLink: "", fileTitle: "My Document" });
     expect(getTaskIdentifier(task)).toBe("My Document");
   });
 
@@ -291,7 +291,7 @@ describe("normalizeSource", () => {
     expect(normalizeSource("slack")).toBe("slack");
     expect(normalizeSource("gmail")).toBe("gmail");
     expect(normalizeSource("calendar")).toBe("calendar");
-    expect(normalizeSource("docs")).toBe("docs");
+    expect(normalizeSource("drive")).toBe("drive");
     expect(normalizeSource("meeting-notes")).toBe("meeting-notes");
   });
 });

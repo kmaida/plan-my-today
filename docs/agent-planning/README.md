@@ -4,7 +4,7 @@ Transform your plan-my-today data into actionable daily plans using LLM agents l
 
 ## Overview
 
-The plan-my-today aggregates and enriches tasks from multiple sources (Calendar, Linear, GitHub, Gmail, Slack, Google Docs), providing rich metadata including:
+The plan-my-today aggregates and enriches tasks from multiple sources (Calendar, Linear, GitHub, Gmail, Slack, Google Drive), providing rich metadata including:
 
 - **Priority scores** (0-300 scale with categories)
 - **Dependency metadata** (blocking relationships)

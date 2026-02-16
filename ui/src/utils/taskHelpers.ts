@@ -3,7 +3,7 @@
 import type { FilterState, Task, TaskSource } from "../types/tasks";
 import {
   isCalendarTask,
-  isDocsActionTask,
+  isDriveActionTask,
   isGitHubTask,
   isGmailTask,
   isLinearTask,
@@ -28,7 +28,7 @@ export function getTaskSearchText(task: Task): string {
     parts.push(task.text, task.channel, task.user);
   } else if (isCalendarTask(task)) {
     parts.push(task.summary, task.location || "");
-  } else if (isDocsActionTask(task)) {
+  } else if (isDriveActionTask(task)) {
     parts.push(task.fileTitle, task.actionType);
   } else if (isMeetingNotesTask(task)) {
     parts.push(task.actionItem, task.assignee || "");
@@ -45,7 +45,7 @@ export function getTaskTimestamp(task: Task): string | null {
   if (isLinearTask(task)) return task.dueDate || null;
   if (isGmailTask(task)) return task.timestamp;
   if (isSlackTask(task)) return task.timestamp;
-  if (isDocsActionTask(task)) return task.timestamp;
+  if (isDriveActionTask(task)) return task.timestamp;
   if (isMeetingNotesTask(task)) return task.timestamp;
   // GitHub tasks don't carry a meaningful due date
   return null;
@@ -58,7 +58,7 @@ export function getTaskTitle(task: Task): string {
   if (isGitHubTask(task)) return task.title;
   if (isSlackTask(task)) return task.title || task.text;
   if (isCalendarTask(task)) return task.summary;
-  if (isDocsActionTask(task)) return task.fileTitle;
+  if (isDriveActionTask(task)) return task.fileTitle;
   if (isMeetingNotesTask(task)) return task.actionItem;
   return "Unknown task";
 }
@@ -70,7 +70,7 @@ export function getTaskUrl(task: Task): string | undefined {
   if (isGitHubTask(task)) return task.url;
   if (isSlackTask(task)) return task.link;
   if (isCalendarTask(task)) return task.htmlLink;
-  if (isDocsActionTask(task)) return task.fileLink;
+  if (isDriveActionTask(task)) return task.fileLink;
   if (isMeetingNotesTask(task)) return task.documentLink;
   return undefined;
 }
@@ -84,7 +84,7 @@ export function getTaskIdentifier(task: Task): string {
   if (isGmailTask(task)) return task.id;
   if (isSlackTask(task)) return task.dismissalId || task.link || "";
   if (isMeetingNotesTask(task)) return task.documentId;
-  if (isDocsActionTask(task)) return task.fileLink || task.fileTitle;
+  if (isDriveActionTask(task)) return task.fileLink || task.fileTitle;
   return "";
 }
 

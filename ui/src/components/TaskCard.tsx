@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo, type ReactNode
 import type { Task, TaskSource, RelatedItem } from '../types/tasks'
 import {
   isLinearTask, isGmailTask, isGitHubTask, isSlackTask,
-  isCalendarTask, isDocsActionTask, isMeetingNotesTask,
+  isCalendarTask, isDriveActionTask, isMeetingNotesTask,
 } from '../types/tasks'
 import { getTaskTitle, getTaskUrl } from '../utils/taskHelpers'
 import { getPriorityLabel } from '../utils/priorityHelpers'
@@ -13,8 +13,8 @@ import '../styles/hint-tooltip.css'
 import './TaskCard.css'
 
 // Sources that support dismissal from the UI.
-// Meeting-notes, docs, and slack (non-saved) use the no-auth REST endpoint (local completion store).
-const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'docs', 'slack']
+// Meeting-notes, drive, and slack (non-saved) use the no-auth REST endpoint (local completion store).
+const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'drive', 'slack']
 
 /** Labels for non-default Google Calendar event types shown in card metadata */
 const CALENDAR_EVENT_TYPE_LABELS: Record<string, string> = {
@@ -172,7 +172,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
       }
     }
 
-    if (isDocsActionTask(task)) {
+    if (isDriveActionTask(task)) {
       items.push(formatSmartDate(task.timestamp))
     }
 
@@ -365,7 +365,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
                 >
                   {isCompleting ? 'Dismissing...' : hasError ? 'Failed — Retry' : 'Dismiss'}
                 </button>
-                {isDocsActionTask(task) && task.docsType === 'unresolved-comment' && (
+                {isDriveActionTask(task) && task.driveType === 'unresolved-comment' && (
                   <span className="hint-tooltip">
                     <svg className="hint-tooltip__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />

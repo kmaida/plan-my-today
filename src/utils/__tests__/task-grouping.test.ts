@@ -17,7 +17,7 @@ jest.mock("../../../ui/src/components/SourceIcon", () => ({
       gmail: "Gmail",
       slack: "Slack",
       calendar: "Calendar",
-      docs: "Docs",
+      drive: "Google Drive",
       "meeting-notes": "Meeting Notes",
       "github-issue": "GitHub Issues",
     };

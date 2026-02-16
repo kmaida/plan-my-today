@@ -10,7 +10,7 @@ Quick reference for understanding the data returned by `list-all-tasks-today`.
   linear: LinearIssueDetail[],
   gmail: GmailMessageDetail[],
   meetingSummaries: MeetingSummaryDetail[],
-  docs: AssignedActionDetail[],
+  drive: AssignedActionDetail[],
   github: {
     prs: GitHubPRDetail[],
     issues: GitHubIssueDetail[]
@@ -55,7 +55,7 @@ Defined in [src/constants.ts](../../src/constants.ts):
 |--------|-----------------|----------|
 | **GitHub** (PRs/issues) | 30 days | `TIME_WINDOWS.GITHUB_DAYS` |
 | **Gmail** | 14 days | `TIME_WINDOWS.DEFAULT_DAYS_BACK` |
-| **Google Docs** | 14 days | `TIME_WINDOWS.DEFAULT_DAYS_BACK` |
+| **Google Drive** | 14 days | `TIME_WINDOWS.DEFAULT_DAYS_BACK` |
 | **Slack** | 2 days | `TIME_WINDOWS.SLACK_DAYS_BACK` |
 | **Calendar** | Today + future | N/A |
 | **Linear** | 14-day due date window | N/A |
@@ -79,7 +79,7 @@ Defined in [src/constants.ts](../../src/constants.ts):
 | **Calendar** | 20 events | `CALENDAR.MAX_RESULTS` |
 | **Linear** | No limit | N/A |
 | **GitHub** | No limit | N/A |
-| **Google Docs** | No limit | N/A |
+| **Google Drive** | No limit | N/A |
 
 **What this means:**
 - If user has >40 emails, only the first 40 (by priority) are returned
@@ -273,13 +273,13 @@ interface MeetingSummaryDetail {
 - `recordingLink` → Link to recording for review
 - `meetingTitle` → Match against calendar events
 
-### Google Docs Action
+### Google Drive Action
 
 ```typescript
 interface AssignedActionDetail {
   fileTitle: string;                   // Document title
   actionType: string;                  // "assigned" | "mentioned"
-  fileLink: string | null;             // Google Docs URL
+  fileLink: string | null;             // Google Drive URL
   timestamp?: string;                  // ISO timestamp
   isAssignment?: boolean;              // True if assigned, false if just mentioned
   priorityMetadata?: PriorityMetadata;

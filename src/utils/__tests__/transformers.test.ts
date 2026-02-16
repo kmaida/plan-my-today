@@ -10,7 +10,7 @@
 import { transformServerResponse } from "../../../ui/src/api/transformers";
 import type {
   CalendarTask,
-  DocsActionTask,
+  DriveActionTask,
   GitHubTask,
   GmailTask,
   LinearTask,
@@ -41,7 +41,7 @@ function emptyResponse(): ServerTasksResponse {
     linear: [],
     gmail: [],
     meetingSummaries: [],
-    docs: [],
+    drive: [],
     github: { prs: [], issues: [] },
     slack: [],
     meetingNotes: [],
@@ -270,7 +270,7 @@ describe("transformServerResponse", () => {
         priorityMetadata: makeServerPriority(110),
       },
     ];
-    data.docs = [
+    data.drive = [
       {
         fileTitle: "Doc",
         actionType: "assigned_action_item",
@@ -302,7 +302,7 @@ describe("transformServerResponse", () => {
     expect(sources).toContain("github"); // PR
     expect(sources).toContain("github-issue"); // Issue
     expect(sources).toContain("slack");
-    expect(sources).toContain("docs");
+    expect(sources).toContain("drive");
     expect(sources).toContain("meeting-notes");
   });
 
@@ -469,39 +469,39 @@ describe("Per-source transforms", () => {
     expect(task.dismissalId).toBe("C123:1234567890.000001");
   });
 
-  it("Docs: preserves docsType field from server", () => {
+  it("Drive: preserves driveType field from server", () => {
     const data = emptyResponse();
-    data.docs = [
+    data.drive = [
       {
         fileTitle: "Design doc",
         actionType: "comment_added",
         fileLink: "https://docs.google.com/document/d/abc",
-        docsType: "unresolved-comment",
+        driveType: "unresolved-comment",
       },
     ];
 
     const tasks = transformServerResponse(data);
-    const task = tasks[0] as DocsActionTask;
+    const task = tasks[0] as DriveActionTask;
 
-    expect(task.source).toBe("docs");
-    expect(task.docsType).toBe("unresolved-comment");
+    expect(task.source).toBe("drive");
+    expect(task.driveType).toBe("unresolved-comment");
   });
 
-  it("Docs: docsType is undefined when server omits it", () => {
+  it("Drive: driveType is undefined when server omits it", () => {
     const data = emptyResponse();
-    data.docs = [
+    data.drive = [
       {
         fileTitle: "Spec",
         actionType: "mentioned",
         fileLink: "https://docs.google.com/document/d/def",
-        // no docsType
+        // no driveType
       },
     ];
 
     const tasks = transformServerResponse(data);
-    const task = tasks[0] as DocsActionTask;
+    const task = tasks[0] as DriveActionTask;
 
-    expect(task.docsType).toBeUndefined();
+    expect(task.driveType).toBeUndefined();
   });
 
   it("missing taskId defaults to empty string", () => {

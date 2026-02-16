@@ -1,6 +1,6 @@
 # Plan My Today MCP Server, MCP client, and chatbot (Todaygent)
 
-TypeScript MCP server that aggregates to-dos from multiple sources (Google Calendar, Linear, Gmail, Google Docs, GitHub, Slack) using Keycard for OAuth 2.0 token exchange (RFC 8693).
+TypeScript MCP server that aggregates to-dos from multiple sources (Google Calendar, Linear, Gmail, Google Drive, GitHub, Slack) using Keycard for OAuth 2.0 token exchange (RFC 8693).
 
 ## Architecture
 

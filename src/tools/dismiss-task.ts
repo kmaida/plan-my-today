@@ -8,9 +8,9 @@ import type { ActionSource } from "../utils/action-identifiers";
  */
 const dismissTaskInputSchema = {
   source: z
-    .enum(["meeting-note", "slack", "docs", "adhoc"])
+    .enum(["meeting-note", "slack", "drive", "adhoc"])
     .describe(
-      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), 'docs' for Google Docs @mentions and comment assignments (local dismissal only - does not resolve comments in Google Docs), or 'adhoc' for custom tasks"
+      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), 'drive' for Google Drive @mentions and comment assignments (local dismissal only - does not resolve comments in the document), or 'adhoc' for custom tasks"
     ),
   identifier: z
     .string()
@@ -18,7 +18,7 @@ const dismissTaskInputSchema = {
       "The unique identifier for this action. Format varies by source: " +
         "meeting-note uses '{docId}' or '{docId}:{hash}', " +
         "slack uses '{channelId}:{messageTs}' (e.g., 'C0123ABCDEF:1234567890.123456'), " +
-        "docs uses the file link or file title, adhoc uses any custom ID"
+        "drive uses the file link or file title, adhoc uses any custom ID"
     ),
   slackType: z
     .enum(["mention", "thread", "dm", "saved"])
@@ -28,11 +28,11 @@ const dismissTaskInputSchema = {
         "'saved' (emoji-bookmarked) messages must be managed in Slack by removing the emoji."
     )
     .optional(),
-  docsType: z
+  driveType: z
     .enum(["mention", "assignment", "unresolved-comment"])
     .describe(
-      "Optional when source is 'docs'. The Google Docs task type from the task data. " +
-        "When 'unresolved-comment', a warning is returned suggesting the user resolve comments in Google Docs."
+      "Optional when source is 'drive'. The Google Drive task type from the task data. " +
+        "When 'unresolved-comment', a warning is returned suggesting the user resolve comments in the document."
     )
     .optional(),
   metadata: z
@@ -55,7 +55,7 @@ export function registerDismissTaskTool(mcpServer: McpServer): void {
     {
       title: "Dismiss Task",
       description:
-        "Dismiss an action item from the dashboard. This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), Google Docs @mentions and comment assignments, and ad-hoc tasks that don't have native completion tracking. Dismissed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores dismissal state locally.",
+        "Dismiss an action item from the dashboard. This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), Google Drive @mentions and comment assignments, and ad-hoc tasks that don't have native completion tracking. Dismissed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores dismissal state locally.",
       inputSchema: dismissTaskInputSchema,
     },
     (async (args, _extra) => {
@@ -93,7 +93,7 @@ export function registerDismissTaskTool(mcpServer: McpServer): void {
         await storeDismiss(source, identifier, args.metadata);
 
         let text = `Task dismissed: ${source}:${identifier}`;
-        if (source === "docs" && args.docsType === "unresolved-comment") {
+        if (source === "drive" && args.driveType === "unresolved-comment") {
           text +=
             "\n\nNote: This item has unresolved comments. Suggest the user resolve them directly in Google Docs — once resolved, the item will disappear from the dashboard automatically on the next fetch.";
         }

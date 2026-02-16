@@ -51,7 +51,7 @@ describe("Dismiss / Restore / Evict endpoints", () => {
     it("rejects missing identifier", async () => {
       const res = await request(app)
         .post(ENDPOINT)
-        .send({ source: "docs" })
+        .send({ source: "drive" })
         .expect(400);
       expect(res.body.error).toMatch(/Missing required fields/);
     });
@@ -78,7 +78,7 @@ describe("Dismiss / Restore / Evict endpoints", () => {
 
     // -- Happy path --
 
-    it.each(["meeting-note", "slack", "docs", "adhoc"])(
+    it.each(["meeting-note", "slack", "drive", "adhoc"])(
       "accepts valid source: %s",
       async (source) => {
         const body: Record<string, string> = {
@@ -97,21 +97,21 @@ describe("Dismiss / Restore / Evict endpoints", () => {
       await request(app)
         .post(ENDPOINT)
         .send({
-          source: "docs",
+          source: "drive",
           identifier: "file123",
-          metadata: { docsType: "unresolved-comment" },
+          metadata: { driveType: "unresolved-comment" },
         })
         .expect(200);
 
-      expect(spyStoreComplete).toHaveBeenCalledWith("docs", "file123", {
-        docsType: "unresolved-comment",
+      expect(spyStoreComplete).toHaveBeenCalledWith("drive", "file123", {
+        driveType: "unresolved-comment",
       });
     });
 
     it("evicts from task store when taskId is provided", async () => {
       await request(app)
         .post(ENDPOINT)
-        .send({ source: "docs", identifier: "file123", taskId: "uuid-1" })
+        .send({ source: "drive", identifier: "file123", taskId: "uuid-1" })
         .expect(200);
 
       expect(spyRemoveTask).toHaveBeenCalledWith("uuid-1");
@@ -120,7 +120,7 @@ describe("Dismiss / Restore / Evict endpoints", () => {
     it("does not evict from task store when taskId is absent", async () => {
       await request(app)
         .post(ENDPOINT)
-        .send({ source: "docs", identifier: "file123" })
+        .send({ source: "drive", identifier: "file123" })
         .expect(200);
 
       expect(spyRemoveTask).not.toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe("Dismiss / Restore / Evict endpoints", () => {
       expect(res.body.error).toMatch(/Invalid source/);
     });
 
-    it.each(["meeting-note", "slack", "docs", "adhoc"])(
+    it.each(["meeting-note", "slack", "drive", "adhoc"])(
       "restores with valid source: %s",
       async (source) => {
         const res = await request(app)

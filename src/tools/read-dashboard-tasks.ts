@@ -17,7 +17,7 @@ const VALID_SOURCES = [
   "gmail",
   "slack",
   "github",
-  "docs",
+  "drive",
   "meetingNotes",
   "meetingSummaries",
 ] as const;
@@ -30,7 +30,7 @@ const readDashboardTasksInputSchema = {
     .enum(VALID_SOURCES)
     .describe(
       "Optional: return only this source's data. " +
-        "One of: calendar, linear, gmail, slack, github, docs, meetingNotes, meetingSummaries. " +
+        "One of: calendar, linear, gmail, slack, github, drive, meetingNotes, meetingSummaries. " +
         "Omit to get all sources."
     )
     .optional(),

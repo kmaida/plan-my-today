@@ -13,7 +13,7 @@ export interface CommentEmailContext {
 }
 
 /**
- * Fetches assigned actions from Google Docs.
+ * Fetches assigned actions from Google Drive.
  *
  * Uses the Drive Activity API for @mentions and assignments. When
  * commentEmailContext is provided, also verifies Gmail-discovered doc comment
@@ -52,7 +52,7 @@ export async function fetchAssignedActions(
       throw new AuthenticationError("Google Drive Activity", response.status);
     }
     getLogger()
-      .withOperation("docs_utils")
+      .withOperation("drive_utils")
       .warn("Drive Activity API error — returning empty results", {
         status: response.status,
         statusText: response.statusText,
@@ -100,7 +100,7 @@ export async function fetchAssignedActions(
       const target = activity.targets?.[0];
       const fileTitle = target?.driveItem?.title || "Untitled";
       const fileId = target?.driveItem?.name?.match(/^items\/(.+)$/)?.[1];
-      const fileLink = fileId ? `https://docs.google.com/document/d/${fileId}` : null;
+      const fileLink = fileId ? `https://drive.google.com/open?id=${fileId}` : null;
 
       let actionType = "";
       if (comment.assignment) {
@@ -116,7 +116,7 @@ export async function fetchAssignedActions(
         fileLink,
         timestamp: activity.timestamp,
         isAssignment: !!comment.assignment,
-        docsType: comment.assignment ? "assignment" : "mention",
+        driveType: comment.assignment ? "assignment" : "mention",
       });
     }
   }
@@ -126,7 +126,7 @@ export async function fetchAssignedActions(
   const filteredActions: AssignedActionDetail[] = [];
   for (const action of actionItems) {
     const identifier = action.fileLink || action.fileTitle;
-    if (identifier && (await isActionCompleted("docs", identifier))) {
+    if (identifier && (await isActionCompleted("drive", identifier))) {
       continue;
     }
     filteredActions.push(action);
@@ -148,7 +148,7 @@ export async function fetchAssignedActions(
     // Filter out completed comment items
     for (const item of verifiedComments) {
       const identifier = item.fileLink || item.fileTitle;
-      if (identifier && (await isActionCompleted("docs", identifier))) {
+      if (identifier && (await isActionCompleted("drive", identifier))) {
         continue;
       }
       filteredActions.push(item);
@@ -159,7 +159,7 @@ export async function fetchAssignedActions(
 }
 
 /**
- * Calculates priority metadata for Google Docs assigned actions.
+ * Calculates priority metadata for Google Drive assigned actions.
  *
  * Priority tiers:
  * - Assignments: base 140 (direct request for action)
@@ -174,7 +174,7 @@ export async function fetchAssignedActions(
  * @param now - Current date/time for recency calculations
  * @returns Priority metadata
  */
-export function calculateDocsPriority(item: AssignedActionDetail, now: Date): PriorityMetadata {
+export function calculateDrivePriority(item: AssignedActionDetail, now: Date): PriorityMetadata {
   let score: number;
   const reasons: string[] = [];
 

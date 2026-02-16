@@ -36,7 +36,7 @@ const SOURCE_LABELS: Record<TaskSource, string> = {
   "github-issue": "GitHub Issues",
   slack: "Slack",
   calendar: "Calendar",
-  docs: "Google Docs",
+  drive: "Google Drive",
   "meeting-notes": "Meeting Notes",
 };
 
@@ -46,7 +46,7 @@ const SOURCE_ICON_PATHS: Partial<Record<TaskSource, string>> = {
   gmail: "/icons/gmail.svg",
   slack: "/icons/slack.svg",
   calendar: "/icons/calendar.svg",
-  docs: "/icons/docs.svg",
+  drive: "/icons/drive.svg",
   "meeting-notes": "/icons/meeting-notes.svg",
 };
 

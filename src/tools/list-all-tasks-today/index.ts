@@ -17,7 +17,7 @@ import {
   linkMeetingAssets,
 } from "../today-todos/cross-reference-utils";
 import { parseDependencies } from "../today-todos/dependency-utils";
-import { calculateDocsPriority, fetchAssignedActions } from "../today-todos/docs-utils";
+import { calculateDrivePriority, fetchAssignedActions } from "../today-todos/drive-utils";
 import type { DocCommentEmail } from "../today-todos/drive-comments-utils";
 import { verifyAndEnrichDocComments } from "../today-todos/drive-comments-utils";
 import {
@@ -166,7 +166,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
     {
       title: "Fetch All Tasks Today",
       description:
-        "Fetch tasks and events from all sources, enrich with priority metadata, and write to the task store. Returns a confirmation with per-source item counts — use read-dashboard-tasks to access the full data. Sources: Calendar, Linear, Gmail, Google Docs, GitHub, Slack, Meeting Notes (Granola).",
+        "Fetch tasks and events from all sources, enrich with priority metadata, and write to the task store. Returns a confirmation with per-source item counts — use read-dashboard-tasks to access the full data. Sources: Calendar, Linear, Gmail, Google Drive, GitHub, Slack, Meeting Notes (Granola).",
       inputSchema: listAllTasksTodayInputSchema,
     },
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — multi-source aggregation
@@ -312,7 +312,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         rawAssignedActions = fetchResults[3].value;
       } else {
         errors.push(formatAuthError("Google Drive Activity", fetchResults[3].reason));
-        failedSources.push("docs");
+        failedSources.push("drive");
       }
 
       if (fetchResults[4].status === "fulfilled") {
@@ -333,7 +333,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       if (fetchResults[6].status === "fulfilled") {
         rawMeetingNotes = fetchResults[6].value;
       } else {
-        errors.push(formatAuthError("Meeting Notes (Google Drive)", fetchResults[6].reason));
+        errors.push(formatAuthError("Meeting Notes (via Google Drive)", fetchResults[6].reason));
         failedSources.push("meeting-notes");
       }
 
@@ -365,7 +365,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
             // Filter completed items and merge into assigned actions
             for (const item of verifiedComments) {
               const identifier = item.fileLink || item.fileTitle;
-              if (identifier && (await isActionCompleted("docs", identifier))) {
+              if (identifier && (await isActionCompleted("drive", identifier))) {
                 continue;
               }
               rawAssignedActions.push(item);
@@ -417,8 +417,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       let assignedActions: EnrichedAssignedAction[] = rawAssignedActions.map((action) => ({
         ...action,
         taskId: randomUUID(),
-        stableId: computeStableId("docs", action),
-        priorityMetadata: calculateDocsPriority(action, now),
+        stableId: computeStableId("drive", action),
+        priorityMetadata: calculateDrivePriority(action, now),
       }));
 
       let githubPRs: EnrichedGitHubPR[] = rawGithubPRs.map((pr) => ({
@@ -601,7 +601,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         linear: linearIssues,
         gmail: gmailTodos,
         meetingSummaries,
-        docs: assignedActions,
+        drive: assignedActions,
         github: {
           prs: githubPRs,
           issues: githubIssues,
@@ -647,7 +647,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
                 gmail: gmailTodos.length,
                 slack: slackMessages.length,
                 github: { prs: githubPRs.length, issues: githubIssues.length },
-                docs: assignedActions.length,
+                drive: assignedActions.length,
                 meetingSummaries: meetingSummaries.length,
                 meetingNotes: meetingNoteActions.length,
               },

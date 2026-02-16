@@ -70,7 +70,7 @@ Replace `http://localhost:9005` with your actual server URL (could be `https://y
 ```
 Yes, I have access to the list-all-tasks-today tool. This tool fetches and aggregates
 your tasks from multiple sources including Calendar, Linear, GitHub, Gmail, Slack,
-Google Docs, and meeting summaries...
+Google Drive, and meeting summaries...
 ```
 
 If Claude says it doesn't have access:

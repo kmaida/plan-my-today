@@ -12,7 +12,7 @@ export type TaskSourceLabel =
   | "github-pr"
   | "github-issue"
   | "slack"
-  | "docs"
+  | "drive"
   | "meeting-note"
   | "meeting-summary";
 
@@ -33,7 +33,7 @@ interface TaskDataForStableId {
   channel?: string;
   timestamp?: string | number;
   dismissalId?: string;
-  // Docs
+  // Drive
   fileLink?: string | null;
   fileTitle?: string;
   // Meeting notes
@@ -77,11 +77,11 @@ export function computeStableId(source: TaskSourceLabel, data: TaskDataForStable
       if (data.channel && data.timestamp) return `slack:${data.channel}:${data.timestamp}`;
       return "";
 
-    case "docs":
+    case "drive":
       return data.fileLink
-        ? `docs:${data.fileLink}`
+        ? `drive:${data.fileLink}`
         : data.fileTitle
-          ? `docs:${data.fileTitle}`
+          ? `drive:${data.fileTitle}`
           : "";
 
     case "meeting-note":

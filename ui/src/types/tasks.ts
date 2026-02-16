@@ -1,8 +1,8 @@
 // TypeScript interfaces for Todo MCP Server data model
 
-// ===== Docs Action Types =====
+// ===== Drive Action Types =====
 
-export type DocsType = "mention" | "assignment" | "unresolved-comment";
+export type DriveType = "mention" | "assignment" | "unresolved-comment";
 
 // ===== Task Sources =====
 
@@ -12,7 +12,7 @@ export type TaskSource =
   | "github"
   | "slack"
   | "calendar"
-  | "docs"
+  | "drive"
   | "meeting-notes"
   | "github-issue";
 
@@ -186,15 +186,15 @@ export interface CalendarTask {
   crossReferences?: CrossReferenceMetadata;
 }
 
-export interface DocsActionTask {
-  source: "docs";
+export interface DriveActionTask {
+  source: "drive";
   taskId: string;
   stableId: string;
   fileTitle: string;
   actionType: string;
   fileLink: string;
   timestamp: string;
-  docsType?: DocsType;
+  driveType?: DriveType;
 
   // Enrichment
   priorityMetadata: PriorityMetadata;
@@ -226,7 +226,7 @@ export type Task =
   | GitHubTask
   | SlackTask
   | CalendarTask
-  | DocsActionTask
+  | DriveActionTask
   | MeetingNotesTask;
 
 // ===== Server Response Types (from list-all-tasks-today MCP tool) =====
@@ -237,7 +237,7 @@ export interface ServerTasksResponse {
   linear: ServerLinearIssue[];
   gmail: ServerGmailMessage[];
   meetingSummaries: unknown[];
-  docs: ServerDocsAction[];
+  drive: ServerDriveAction[];
   github: {
     prs: ServerGitHubPR[];
     issues: ServerGitHubIssue[];
@@ -358,7 +358,7 @@ export interface ServerCalendarEvent {
   meetingContextMetadata?: MeetingContextMetadata;
 }
 
-export interface ServerDocsAction {
+export interface ServerDriveAction {
   taskId?: string;
   stableId?: string;
   fileTitle: string;
@@ -367,7 +367,7 @@ export interface ServerDocsAction {
   fileLink: string | null;
   timestamp?: string;
   isAssignment?: boolean;
-  docsType?: DocsType;
+  driveType?: DriveType;
   priorityMetadata?: ServerPriorityMetadata;
 }
 
@@ -445,8 +445,8 @@ export function isCalendarTask(task: Task): task is CalendarTask {
   return task.source === "calendar";
 }
 
-export function isDocsActionTask(task: Task): task is DocsActionTask {
-  return task.source === "docs";
+export function isDriveActionTask(task: Task): task is DriveActionTask {
+  return task.source === "drive";
 }
 
 export function isMeetingNotesTask(task: Task): task is MeetingNotesTask {

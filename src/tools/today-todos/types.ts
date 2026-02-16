@@ -204,7 +204,7 @@ export interface AssignedActionDetail {
   timestamp?: string; // When the comment/assignment was created
   isAssignment?: boolean; // True if assigned, false if just mentioned
   commentCount?: number; // Number of unresolved comments (for comment-email items)
-  docsType?: "mention" | "assignment" | "unresolved-comment"; // Discriminator for UI warnings
+  driveType?: "mention" | "assignment" | "unresolved-comment"; // Discriminator for UI warnings
   priorityMetadata?: PriorityMetadata;
 }
 
@@ -298,7 +298,7 @@ export interface ListAllTasksResponse {
   linear: EnrichedLinearIssue[];
   gmail: EnrichedGmailMessage[];
   meetingSummaries: EnrichedMeetingSummary[];
-  docs: EnrichedAssignedAction[];
+  drive: EnrichedAssignedAction[];
   github: { prs: EnrichedGitHubPR[]; issues: EnrichedGitHubIssue[] };
   slack: EnrichedSlackMessage[];
   meetingNotes: EnrichedMeetingNote[];
@@ -329,7 +329,7 @@ export interface TimelineItem {
     zoom?: string;
     linear?: string;
     gmail?: string;
-    docs?: string;
+    drive?: string;
     github?: string;
     slack?: string;
   };

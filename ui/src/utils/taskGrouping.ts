@@ -32,7 +32,7 @@ const SOURCE_ORDER: TaskSource[] = [
   "gmail",
   "slack",
   "calendar",
-  "docs",
+  "drive",
   "meeting-notes",
 ];
 

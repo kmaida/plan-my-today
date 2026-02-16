@@ -14,7 +14,7 @@ interface FilterBarProps {
 }
 
 const SOURCES: TaskSource[] = [
-  'linear', 'github', 'gmail', 'slack', 'calendar', 'docs', 'meeting-notes',
+  'linear', 'github', 'gmail', 'slack', 'calendar', 'drive', 'meeting-notes',
 ]
 
 const PRIORITIES: PriorityCategory[] = ['critical', 'high', 'medium', 'low']

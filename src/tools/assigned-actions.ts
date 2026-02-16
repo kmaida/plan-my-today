@@ -2,7 +2,7 @@ import { z } from "zod/v3";
 import { keycardClient } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
-import { type CommentEmailContext, fetchAssignedActions } from "./today-todos/docs-utils";
+import { type CommentEmailContext, fetchAssignedActions } from "./today-todos/drive-utils";
 import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { AssignedActionDetail } from "./today-todos/types";
 
@@ -58,7 +58,7 @@ function formatActionDetail(action: AssignedActionDetail): string {
  *
  * This tool queries the Google Drive Activity API to find action items
  * assigned to the current user via @mentions, comment assignments, and
- * unresolved comments on owned docs (discovered via Gmail notifications).
+ * unresolved comments on owned files (discovered via Gmail notifications).
  *
  * @param mcpServer - The MCP server instance to register the tool with
  */
@@ -68,7 +68,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
     {
       title: "List Assigned Actions",
       description:
-        "Get action items assigned to you in Google Docs via @mentions, comment assignments, and unresolved comments on docs you own. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Docs.",
+        "Get action items assigned to you in Google Drive via @mentions, comment assignments, and unresolved comments on files you own. Use this when the user asks about their action items, assignments, things assigned to them, or tasks from Google Drive.",
       inputSchema: assignedActionsInputSchema,
     },
     (async (args, { authInfo }) => {

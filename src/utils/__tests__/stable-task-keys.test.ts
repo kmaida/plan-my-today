@@ -87,22 +87,22 @@ describe("computeStableId", () => {
     expect(computeStableId("slack", {})).toBe("");
   });
 
-  // ── Docs ────────────────────────────────────────────────────────
+  // ── Drive ────────────────────────────────────────────────────────
 
-  it("should produce docs:{fileLink} when fileLink present", () => {
-    expect(computeStableId("docs", { fileLink: "https://docs.google.com/d/abc" })).toBe(
-      "docs:https://docs.google.com/d/abc"
+  it("should produce drive:{fileLink} when fileLink present", () => {
+    expect(computeStableId("drive", { fileLink: "https://docs.google.com/d/abc" })).toBe(
+      "drive:https://docs.google.com/d/abc"
     );
   });
 
   it("should fall back to fileTitle when fileLink is null", () => {
-    expect(computeStableId("docs", { fileLink: null, fileTitle: "My Document" })).toBe(
-      "docs:My Document"
+    expect(computeStableId("drive", { fileLink: null, fileTitle: "My Document" })).toBe(
+      "drive:My Document"
     );
   });
 
   it("should return empty string when docs has neither link nor title", () => {
-    expect(computeStableId("docs", {})).toBe("");
+    expect(computeStableId("drive", {})).toBe("");
   });
 
   // ── Meeting Notes ───────────────────────────────────────────────

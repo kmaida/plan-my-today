@@ -1,6 +1,6 @@
 # Plan My Today
 
-A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggregates tasks from Google Calendar, Linear, Gmail, GitHub, Slack, Google Docs, and meeting notes into a single prioritized view with an embedded AI agent ("Todaygent") that helps you plan your day.
+A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggregates tasks from Google Calendar, Linear, Gmail, GitHub, Slack, Google Drive, and meeting notes into a single prioritized view with an embedded AI agent ("Todaygent") that helps you plan your day.
 
 ## How It Works
 
@@ -25,7 +25,7 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 │             ▼                                            │
 │  ┌─ Keycard ─────────────────────────────┐               │
 │  │  OAuth 2.0 + Token Exchange           │               │
-│  │  ├── Google (Calendar, Gmail, Docs)   │               │
+│  │  ├── Google (Calendar, Gmail, Drive)   │               │
 │  │  ├── Linear                           │               │
 │  │  ├── GitHub                           │               │
 │  │  └── Slack                            │               │
@@ -97,13 +97,13 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 
 1. Open `http://localhost:9005` (prod) or `http://localhost:9006` (dev)
 2. Click **Sign in with Google** — you'll authenticate through Keycard
-3. Grant access to each service (Calendar, Gmail, Docs, etc.)
+3. Grant access to each service (Calendar, Gmail, Drive, etc.)
 4. Your tasks load automatically
 
 ## Features
 
 ### Task Dashboard
-- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Docs, meeting notes
+- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Drive, meeting notes
 - Priority scoring and grouping (critical, high, medium, low)
 - Source-based grouping with filter/search
 - Dismiss and restore tasks from the dashboard
@@ -135,10 +135,10 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-gmail-todos` | Gmail emails needing action |
 | `list-github-todos` | GitHub PRs and issues assigned to you |
 | `list-slack-todos` | Slack mentions, DMs, and saved messages |
-| `list-assigned-actions` | Google Docs action items assigned to you |
+| `list-assigned-actions` | Google Drive action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
-| `dismiss-task` | Dismiss meeting note todos, docs items, Slack messages, or ad-hoc tasks from dashboard (local store) |
+| `dismiss-task` | Dismiss meeting note todos, drive items, Slack messages, or ad-hoc tasks from dashboard (local store) |
 | `restore-dismissed-task` | Restore a previously dismissed task so it reappears on the dashboard |
 | `read-dashboard-tasks` | Read the full task data currently displayed on the dashboard (free local read, no API calls) |
 | `set-task-priority` | Boost or demote a task's priority category or score; overrides persist until cleared or auto-pruned |
@@ -191,7 +191,7 @@ src/
 │   ├── gmail.ts              # Gmail todos
 │   ├── github.ts             # GitHub PRs & issues
 │   ├── slack-list.ts         # Slack messages
-│   ├── assigned-actions.ts   # Google Docs actions
+│   ├── assigned-actions.ts   # Google Drive actions
 │   ├── drive-activity.ts     # Google Drive activity
 │   ├── meeting-notes.ts      # Meeting notes (via Google Drive)
 │   ├── dismiss-task.ts

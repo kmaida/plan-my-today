@@ -13,7 +13,7 @@ export interface TaskStoreData {
     dismissalId?: string | null;
     permalink?: string | null;
   }>;
-  docs?: Array<{
+  drive?: Array<{
     fileLink?: string | null;
     fileTitle?: string | null;
   }>;
@@ -25,16 +25,16 @@ export interface TaskStoreData {
 
 /**
  * Filter completed/dismissed items from cached task data.
- * Checks all dismissable sources (slack, docs, meeting-notes) against the
+ * Checks all dismissable sources (slack, drive, meeting-notes) against the
  * completion store. Mutates the data object in place for efficiency.
  *
  * Uses a single file read via `getCompletedBySources` to load all
  * dismissable source completions at once.
  */
 export async function filterCompletedTasks(data: TaskStoreData): Promise<void> {
-  const completed = await getCompletedBySources(["slack", "docs", "meeting-note"] as const);
+  const completed = await getCompletedBySources(["slack", "drive", "meeting-note"] as const);
   const slackCompleted = completed.get("slack")!;
-  const docsCompleted = completed.get("docs")!;
+  const driveCompleted = completed.get("drive")!;
   const meetingNoteCompleted = completed.get("meeting-note")!;
 
   // Filter Slack: remove non-saved messages that have been dismissed
@@ -48,11 +48,11 @@ export async function filterCompletedTasks(data: TaskStoreData): Promise<void> {
     });
   }
 
-  // Filter Docs: remove completed assigned actions
-  if (Array.isArray(data.docs)) {
-    data.docs = data.docs.filter((action) => {
+  // Filter Drive: remove completed assigned actions
+  if (Array.isArray(data.drive)) {
+    data.drive = data.drive.filter((action) => {
       const id = action.fileLink || action.fileTitle || "";
-      return !id || !docsCompleted.has(id);
+      return !id || !driveCompleted.has(id);
     });
   }
 
