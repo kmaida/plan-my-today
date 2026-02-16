@@ -123,8 +123,6 @@ Return ONLY a JSON array. If no action items are found, return [].
 Meeting notes:
 ${content}`;
 
-  const startTime = Date.now();
-
   // Abort if the API doesn't respond within the timeout — prevents a hung
   // request from blocking one of the 3 concurrent batch slots indefinitely.
   const controller = new AbortController();
@@ -216,14 +214,6 @@ ${content}`;
       isUrgent: obj.isUrgent === true,
     });
   }
-
-  const elapsed = Date.now() - startTime;
-  logger.info("LLM extraction complete", {
-    inputChars: content.length,
-    existingItems: existingItems.length,
-    llmExtracted: results.length,
-    durationMs: elapsed,
-  });
 
   return results;
 }

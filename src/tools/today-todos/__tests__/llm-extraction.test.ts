@@ -31,13 +31,11 @@ jest.mock("../../../config", () => ({
 // ── Mock logger ──
 
 const mockWarn = jest.fn();
-const mockInfo = jest.fn();
 
 jest.mock("../../../observability/logger", () => ({
   getLogger: () => ({
     withOperation: () => ({
       warn: mockWarn,
-      info: mockInfo,
     }),
   }),
 }));
@@ -50,7 +48,6 @@ global.fetch = mockFetch;
 beforeEach(() => {
   mockFetch.mockReset();
   mockWarn.mockClear();
-  mockInfo.mockClear();
 });
 
 // ── shouldUseLlmExtraction ──
@@ -384,22 +381,4 @@ describe("extractActionItemsWithLlm", () => {
     expect(items[1].text).toContain("PR #456");
   });
 
-  // ── Logging ──
-
-  it("logs extraction metrics on success", async () => {
-    mockAnthropicResponse([
-      { text: "New action item", isUrgent: false },
-    ]);
-
-    await extractActionItemsWithLlm("x".repeat(500), ["existing"], []);
-
-    expect(mockInfo).toHaveBeenCalledWith(
-      "LLM extraction complete",
-      expect.objectContaining({
-        inputChars: 500,
-        existingItems: 1,
-        llmExtracted: 1,
-      })
-    );
-  });
 });
