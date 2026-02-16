@@ -8,11 +8,12 @@ import { listAllTasks, refreshAllTasks, dismissTask, restoreDismissedTask } from
 import { mergeAuthErrors } from './chat/tool-round-utils'
 import { useMCP } from './mcp'
 import { useTheme } from './hooks/useTheme'
-import type { Task, ViewMode, FilterState } from './types/tasks'
+import type { Task, TaskSource, ViewMode, FilterState } from './types/tasks'
 import { DEFAULT_FILTERS, isSlackTask } from './types/tasks'
-import { applyFilters, getTaskIdentifier } from './utils/taskHelpers'
+import { applyFilters, getTaskIdentifier, normalizeSource } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
+import { SourceIcon } from './components/SourceIcon'
 import { Toast } from './components/Toast'
 import { Chevron } from './components/Chevron'
 import './App.css'
@@ -39,6 +40,23 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
   return groupIndex > 2
 }
 
+/** Auto-refresh when the user returns to the tab after this threshold. */
+const STALE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Fixed display order for source status pills (stable layout across fetches).
+ * Grouped by information type: scheduled → tracked work → communication → reference.
+ */
+const SOURCE_ORDER: TaskSource[] = [
+  'calendar',        // scheduled events (time-bound)
+  'linear',          // tracked work (assigned)
+  'github',          // tracked work (code)
+  'gmail',           // communication (inbound)
+  'slack',           // communication (messages)
+  'meeting-notes',   // reference (extracted actions)
+  'docs',            // reference (doc mentions)
+]
+
 function App() {
   const { login, logout, isLoggingIn } = useAuth()
   const { isConnected, connectionLost, reconnect } = useMCP()
@@ -57,6 +75,8 @@ function App() {
   /** Stash dismiss metadata per task so each onExitComplete resolves independently */
   const pendingDismissMap = useRef<Map<string, { task: Task; source: string; identifier: string }>>(new Map())
   const [chatOpen, setChatOpen] = useState(false)
+  const chatToggleRef = useRef<HTMLButtonElement>(null)
+  const prevChatOpenRef = useRef(chatOpen)
   const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
@@ -157,6 +177,47 @@ function App() {
       handleRefresh()
     }
   }, [isConnected, handleRefresh])
+
+  // Return focus to the chat toggle button when the panel closes.
+  // The button conditionally mounts (chatOpen ternary), but it exists
+  // in the DOM by the time this effect fires (effects run after commit).
+  useEffect(() => {
+    if (prevChatOpenRef.current && !chatOpen) {
+      chatToggleRef.current?.focus()
+    }
+    prevChatOpenRef.current = chatOpen
+  }, [chatOpen])
+
+  // Auto-refresh on tab focus when data is stale.
+  // Refs mirror state so the visibilitychange listener stays stable
+  // (no re-registration on every fetch cycle).
+  const fetchedAtRef = useRef(fetchedAt)
+  fetchedAtRef.current = fetchedAt
+  const refreshingRef = useRef(refreshing)
+  refreshingRef.current = refreshing
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const ts = fetchedAtRef.current
+      if (!ts || refreshingRef.current) return
+      if (Date.now() - new Date(ts).getTime() > STALE_THRESHOLD_MS) {
+        handleRefresh()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [handleRefresh])
+
+  // Per-source task counts for the header pills
+  const sourceCounts = useMemo(() => {
+    const counts = new Map<TaskSource, number>()
+    for (const task of tasks) {
+      const src = normalizeSource(task.source)
+      counts.set(src, (counts.get(src) ?? 0) + 1)
+    }
+    return counts
+  }, [tasks])
 
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
@@ -313,7 +374,21 @@ function App() {
                 <div className="app-header__subtitle-row">
                   {(loading || tasks.length > 0) && (
                     <p className="app-header__subtitle">
-                      {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
+                      {loading ? 'Loading...' : (
+                        <>
+                          {tasks.length} tasks
+                          {sourceCounts.size > 0 && (
+                            <span className="source-status">
+                              {SOURCE_ORDER.filter(src => sourceCounts.has(src)).map(src => (
+                                <span key={src} className="source-status__pill">
+                                  <SourceIcon source={src} size={12} />
+                                  {sourceCounts.get(src)}
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </p>
                   )}
                   <button
@@ -524,7 +599,7 @@ function App() {
           />
         </Suspense>
       ) : (
-        <button className="chat-toggle" onClick={() => setChatOpen(true)} title="Open chat">
+        <button ref={chatToggleRef} className="chat-toggle" onClick={() => setChatOpen(true)} title="Open chat">
           <TodaygentMascot state="idle" size={40} className="chat-toggle__mascot" />
           <span className="chat-toggle__label">{chatToggleLabel}</span>
         </button>

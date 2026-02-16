@@ -70,9 +70,18 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   )
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [showTokenDetails, setShowTokenDetails] = useState(false)
   const [placeholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
   const [welcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
+
+  // Auto-focus the input when the chat panel opens.
+  // Delay allows Suspense lazy-load mount to complete first.
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [isOpen])
 
   // Keep the messages container scrolled to the bottom.
   // Uses scrollTop on the container directly — no sentinel div, no rAF,
@@ -189,6 +198,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
 
       <form className="chat-panel__input-area" onSubmit={handleSubmit}>
         <input
+          ref={inputRef}
           className="chat-panel__input"
           type="text"
           value={input}

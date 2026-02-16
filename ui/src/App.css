@@ -183,6 +183,26 @@
   font-style: italic;
 }
 
+/* ── Per-source status pills (inline in subtitle) ──────────── */
+
+.source-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: var(--space-sm);
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+
+.source-status__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
 .app-main {
   flex: 1;
   max-width: 800px;

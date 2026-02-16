@@ -5,7 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Plan My Today</title>
-    <!-- Prevent flash of wrong theme before React mounts -->
+    <!-- Prevent flash of wrong theme before React mounts.
+         Sets data-theme AND inline bg/fg colors so there's no white flash
+         even before CSS files load. The hex values must match design-tokens.css
+         (--color-bg and --color-text-primary for each theme). -->
     <script>
       (function() {
         var t = 'system';
@@ -14,6 +17,10 @@
           ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
           : (t === 'dark' ? 'dark' : 'light');
         document.documentElement.setAttribute('data-theme', d);
+        var bg = d === 'dark' ? '#1A1A1A' : '#FAFAF8';
+        var fg = d === 'dark' ? '#E8E8E6' : '#2C2520';
+        document.documentElement.style.backgroundColor = bg;
+        document.documentElement.style.color = fg;
       })();
     </script>
   </head>
