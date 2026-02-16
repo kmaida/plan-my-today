@@ -52,10 +52,10 @@ function App() {
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
   const [dismissingTaskId, setDismissingTaskId] = useState<string | null>(null)
   const [dismissError, setDismissError] = useState<string | null>(null)
-  const [exitingTaskId, setExitingTaskId] = useState<string | null>(null)
+  const [exitingTaskIds, setExitingTaskIds] = useState<Set<string>>(new Set())
   const [restoredTaskId, setRestoredTaskId] = useState<string | null>(null)
-  /** Stash dismiss metadata so onExitComplete can finish the flow */
-  const pendingDismissRef = useRef<{ task: Task; source: string; identifier: string } | null>(null)
+  /** Stash dismiss metadata per task so each onExitComplete resolves independently */
+  const pendingDismissMap = useRef<Map<string, { task: Task; source: string; identifier: string }>>(new Map())
   const [chatOpen, setChatOpen] = useState(false)
   const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
@@ -171,8 +171,8 @@ function App() {
       const slackType = isSlackTask(task) ? task.type : undefined
       await dismissTask(source, identifier, task.taskId, slackType)
       // Stash info and trigger exit animation — actual removal happens in onExitComplete
-      pendingDismissRef.current = { task, source, identifier }
-      setExitingTaskId(task.taskId)
+      pendingDismissMap.current.set(task.taskId, { task, source, identifier })
+      setExitingTaskIds(prev => new Set(prev).add(task.taskId))
     } catch (err) {
       console.error('Failed to dismiss task:', err)
       setDismissError(task.taskId)
@@ -182,13 +182,18 @@ function App() {
   }, [])
 
   /** Called by TaskCard after its collapse animation finishes */
-  const handleExitComplete = useCallback(() => {
-    const info = pendingDismissRef.current
+  const handleExitComplete = useCallback((taskId: string) => {
+    const info = pendingDismissMap.current.get(taskId)
     if (!info) return
     setTasks(prev => prev.filter(t => t !== info.task))
+    // Toast shows the most recently dismissed task (last one wins for undo)
     setDismissedInfo(info)
-    setExitingTaskId(null)
-    pendingDismissRef.current = null
+    setExitingTaskIds(prev => {
+      const next = new Set(prev)
+      next.delete(taskId)
+      return next
+    })
+    pendingDismissMap.current.delete(taskId)
   }, [])
 
   const handleUndoDismiss = useCallback(async () => {
@@ -438,7 +443,7 @@ function App() {
                       onDismiss={handleDismiss}
                       dismissingTaskId={dismissingTaskId}
                       dismissError={dismissError}
-                      exitingTaskId={exitingTaskId}
+                      exitingTaskIds={exitingTaskIds}
                       restoredTaskId={restoredTaskId}
                       onExitComplete={handleExitComplete}
                     />

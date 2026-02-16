@@ -16,9 +16,9 @@ interface TaskGroupProps {
   onViewSource?: (task: Task) => void
   dismissingTaskId?: string | null
   dismissError?: string | null
-  exitingTaskId?: string | null
+  exitingTaskIds?: Set<string>
   restoredTaskId?: string | null
-  onExitComplete?: () => void
+  onExitComplete?: (taskId: string) => void
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -30,7 +30,7 @@ export const TaskGroup = memo(function TaskGroup({
   onViewSource,
   dismissingTaskId,
   dismissError,
-  exitingTaskId,
+  exitingTaskIds,
   restoredTaskId,
   onExitComplete,
 }: TaskGroupProps) {
@@ -72,8 +72,8 @@ export const TaskGroup = memo(function TaskGroup({
                   onViewSource={onViewSource}
                   isCompleting={dismissingTaskId === task.taskId}
                   hasError={dismissError === task.taskId}
-                  isExiting={exitingTaskId === task.taskId}
-                  onExitComplete={exitingTaskId === task.taskId ? onExitComplete : undefined}
+                  isExiting={exitingTaskIds?.has(task.taskId) ?? false}
+                  onExitComplete={exitingTaskIds?.has(task.taskId) ? () => onExitComplete?.(task.taskId) : undefined}
                   isRestoring={restoredTaskId === task.taskId}
                 />
               ))}
