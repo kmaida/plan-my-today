@@ -49,13 +49,11 @@
 .chat-panel__clear,
 .chat-panel__close {
   padding: var(--space-xs) var(--space-sm);
-  background: none;
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
-  cursor: pointer;
   transition: background var(--transition-fast);
 }
 
@@ -163,12 +161,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  background: none;
-  border: none;
   border-radius: 0;
-  box-shadow: none;
   padding: 2px var(--space-xs);
-  cursor: pointer;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-text-tertiary);
@@ -176,14 +170,7 @@
 }
 
 .token-stats__toggle:hover {
-  background: none;
-  box-shadow: none;
   color: var(--color-text-secondary);
-}
-
-.token-stats__toggle:active {
-  background: none;
-  box-shadow: none;
 }
 
 .token-stats__details {

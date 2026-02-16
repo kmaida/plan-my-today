@@ -108,13 +108,8 @@
   justify-content: center;
   width: 28px;
   height: 26px;
-  padding: 0;
   color: var(--color-text-tertiary);
-  background: none;
-  border: none;
   border-radius: 0;
-  box-shadow: none;
-  cursor: pointer;
   transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
@@ -125,7 +120,6 @@
 .theme-switcher__option:hover {
   color: var(--color-text-primary);
   background: var(--color-hover);
-  box-shadow: none;
 }
 
 .theme-switcher__option--active {
@@ -141,37 +135,27 @@
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-tertiary);
-  background: none;
-  border: none;
-  box-shadow: none;
   padding: var(--space-xs) var(--space-sm);
-  cursor: pointer;
   transition: color var(--transition-fast);
 }
 
 .app-header__logout:hover {
   color: var(--color-text-secondary);
-  background: none;
-  box-shadow: none;
 }
 
 .app-header__reload {
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
-  background: none;
   border: 1px solid var(--color-text-tertiary);
   border-radius: var(--radius-sm);
   padding: var(--space-xs) var(--space-sm);
-  box-shadow: none;
-  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .app-header__reload:hover {
   color: var(--color-text-primary);
   border-color: var(--color-text-secondary);
-  background: none;
   box-shadow: var(--shadow-sm);
 }
 
@@ -263,15 +247,42 @@
   flex-basis: 100%;
 }
 
-.auth-error-banner__details summary {
+.auth-error-banner__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   color: var(--color-text-secondary);
   font-size: var(--font-xs, 0.75rem);
-  cursor: pointer;
   user-select: none;
 }
 
-.auth-error-banner__details summary:hover {
+.auth-error-banner__toggle:hover {
   color: var(--color-text-primary);
+}
+
+.auth-error-banner__chevron {
+  display: inline-block;
+  font-size: 0.5em;
+  transition: transform var(--transition-normal);
+}
+
+.auth-error-banner__chevron--open {
+  transform: rotate(90deg);
+}
+
+.auth-error-banner__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-normal);
+}
+
+.auth-error-banner__collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.auth-error-banner__collapse-inner {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .auth-error-banner__pre {
@@ -303,26 +314,19 @@ button.auth-error-banner__reauth {
   font-size: var(--font-sm);
   background: var(--color-critical);
   color: var(--color-surface);
-  box-shadow: none;
 }
 
 button.auth-error-banner__reauth:hover {
   background: color-mix(in srgb, var(--color-critical) 85%, black);
-  box-shadow: none;
 }
 
 button.auth-error-banner__reauth:active {
   background: color-mix(in srgb, var(--color-critical) 75%, black);
-  box-shadow: none;
 }
 
 .auth-error-banner__dismiss {
-  background: none;
-  border: none;
-  box-shadow: none;
   color: var(--color-text-secondary);
   font-size: 1.2em;
-  cursor: pointer;
   padding: 0 var(--space-xs);
   line-height: 1;
   position: absolute;
@@ -332,8 +336,6 @@ button.auth-error-banner__reauth:active {
 
 .auth-error-banner__dismiss:hover {
   color: var(--color-text-primary);
-  background: none;
-  box-shadow: none;
 }
 
 /* ── Loading indicator (card-peel animation) ───────────────── */
@@ -515,9 +517,7 @@ button.auth-error-banner__reauth:active {
   align-items: center;
   gap: var(--space-sm);
   color: var(--color-text-secondary);
-  background: none;
   border: 1px solid var(--color-divider);
-  box-shadow: none;
 }
 
 .app-empty-state__chat-btn:hover {

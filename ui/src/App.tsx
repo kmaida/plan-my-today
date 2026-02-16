@@ -55,6 +55,7 @@ function App() {
   const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
+  const [authErrorsExpanded, setAuthErrorsExpanded] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
 
   const fetchTasks = useCallback(async () => {
@@ -328,10 +329,20 @@ function App() {
                   {isLoggingIn ? 'Redirecting...' : 'Reauthorize'}
                 </button>
               </div>
-              <details className="auth-error-banner__details">
-                <summary>{authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}</summary>
-                <pre className="auth-error-banner__pre">{authErrors.join('\n\n')}</pre>
-              </details>
+              <div className="auth-error-banner__details">
+                <button
+                  className="auth-error-banner__toggle"
+                  onClick={() => setAuthErrorsExpanded(prev => !prev)}
+                >
+                  <span className={`auth-error-banner__chevron${authErrorsExpanded ? ' auth-error-banner__chevron--open' : ''}`}>&#x25B6;</span>
+                  {authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}
+                </button>
+                <div className={`auth-error-banner__collapse${authErrorsExpanded ? ' auth-error-banner__collapse--open' : ''}`}>
+                  <div className="auth-error-banner__collapse-inner">
+                    <pre className="auth-error-banner__pre">{authErrors.join('\n\n')}</pre>
+                  </div>
+                </div>
+              </div>
             </div>
             <button
               className="auth-error-banner__dismiss"

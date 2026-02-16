@@ -126,6 +126,23 @@
   color: var(--color-text-secondary);
 }
 
+/* Collapsible animation (grid-row pattern) */
+
+.task-card__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--transition-normal);
+}
+
+.task-card__collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.task-card__collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 /* Expanded details */
 
 .task-card__details {
@@ -242,18 +259,11 @@
   margin-left: auto;
   font-size: var(--font-size-small);
   color: var(--color-text-tertiary);
-  background: none;
-  border: none;
-  padding: 0;
-  box-shadow: none;
-  cursor: pointer;
   transition: color var(--transition-fast);
 }
 
 .task-card__action--dismiss:hover {
   color: var(--color-text-secondary);
-  background: none;
-  box-shadow: none;
 }
 
 .task-card__action--dismiss:disabled {

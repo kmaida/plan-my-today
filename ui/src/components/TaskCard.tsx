@@ -248,25 +248,29 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
             </span>
           </div>
 
-          {isExpanded && crossRefs?.relatedItems && crossRefs.relatedItems.length > 0 && (
-            <ul className="task-card__related-list">
-              {crossRefs.relatedItems.map((item: RelatedItem, i: number) => (
-                <li key={i}>
-                  <SourceIcon source={item.source} showLabel />
-                  {item.snippet && <span className="task-card__related-sep">&middot;</span>}
-                  {item.snippet && (
-                    item.url ? (
-                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="task-card__related-link">
-                        {item.snippet}
-                      </a>
-                    ) : (
-                      <span className="task-card__related-snippet">{item.snippet}</span>
-                    )
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className={`task-card__collapse${isExpanded ? ' task-card__collapse--open' : ''}`}>
+            <div className="task-card__collapse-inner">
+              {crossRefs?.relatedItems && crossRefs.relatedItems.length > 0 && (
+                <ul className="task-card__related-list">
+                  {crossRefs.relatedItems.map((item: RelatedItem, i: number) => (
+                    <li key={i}>
+                      <SourceIcon source={item.source} showLabel />
+                      {item.snippet && <span className="task-card__related-sep">&middot;</span>}
+                      {item.snippet && (
+                        item.url ? (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="task-card__related-link">
+                            {item.snippet}
+                          </a>
+                        ) : (
+                          <span className="task-card__related-snippet">{item.snippet}</span>
+                        )
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </>
       )}
 

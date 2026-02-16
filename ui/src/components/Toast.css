@@ -44,10 +44,6 @@
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
   color: var(--color-focus);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

@@ -87,24 +87,13 @@ button {
   font-family: var(--font-sans);
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-medium);
-  padding: var(--space-sm) var(--space-md);
+  padding: 0;
   border: none;
   border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  background: none;
   color: var(--color-text-primary);
   cursor: pointer;
   transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
-}
-
-button:hover {
-  background-color: var(--color-hover);
-  box-shadow: var(--shadow-md);
-}
-
-button:active {
-  background-color: var(--color-active);
-  box-shadow: var(--shadow-sm);
 }
 
 button:focus-visible {
@@ -121,17 +110,14 @@ button:disabled {
 button.btn--inverted {
   background: var(--color-text-primary);
   color: var(--color-surface);
-  box-shadow: none;
 }
 
 button.btn--inverted:hover {
   background: color-mix(in srgb, var(--color-text-primary) 85%, black);
-  box-shadow: none;
 }
 
 button.btn--inverted:active {
   background: color-mix(in srgb, var(--color-text-primary) 75%, black);
-  box-shadow: none;
 }
 
 /* ===== Input Fields ===== */

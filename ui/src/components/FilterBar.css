@@ -20,19 +20,12 @@
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
-  background: none;
-  border: none;
   border-radius: 0;
-  padding: 0;
-  cursor: pointer;
-  box-shadow: none;
   transition: color var(--transition-fast);
 }
 
 .filter-bar__toggle:hover {
   color: var(--color-text-primary);
-  background: none;
-  box-shadow: none;
 }
 
 .filter-bar__badge {
@@ -132,19 +125,15 @@
   font-size: var(--font-size-small);
   font-weight: var(--font-weight-normal);
   color: var(--color-text-secondary);
-  background: transparent;
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-full);
   padding: 2px var(--space-sm);
-  cursor: pointer;
-  box-shadow: none;
   transition: all var(--transition-fast);
 }
 
 .filter-bar__chip:hover {
   border-color: var(--color-text-tertiary);
   background: var(--color-hover);
-  box-shadow: none;
 }
 
 .filter-bar__chip--active {
@@ -193,17 +182,10 @@
   font-family: var(--font-sans);
   font-size: var(--font-size-small);
   color: var(--color-focus);
-  background: none;
-  border: none;
-  padding: 0;
-  box-shadow: none;
-  cursor: pointer;
 }
 
 .filter-bar__clear:hover {
   text-decoration: underline;
-  background: none;
-  box-shadow: none;
 }
 
 /* Mobile */
