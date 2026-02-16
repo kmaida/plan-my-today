@@ -106,14 +106,18 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 - Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Docs, meeting notes
 - Priority scoring and grouping (critical, high, medium, low)
 - Source-based grouping with filter/search
-- Mark tasks complete from the dashboard
-- Smooth expand/collapse animations
+- Dismiss and restore tasks from the dashboard
+- Manual priority overrides (boost or demote individual tasks)
+- Light, dark, and system theme modes
+- Smooth expand/collapse animations with reduced-motion support
 
 ### Todaygent Chat Agent
-- Built-in AI chat panel powered by Claude
+- Built-in AI chat panel powered by Claude (Opus 4.6)
 - Ask it to plan your day, prioritize tasks, analyze dependencies
-- Has access to all MCP tools — can fetch and reason about your real data
-- Streaming responses with tool call visibility
+- Agentic loop: can call MCP tools autonomously to fetch and reason about your real data
+- Streaming responses with expandable tool call visibility
+- Chat persistence across page reloads
+- Prompt caching for efficient token usage
 
 ### OAuth & Auth
 - OAuth 2.0 via Keycard with PKCE
@@ -136,6 +140,8 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
 | `dismiss-task` | Dismiss meeting note todos, docs items, Slack messages, or ad-hoc tasks from dashboard (local store) |
 | `restore-dismissed-task` | Restore a previously dismissed task so it reappears on the dashboard |
+| `read-dashboard-tasks` | Read the full task data currently displayed on the dashboard (free local read, no API calls) |
+| `set-task-priority` | Boost or demote a task's priority category or score; overrides persist until cleared or auto-pruned |
 
 ## REST API
 
@@ -178,7 +184,7 @@ src/
 ├── config.ts                 # Environment config
 ├── constants.ts              # App constants
 ├── middleware/                # Auth & logging middleware
-├── services/                 # Keycard client, Gmail labels, completion store
+├── services/                 # Keycard client, completion store, priority override store
 ├── tools/                    # MCP tool implementations
 │   ├── calendar.ts           # Google Calendar
 │   ├── linear.ts             # Linear issues
@@ -190,7 +196,8 @@ src/
 │   ├── meeting-notes.ts      # Meeting notes (via Google Drive)
 │   ├── dismiss-task.ts
 │   ├── restore-dismissed-task.ts
-│   ├── mark-email-complete.ts
+│   ├── read-dashboard-tasks.ts
+│   ├── set-task-priority.ts
 │   └── list-all-tasks-today/ # Aggregation tool
 ├── utils/                    # Shared utilities
 ├── types/                    # TypeScript types
@@ -201,17 +208,19 @@ ui/
 │   ├── App.tsx               # Main dashboard layout
 │   ├── auth/                 # OAuth (PKCE, Keycard discovery, AuthGate)
 │   ├── mcp/                  # MCP client context (SSE transport)
-│   ├── chat/                 # Todaygent chat (useChat hook, system prompt)
+│   ├── chat/                 # Todaygent chat (useChat hook, system prompt, persistence)
 │   ├── api/                  # REST client & data transformers
 │   ├── components/
-│   │   ├── Chat/             # ChatPanel, ChatMessage, ToolCallCard
+│   │   ├── Chat/             # ChatPanel, ChatMessage, ToolCallCard, TodaygentMascot, ThinkingIndicator
 │   │   ├── TaskCard.tsx      # Individual task display
 │   │   ├── TaskGroup.tsx     # Collapsible task groups
 │   │   ├── FilterBar.tsx     # Search & filter panel
 │   │   ├── ViewSwitcher.tsx  # Priority / Source view toggle
-│   │   ├── Chevron.tsx       # Animated expand/collapse icon
+│   │   ├── Toast.tsx         # Dismissal/restore feedback notifications
+│   │   ├── Chevron.tsx       # Animated expand/collapse icon (right/down/left)
 │   │   └── SourceIcon.tsx    # Per-source emoji icons
-│   ├── styles/               # Design tokens & global styles
+│   ├── hooks/                # Custom React hooks (useTheme)
+│   ├── styles/               # Design tokens (light/dark mode) & global styles
 │   ├── types/                # Task type definitions
 │   └── utils/                # Date, priority, grouping helpers
 └── dist/                     # Production build (served by Express)

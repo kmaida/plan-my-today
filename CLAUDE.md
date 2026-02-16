@@ -19,14 +19,14 @@ src/
   config.ts          # All env var loading and validation
   server.ts          # Express + MCP transport setup
   index.ts           # Entry point
-  services/          # Keycard client (singleton), Gmail labels, action completion store
-  tools/             # One file per tool, plus today-todos/ and list-all-tasks-today/
+  services/          # Keycard client (singleton), action completion store, priority override store
+  tools/             # One file per tool, plus list-all-tasks-today/
   tools/index.ts     # Central tool registry (TOOL_REGISTRY array)
   middleware/         # Auth middleware
   observability/     # Logger (Winston), OpenTelemetry setup
   types/             # Auth types, shared interfaces
-  utils/             # Shared helpers
-ui/                  # Vite dashboard app
+  utils/             # Shared helpers (date parsing, filtering, task store)
+ui/                  # Vite + React dashboard and Todaygent chat agent
 ```
 
 ## Commands
@@ -50,6 +50,16 @@ ui/                  # Vite dashboard app
 4. Return `{ content: [{ type: "text", text: "..." }] }`
 5. Add to `TOOL_REGISTRY` array in `src/tools/index.ts`
 6. Include helpful error messages with troubleshooting steps
+
+## UI
+
+- Vite + React (no framework), plain CSS with BEM-style class names
+- Design tokens in `ui/src/styles/design-tokens.css` — light and dark mode via `[data-theme]` attribute
+- Theme toggle (light/system/dark) via `ui/src/hooks/useTheme.ts`
+- Chat agent ("Todaygent") in `ui/src/chat/` — agentic loop with tool calls, streaming, chat persistence
+- Shared `Chevron` component for all expand/collapse indicators (animated SVG, supports right/down/left)
+- `Toast` component for dismissal/restore feedback
+- See `ui/README.md` for full UI architecture
 
 ## Code conventions
 
