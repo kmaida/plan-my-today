@@ -248,6 +248,7 @@ export interface ServerTasksResponse {
     fetched_at: string;
     date: string;
     errors?: string[];
+    failedSources?: string[];
   };
 }
 

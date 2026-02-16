@@ -18,6 +18,11 @@ export function setMCPCallTool(fn: MCPCallToolFn | null): void {
   _mcpCallTool = fn;
 }
 
+// ── Timeout ──────────────────────────────────────────────────────────────────
+
+/** Default request timeout (ms). Generous for 7-source parallel fetch (can take 20-30s). */
+const REQUEST_TIMEOUT_MS = 45_000;
+
 // ── Bearer token injection (kept for REST endpoints that don't use MCP) ───────
 
 let _authToken: string | null = null;
@@ -46,6 +51,7 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
     const response = await fetch(url, {
       ...options,
       headers,
+      signal: options.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -56,6 +62,9 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
     const data = await response.json();
     return data as T;
   } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error(`Request to ${endpoint} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+    }
     console.error(`API call failed for ${endpoint}:`, error);
     throw error;
   }
@@ -70,7 +79,18 @@ async function callTool<T>(toolName: string, params: Record<string, unknown> = {
     throw new Error("MCP client not connected — cannot call tools");
   }
 
-  const result = await _mcpCallTool(toolName, params);
+  // The MCP SDK transport doesn't accept AbortSignal, so we use Promise.race
+  // with a timeout to prevent hanging indefinitely.
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`MCP tool ${toolName} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`));
+    }, REQUEST_TIMEOUT_MS);
+  });
+  const callPromise = _mcpCallTool(toolName, params);
+  const result = await Promise.race([callPromise, timeoutPromise]).finally(() =>
+    clearTimeout(timeoutId),
+  );
 
   // Extract text content from MCP response (content array from CallToolResult)
   const content = result.content as Array<{ type: string; text?: string }> | undefined;
@@ -95,6 +115,7 @@ export interface TasksResult {
   tasks: Task[];
   fetchedAt: string | null; // ISO timestamp from server, null if using mock data
   authErrors: string[]; // per-source auth failures (e.g. expired grants)
+  failedSources: string[]; // source keys that failed (e.g. ["gmail", "slack"])
 }
 
 /**
@@ -108,6 +129,7 @@ export async function listAllTasks(): Promise<TasksResult> {
     tasks: transformServerResponse(response),
     fetchedAt: response.metadata?.fetched_at || null,
     authErrors: response.metadata?.errors || [],
+    failedSources: response.metadata?.failedSources || [],
   };
 }
 

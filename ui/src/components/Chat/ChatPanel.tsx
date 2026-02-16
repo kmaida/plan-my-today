@@ -64,15 +64,24 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   const { isConnected, error: mcpError } = useMCP()
   // Auth error detection is handled inside useChat at call time (via the
   // onToolRoundComplete callback) — no effect-based scanning needed here.
-  const { messages, isLoading, error, sessionUsage, sendMessage, clearMessages } = useChat(
+  const { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages } = useChat(
     buildSystemPrompt,
     onToolCallsComplete,
   )
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [showTokenDetails, setShowTokenDetails] = useState(false)
   const [placeholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
   const [welcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
+
+  // Auto-focus the input when the chat panel opens.
+  // Delay allows Suspense lazy-load mount to complete first.
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [isOpen])
 
   // Keep the messages container scrolled to the bottom.
   // Uses scrollTop on the container directly — no sentinel div, no rAF,
@@ -189,6 +198,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
 
       <form className="chat-panel__input-area" onSubmit={handleSubmit}>
         <input
+          ref={inputRef}
           className="chat-panel__input"
           type="text"
           value={input}
@@ -196,13 +206,24 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
           placeholder={isConnected ? placeholder : 'Sign in to chat'}
           disabled={!isConnected || isLoading}
         />
-        <button
-          className="chat-panel__send btn--inverted"
-          type="submit"
-          disabled={!isConnected || isLoading || !input.trim()}
-        >
-          Send
-        </button>
+        {isLoading ? (
+          <button
+            className="chat-panel__stop"
+            type="button"
+            onClick={cancel}
+            title="Stop generating"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            className="chat-panel__send btn--inverted"
+            type="submit"
+            disabled={!isConnected || !input.trim()}
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   )

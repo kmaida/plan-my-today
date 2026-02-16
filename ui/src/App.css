@@ -183,6 +183,33 @@
   font-style: italic;
 }
 
+/* ── Per-source status pills (inline in subtitle) ──────────── */
+
+.source-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--space-sm);
+  margin-right: var(--space-xs);
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--color-divider);
+  vertical-align: middle;
+}
+
+.source-status__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.source-status__pill + .source-status__pill::before {
+  content: "·";
+  color: var(--color-text-tertiary);
+  margin-right: 2px;
+}
+
 .app-main {
   flex: 1;
   max-width: 800px;
