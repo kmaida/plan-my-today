@@ -14,7 +14,7 @@ interface TaskGroupProps {
   defaultCollapsed?: boolean
   onDismiss?: (task: Task) => void
   onViewSource?: (task: Task) => void
-  dismissingTaskId?: string | null
+  dismissingTaskIds?: Set<string>
   dismissError?: string | null
   exitingTaskIds?: Set<string>
   restoredTaskId?: string | null
@@ -28,7 +28,7 @@ export const TaskGroup = memo(function TaskGroup({
   defaultCollapsed = false,
   onDismiss,
   onViewSource,
-  dismissingTaskId,
+  dismissingTaskIds,
   dismissError,
   exitingTaskIds,
   restoredTaskId,
@@ -70,7 +70,7 @@ export const TaskGroup = memo(function TaskGroup({
                   task={task}
                   onDismiss={onDismiss}
                   onViewSource={onViewSource}
-                  isCompleting={dismissingTaskId === task.taskId}
+                  isCompleting={dismissingTaskIds?.has(task.taskId) ?? false}
                   hasError={dismissError === task.taskId}
                   isExiting={exitingTaskIds?.has(task.taskId) ?? false}
                   onExitComplete={exitingTaskIds?.has(task.taskId) ? () => onExitComplete?.(task.taskId) : undefined}

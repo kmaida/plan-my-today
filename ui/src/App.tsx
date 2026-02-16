@@ -50,7 +50,7 @@ function App() {
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('priority')
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
-  const [dismissingTaskId, setDismissingTaskId] = useState<string | null>(null)
+  const [dismissingTaskIds, setDismissingTaskIds] = useState<Set<string>>(new Set())
   const [dismissError, setDismissError] = useState<string | null>(null)
   const [exitingTaskIds, setExitingTaskIds] = useState<Set<string>>(new Set())
   const [restoredTaskId, setRestoredTaskId] = useState<string | null>(null)
@@ -161,7 +161,7 @@ function App() {
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
 
   const handleDismiss = useCallback(async (task: Task) => {
-    setDismissingTaskId(task.taskId)
+    setDismissingTaskIds(prev => new Set(prev).add(task.taskId))
     setDismissError(null)
     try {
       // Meeting-notes, docs, slack — use no-auth REST endpoint (local completion store)
@@ -177,7 +177,11 @@ function App() {
       console.error('Failed to dismiss task:', err)
       setDismissError(task.taskId)
     } finally {
-      setDismissingTaskId(null)
+      setDismissingTaskIds(prev => {
+        const next = new Set(prev)
+        next.delete(task.taskId)
+        return next
+      })
     }
   }, [])
 
@@ -441,7 +445,7 @@ function App() {
                       tasks={group.tasks}
                       defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
                       onDismiss={handleDismiss}
-                      dismissingTaskId={dismissingTaskId}
+                      dismissingTaskIds={dismissingTaskIds}
                       dismissError={dismissError}
                       exitingTaskIds={exitingTaskIds}
                       restoredTaskId={restoredTaskId}
