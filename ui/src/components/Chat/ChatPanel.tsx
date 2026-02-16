@@ -32,18 +32,6 @@ interface ChatPanelProps {
   onToolCallsComplete?: (result: { didFetchAllTasks: boolean; authErrors: string[] }) => void
 }
 
-const BUTTON_LABELS = [
-  // Practical
-  'Ask Todaygent',
-  'Plan my day',
-  'Need a plan?',
-  'Talk to Todaygent',
-  'Get organized',
-  // Personality (sprinkled in)
-  'Summon Todaygent',
-  'Deploy Todaygent',
-]
-
 const WELCOME_MESSAGES = [
   // Informative with personality
   'I\'m Todaygent. I pull from your calendar, Linear, Gmail, Slack, etc. so you don\'t have to. Tell me to plan your day.',
@@ -82,16 +70,8 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
   const [showTokenDetails, setShowTokenDetails] = useState(false)
-  const [placeholder, setPlaceholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
-  const [buttonLabel, setButtonLabel] = useState(() => BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
-  const [welcomeMsg, setWelcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
-
-  // Re-randomize labels each time the chat is toggled
-  useEffect(() => {
-    setPlaceholder(PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
-    setButtonLabel(BUTTON_LABELS[Math.floor(Math.random() * BUTTON_LABELS.length)])
-    setWelcomeMsg(WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
-  }, [isOpen])
+  const [placeholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
+  const [welcomeMsg] = useState(() => WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)])
 
   // Keep the messages container scrolled to the bottom.
   // Uses scrollTop on the container directly — no sentinel div, no rAF,
@@ -110,15 +90,6 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
     if (!text || isLoading) return
     setInput('')
     await sendMessage(text)
-  }
-
-  if (!isOpen) {
-    return (
-      <button className="chat-toggle" onClick={onToggle} title="Open chat">
-        <TodaygentMascot state="idle" size={40} className="chat-toggle__mascot" />
-        <span className="chat-toggle__label">{buttonLabel}</span>
-      </button>
-    )
   }
 
   return (
@@ -235,3 +206,5 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
     </div>
   )
 }
+
+export default ChatPanel

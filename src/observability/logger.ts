@@ -1,5 +1,4 @@
-import { context, propagation, trace } from "@opentelemetry/api";
-import { logger as otelLogger } from "./telemetry";
+import { logger as consoleLogger } from "./telemetry";
 
 export enum LogLevel {
   DEBUG = 0,
@@ -70,7 +69,7 @@ export class McpLogger implements IMcpLogger {
 
   info(message: string, attributes: LogAttributes = {}): void {
     if (this.isLevelEnabled(LogLevel.INFO)) {
-      otelLogger.info(message, { ...this.baseAttributes, ...attributes });
+      consoleLogger.info(message, { ...this.baseAttributes, ...attributes });
     }
   }
 
@@ -87,18 +86,18 @@ export class McpLogger implements IMcpLogger {
       allAttributes = { ...allAttributes, ...attributes };
     }
 
-    otelLogger.error(message, allAttributes);
+    consoleLogger.error(message, allAttributes);
   }
 
   warn(message: string, attributes: LogAttributes = {}): void {
     if (this.isLevelEnabled(LogLevel.WARN)) {
-      otelLogger.warn(message, { ...this.baseAttributes, ...attributes });
+      consoleLogger.warn(message, { ...this.baseAttributes, ...attributes });
     }
   }
 
   debug(message: string, attributes: LogAttributes = {}): void {
     if (this.isLevelEnabled(LogLevel.DEBUG)) {
-      otelLogger.debug(message, { ...this.baseAttributes, ...attributes });
+      consoleLogger.debug(message, { ...this.baseAttributes, ...attributes });
     }
   }
 
@@ -130,20 +129,17 @@ export class McpLogger implements IMcpLogger {
     return level >= this.logLevel;
   }
 
+  /** No-op — trace context propagation removed with OTel. Returns headers unchanged. */
   injectContextIntoHeaders(headers: Record<string, string> = {}): Record<string, string> {
-    const injectedHeaders = { ...headers };
-    propagation.inject(context.active(), injectedHeaders);
-    return injectedHeaders;
+    return { ...headers };
   }
 
   getCurrentTraceId(): string | undefined {
-    const activeSpan = trace.getSpan(context.active());
-    return activeSpan?.spanContext().traceId;
+    return undefined;
   }
 
   getCurrentSpanId(): string | undefined {
-    const activeSpan = trace.getSpan(context.active());
-    return activeSpan?.spanContext().spanId;
+    return undefined;
   }
 }
 
@@ -192,12 +188,11 @@ export function createMcpAttributes(
   return attributes;
 }
 
+/** No-op — trace context propagation removed with OTel. Returns headers unchanged. */
 export function injectContextIntoHeaders(
   headers: Record<string, string> = {}
 ): Record<string, string> {
-  const injectedHeaders = { ...headers };
-  propagation.inject(context.active(), injectedHeaders);
-  return injectedHeaders;
+  return { ...headers };
 }
 
 function parseLogLevelFromEnv(): LogLevel {

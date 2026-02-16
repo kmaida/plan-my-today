@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import { AuthGate, AuthHint, useAuth } from './auth'
 import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
-import { ChatPanel } from './components/Chat/ChatPanel'
+import { TodaygentMascot } from './components/Chat/TodaygentMascot'
 import { listAllTasks, refreshAllTasks, dismissTask, restoreDismissedTask } from './api/client'
 import { mergeAuthErrors } from './chat/tool-round-utils'
 import { useMCP } from './mcp'
@@ -15,6 +15,18 @@ import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import { Toast } from './components/Toast'
 import './App.css'
+
+const ChatPanel = lazy(() => import('./components/Chat/ChatPanel'))
+
+const CHAT_TOGGLE_LABELS = [
+  'Ask Todaygent',
+  'Plan my day',
+  'Need a plan?',
+  'Talk to Todaygent',
+  'Get organized',
+  'Summon Todaygent',
+  'Deploy Todaygent',
+]
 
 function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount: number, groupIndex: number): boolean {
   if (viewMode === 'priority') {
@@ -40,6 +52,7 @@ function App() {
   const [dismissingTaskId, setDismissingTaskId] = useState<string | null>(null)
   const [dismissError, setDismissError] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
@@ -431,11 +444,20 @@ function App() {
         </svg>
       </button>
 
-      <ChatPanel
-        isOpen={chatOpen}
-        onToggle={() => setChatOpen((o) => !o)}
-        onToolCallsComplete={handleToolCallsComplete}
-      />
+      {chatOpen ? (
+        <Suspense fallback={null}>
+          <ChatPanel
+            isOpen={chatOpen}
+            onToggle={() => setChatOpen(false)}
+            onToolCallsComplete={handleToolCallsComplete}
+          />
+        </Suspense>
+      ) : (
+        <button className="chat-toggle" onClick={() => setChatOpen(true)} title="Open chat">
+          <TodaygentMascot state="idle" size={40} className="chat-toggle__mascot" />
+          <span className="chat-toggle__label">{chatToggleLabel}</span>
+        </button>
+      )}
 
       {dismissedInfo && (
         <Toast
