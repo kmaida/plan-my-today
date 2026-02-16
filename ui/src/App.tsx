@@ -52,6 +52,10 @@ function App() {
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
   const [dismissingTaskId, setDismissingTaskId] = useState<string | null>(null)
   const [dismissError, setDismissError] = useState<string | null>(null)
+  const [exitingTaskId, setExitingTaskId] = useState<string | null>(null)
+  const [restoredTaskId, setRestoredTaskId] = useState<string | null>(null)
+  /** Stash dismiss metadata so onExitComplete can finish the flow */
+  const pendingDismissRef = useRef<{ task: Task; source: string; identifier: string } | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
@@ -166,8 +170,9 @@ function App() {
       // Pass slackType for defense-in-depth: server rejects emoji-saved messages
       const slackType = isSlackTask(task) ? task.type : undefined
       await dismissTask(source, identifier, task.taskId, slackType)
-      setTasks(prev => prev.filter(t => t !== task))
-      setDismissedInfo({ task, source, identifier })
+      // Stash info and trigger exit animation — actual removal happens in onExitComplete
+      pendingDismissRef.current = { task, source, identifier }
+      setExitingTaskId(task.taskId)
     } catch (err) {
       console.error('Failed to dismiss task:', err)
       setDismissError(task.taskId)
@@ -176,14 +181,27 @@ function App() {
     }
   }, [])
 
+  /** Called by TaskCard after its collapse animation finishes */
+  const handleExitComplete = useCallback(() => {
+    const info = pendingDismissRef.current
+    if (!info) return
+    setTasks(prev => prev.filter(t => t !== info.task))
+    setDismissedInfo(info)
+    setExitingTaskId(null)
+    pendingDismissRef.current = null
+  }, [])
+
   const handleUndoDismiss = useCallback(async () => {
     if (!dismissedInfo) return
     const { task, source, identifier } = dismissedInfo
     try {
       await restoreDismissedTask(source, identifier)
-      // Re-insert into the task list (re-sort by priority score)
+      // Re-insert into the task list with restore animation marker
+      setRestoredTaskId(task.taskId)
       setTasks(prev => [...prev, task].sort((a, b) => b.priorityMetadata.score - a.priorityMetadata.score))
       setDismissedInfo(null)
+      // Clear the marker after the component has mounted and captured it
+      setTimeout(() => setRestoredTaskId(null), 50)
     } catch (err) {
       console.error('Failed to restore task:', err)
       // Toast stays visible so the user can retry
@@ -420,6 +438,9 @@ function App() {
                       onDismiss={handleDismiss}
                       dismissingTaskId={dismissingTaskId}
                       dismissError={dismissError}
+                      exitingTaskId={exitingTaskId}
+                      restoredTaskId={restoredTaskId}
+                      onExitComplete={handleExitComplete}
                     />
                   ))
                 )}
@@ -463,6 +484,7 @@ function App() {
           onDismiss={() => setDismissedInfo(null)}
         />
       )}
+
     </div>
     </AuthGate>
   )

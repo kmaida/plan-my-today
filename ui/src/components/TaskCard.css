@@ -1,9 +1,40 @@
+/* Animate enter / exit wrapper — uses grid-row pattern for variable-height collapse */
+
+.task-card-wrapper {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-normal), opacity var(--transition-normal);
+  opacity: 1;
+}
+
+.task-card-wrapper--exiting {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.task-card-wrapper--entering {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.task-card-wrapper__inner {
+  overflow: hidden;
+  min-height: 0;
+  /* Margin lives here (inside the collapsing wrapper) so it collapses with the card */
+  margin-bottom: var(--space-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-card-wrapper {
+    transition: none;
+  }
+}
+
 .task-card {
   background-color: var(--color-surface);
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
   padding: var(--space-md);
-  margin-bottom: var(--space-md);
   box-shadow: var(--shadow-sm);
 }
 
