@@ -1,3 +1,4 @@
+import { config } from "../../config";
 import { CALENDAR } from "../../constants";
 import { AuthenticationError } from "../../utils/error-utils";
 import { parseLocalDate } from "../../utils/date-utils";
@@ -152,7 +153,9 @@ export function calculateCalendarPriority(event: CalendarEventDetail, now: Date)
   // ── Non-meeting event types: informational, no proximity boost ──
 
   if (apiEventType === "focusTime") {
-    const isPrep = !!event.summary && /^\[Prep\]/i.test(event.summary);
+    const isPrep =
+      !!event.summary &&
+      event.summary.toLowerCase().startsWith(config.calendarPrepPrefix.toLowerCase());
     const reasons: string[] = [isPrep ? "Meeting prep" : "Focus Time"];
     if (reserved) reasons.push("Reserved (personal)");
     if (proximity === "past") reasons.push("Ended");

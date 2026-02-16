@@ -88,7 +88,7 @@ Every item has \`priorityMetadata\`: **score** (0-300), **category** (\u{1F534} 
 
 **Calendar event handling** (based on \`eventType\` and priority \`reasons\`):
 - **Reserved/personal** (emoji title) and **outOfOffice**: Immovable. Remind the user; don't suggest tasks during these.
-- **focusTime + "Meeting prep"**: \`[Prep]\` block with \`meetingContextMetadata\`. Suggest reviewing related issues, PRs, emails from attendees, and meeting summaries.
+- **focusTime + "Meeting prep"**: Prep block (title starts with a configurable prefix) with \`meetingContextMetadata\`. Suggest reviewing related issues, PRs, emails from attendees, and meeting summaries.
 - **focusTime** (no prep/reserved): Available work time. Suggest tasks for this block.
 - **"Focus block" in reasons**: Heuristic-detected solo hold. Treat like focus time.
 - **workingLocation, birthday, fromGmail**: Informational. Mention briefly.

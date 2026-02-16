@@ -15,6 +15,7 @@ export interface ServerConfig {
   keycardClientId: string;
   keycardClientSecret: string;
   slackEmojiName: string;
+  calendarPrepPrefix: string;
   userDisplayNames: string[];
   anthropicApiKey: string;
   anthropicModel: string;
@@ -61,6 +62,9 @@ export function getConfig(): ServerConfig {
 
   // Slack custom emoji for saved messages (optional preference, not auth)
   const SLACK_EMOJI_NAME = process.env.SLACK_EMOJI_NAME;
+
+  // Calendar prep block prefix (optional — identifies meeting-prep focus blocks)
+  const CALENDAR_PREP_PREFIX = process.env.CALENDAR_PREP_PREFIX?.trim() || "[Prep]";
 
   // User identity for filtering meeting notes action items (optional)
   // Comma-separated name variants, e.g. "Kim,Kim Maida,kimmaida"
@@ -118,6 +122,7 @@ export function getConfig(): ServerConfig {
     keycardClientId: KEYCARD_CLIENT_ID || "",
     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",
+    calendarPrepPrefix: CALENDAR_PREP_PREFIX,
     anthropicApiKey: ANTHROPIC_API_KEY,
     anthropicModel: ANTHROPIC_MODEL,
     userDisplayNames: USER_DISPLAY_NAME

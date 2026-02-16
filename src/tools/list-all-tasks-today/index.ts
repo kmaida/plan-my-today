@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod/v3";
+import { config } from "../../config";
 import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { keycardClient } from "../../services/keycard-client";
 import { applyOverridesToTasks } from "../../services/priority-override-store";
@@ -568,11 +569,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         );
       }
 
-      // 4. Prep blocks: Link focusTime "[Prep]" blocks to the next meeting's context
+      // 4. Prep blocks: Link focusTime prep-prefixed blocks to the next meeting's context
+      const prepPrefix = config.calendarPrepPrefix.toLowerCase();
       for (let i = 0; i < calendarEvents.length; i++) {
         const event = calendarEvents[i];
         if ((event.eventType || "default") !== "focusTime") continue;
-        if (!event.summary || !/^\[Prep\]/i.test(event.summary)) continue;
+        if (!event.summary || !event.summary.toLowerCase().startsWith(prepPrefix)) continue;
 
         // Find next default-type meeting after this prep block in the sorted list
         for (let j = i + 1; j < calendarEvents.length; j++) {
