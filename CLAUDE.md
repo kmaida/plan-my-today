@@ -10,7 +10,7 @@ TypeScript MCP server that aggregates to-dos from multiple sources (Google Calen
 - **Tools**: Each tool in `src/tools/` follows the register-function pattern, registered centrally in `src/tools/index.ts`
 - **Config**: All env vars loaded via `src/config.ts`, never hardcode secrets
 - **Observability**: OpenTelemetry instrumentation in `src/observability/`
-- **UI**: Vite + vanilla JS dashboard in `ui/`
+- **UI**: Vite + React dashboard in `ui/`
 
 ## Key directories
 
