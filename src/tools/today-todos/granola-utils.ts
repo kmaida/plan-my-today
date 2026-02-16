@@ -1,9 +1,11 @@
 import { config } from "../../config";
 import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
+import { getLogger } from "../../observability/logger";
 import { isActionCompleted } from "../../services/action-completion-store";
 import { hashActionText } from "../../utils/action-identifiers";
 import { isWithinBusinessDays, parseDateFromFilename } from "../../utils/date-utils";
 import { containsExactToken } from "./cross-reference-utils";
+import { LLM_CONTENT_LIMIT, extractActionItemsWithLlm, shouldUseLlmExtraction } from "./llm-extraction";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { MeetingNoteActionDetail } from "./types";
 
@@ -426,6 +428,18 @@ export async function fetchMeetingNoteActions(
         try {
           const content = await exportDocAsText(accessToken, doc.id);
           const extractedItems = extractActionItemsFromContent(content);
+
+          // LLM supplement: extract additional items regex missed.
+          // extractActionItemsWithLlm is non-throwing — returns [] on any failure.
+          if (shouldUseLlmExtraction(content)) {
+            const llmItems = await extractActionItemsWithLlm(
+              content.substring(0, LLM_CONTENT_LIMIT),
+              extractedItems.map((i) => i.text),
+              config.userDisplayNames
+            );
+            extractedItems.push(...llmItems);
+          }
+
           const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
 
           // Filter to items relevant to the current user (if configured)
