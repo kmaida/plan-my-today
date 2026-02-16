@@ -13,7 +13,7 @@ import { DEFAULT_FILTERS, isSlackTask } from './types/tasks'
 import { applyFilters, getTaskIdentifier, normalizeSource } from './utils/taskHelpers'
 import { groupTasks } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
-import { SourceIcon } from './components/SourceIcon'
+import { SourceIcon, getSourceLabel } from './components/SourceIcon'
 import { Toast } from './components/Toast'
 import { Chevron } from './components/Chevron'
 import './App.css'
@@ -79,6 +79,7 @@ function App() {
   const prevChatOpenRef = useRef(chatOpen)
   const [chatToggleLabel] = useState(() => CHAT_TOGGLE_LABELS[Math.floor(Math.random() * CHAT_TOGGLE_LABELS.length)])
   const [authErrors, setAuthErrors] = useState<string[]>([])
+  const [failedSources, setFailedSources] = useState<string[]>([])
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
   const [authErrorsExpanded, setAuthErrorsExpanded] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
@@ -91,6 +92,7 @@ function App() {
       setTasks(result.tasks)
       setFetchedAt(result.fetchedAt)
       setAuthErrors(result.authErrors)
+      setFailedSources(result.failedSources)
       setAuthErrorsDismissed(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks')
@@ -107,6 +109,7 @@ function App() {
       setTasks(result.tasks)
       setFetchedAt(result.fetchedAt)
       setAuthErrors(result.authErrors)
+      setFailedSources(result.failedSources)
       setAuthErrorsDismissed(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
@@ -130,6 +133,7 @@ function App() {
         setTasks(stored.tasks)
         setFetchedAt(stored.fetchedAt)
         storeErrors = stored.authErrors
+        setFailedSources(stored.failedSources)
       } catch {
         // Non-fatal: task store read failed, tasks stay as-is
       }
@@ -153,6 +157,7 @@ function App() {
           setTasks(result.tasks);
           setFetchedAt(result.fetchedAt);
           setAuthErrors(result.authErrors);
+          setFailedSources(result.failedSources);
         })
         .catch(() => {
           // Task store read failed — dashboard stays empty, user can fetch manually
@@ -440,6 +445,7 @@ function App() {
                 >
                   <Chevron direction={authErrorsExpanded ? 'down' : 'right'} size={10} />
                   {authErrors.length} source {authErrors.length === 1 ? 'error' : 'errors'}
+                  {failedSources.length > 0 && `: ${failedSources.map(s => getSourceLabel(s as TaskSource)).join(', ')}`}
                 </button>
                 <div className={`auth-error-banner__collapse${authErrorsExpanded ? ' auth-error-banner__collapse--open' : ''}`}>
                   <div className="auth-error-banner__collapse-inner">

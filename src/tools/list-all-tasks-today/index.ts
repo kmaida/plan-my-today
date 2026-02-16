@@ -192,6 +192,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const includeGithub = args.includeGithub ?? true;
       const today = new Date();
       const errors: string[] = [];
+      const failedSources: string[] = [];
 
       // Initialize raw data containers (populated by parallel fetch)
       let rawCalendar: CalendarEventDetail[] = [];
@@ -288,12 +289,14 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         rawCalendar = fetchResults[0].value;
       } else {
         errors.push(formatAuthError("Google Calendar", fetchResults[0].reason));
+        failedSources.push("calendar");
       }
 
       if (fetchResults[1].status === "fulfilled") {
         rawLinear = fetchResults[1].value;
       } else {
         errors.push(formatAuthError("Linear", fetchResults[1].reason));
+        failedSources.push("linear");
       }
 
       if (fetchResults[2].status === "fulfilled") {
@@ -302,12 +305,14 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         docCommentEmails = fetchResults[2].value.docCommentEmails;
       } else {
         errors.push(formatAuthError("Gmail", fetchResults[2].reason));
+        failedSources.push("gmail");
       }
 
       if (fetchResults[3].status === "fulfilled") {
         rawAssignedActions = fetchResults[3].value;
       } else {
         errors.push(formatAuthError("Google Drive Activity", fetchResults[3].reason));
+        failedSources.push("docs");
       }
 
       if (fetchResults[4].status === "fulfilled") {
@@ -315,18 +320,21 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         rawGithubIssues = fetchResults[4].value.issues;
       } else if (includeGithub) {
         errors.push(formatAuthError("GitHub", fetchResults[4].reason));
+        failedSources.push("github");
       }
 
       if (fetchResults[5].status === "fulfilled") {
         rawSlack = fetchResults[5].value;
       } else {
         errors.push(formatAuthError("Slack", fetchResults[5].reason));
+        failedSources.push("slack");
       }
 
       if (fetchResults[6].status === "fulfilled") {
         rawMeetingNotes = fetchResults[6].value;
       } else {
         errors.push(formatAuthError("Meeting Notes (Google Drive)", fetchResults[6].reason));
+        failedSources.push("meeting-notes");
       }
 
       // ============================================
@@ -604,6 +612,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           fetched_at: new Date().toISOString(),
           date: today.toISOString(),
           errors: errors.length > 0 ? errors : undefined,
+          failedSources: failedSources.length > 0 ? failedSources : undefined,
         },
       };
 

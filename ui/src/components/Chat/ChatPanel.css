@@ -237,6 +237,23 @@
   cursor: not-allowed;
 }
 
+.chat-panel__stop {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-critical);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.chat-panel__stop:hover {
+  opacity: 0.85;
+}
+
 /* ── Chat Messages ──────────────────────────────────────────────────────────── */
 
 .chat-message {

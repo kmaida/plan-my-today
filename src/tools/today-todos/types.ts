@@ -302,7 +302,7 @@ export interface ListAllTasksResponse {
   github: { prs: EnrichedGitHubPR[]; issues: EnrichedGitHubIssue[] };
   slack: EnrichedSlackMessage[];
   meetingNotes: EnrichedMeetingNote[];
-  metadata: { fetched_at: string; date: string; errors?: string[] };
+  metadata: { fetched_at: string; date: string; errors?: string[]; failedSources?: string[] };
 }
 
 /**

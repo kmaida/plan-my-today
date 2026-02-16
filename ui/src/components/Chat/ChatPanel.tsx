@@ -64,7 +64,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   const { isConnected, error: mcpError } = useMCP()
   // Auth error detection is handled inside useChat at call time (via the
   // onToolRoundComplete callback) — no effect-based scanning needed here.
-  const { messages, isLoading, error, sessionUsage, sendMessage, clearMessages } = useChat(
+  const { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages } = useChat(
     buildSystemPrompt,
     onToolCallsComplete,
   )
@@ -206,13 +206,24 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
           placeholder={isConnected ? placeholder : 'Sign in to chat'}
           disabled={!isConnected || isLoading}
         />
-        <button
-          className="chat-panel__send btn--inverted"
-          type="submit"
-          disabled={!isConnected || isLoading || !input.trim()}
-        >
-          Send
-        </button>
+        {isLoading ? (
+          <button
+            className="chat-panel__stop"
+            type="button"
+            onClick={cancel}
+            title="Stop generating"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            className="chat-panel__send btn--inverted"
+            type="submit"
+            disabled={!isConnected || !input.trim()}
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   )

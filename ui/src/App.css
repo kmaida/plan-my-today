@@ -188,8 +188,9 @@
 .source-status {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: 6px;
   margin-left: var(--space-sm);
+  margin-right: var(--space-xs);
   padding-left: var(--space-sm);
   border-left: 1px solid var(--color-divider);
   vertical-align: middle;
@@ -201,6 +202,12 @@
   gap: 2px;
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
+}
+
+.source-status__pill + .source-status__pill::before {
+  content: "·";
+  color: var(--color-text-tertiary);
+  margin-right: 2px;
 }
 
 .app-main {

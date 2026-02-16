@@ -1,5 +1,6 @@
 import { CALENDAR } from "../../constants";
 import { AuthenticationError } from "../../utils/error-utils";
+import { parseLocalDate } from "../../utils/date-utils";
 import { calculateProximity, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { CalendarEventDetail } from "./types";
 
@@ -107,8 +108,39 @@ function isReservedByEmoji(summary?: string): boolean {
 export function calculateCalendarPriority(event: CalendarEventDetail, now: Date): PriorityMetadata {
   const startTime = event.start?.dateTime ? new Date(event.start.dateTime) : null;
   const endTime = event.end?.dateTime ? new Date(event.end.dateTime) : null;
-  const minutesUntilStart = startTime ? (startTime.getTime() - now.getTime()) / (1000 * 60) : 999;
-  const minutesUntilEnd = endTime ? (endTime.getTime() - now.getTime()) / (1000 * 60) : undefined;
+
+  // All-day events have `start.date` (YYYY-MM-DD) instead of `start.dateTime`.
+  // Parse with parseLocalDate() to avoid the UTC-midnight off-by-one bug.
+  // Today → minutesUntilStart = 0 (happening_now), Tomorrow → 90 (upcoming), Future → 999.
+  // Leave minutesUntilEnd undefined for all-day events — no meaningful end time,
+  // and setting it would cause false "past" classification.
+  let minutesUntilStart: number;
+  let minutesUntilEnd: number | undefined;
+
+  if (startTime) {
+    minutesUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
+    minutesUntilEnd = endTime
+      ? (endTime.getTime() - now.getTime()) / (1000 * 60)
+      : undefined;
+  } else if (event.start?.date) {
+    const eventDate = parseLocalDate(event.start.date);
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const daysDiff = Math.round(
+      (eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (daysDiff <= 0) {
+      minutesUntilStart = 0; // today or past → "happening_now"
+    } else if (daysDiff === 1) {
+      minutesUntilStart = 90; // tomorrow → "upcoming"
+    } else {
+      minutesUntilStart = 999; // future → no boost
+    }
+    minutesUntilEnd = undefined;
+  } else {
+    minutesUntilStart = 999; // no start info at all → safe fallback
+    minutesUntilEnd = undefined;
+  }
+
   const proximity = calculateProximity(minutesUntilStart, minutesUntilEnd);
 
   const attendeeCount = event.attendees?.length || 0;

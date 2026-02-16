@@ -115,6 +115,7 @@ export interface TasksResult {
   tasks: Task[];
   fetchedAt: string | null; // ISO timestamp from server, null if using mock data
   authErrors: string[]; // per-source auth failures (e.g. expired grants)
+  failedSources: string[]; // source keys that failed (e.g. ["gmail", "slack"])
 }
 
 /**
@@ -128,6 +129,7 @@ export async function listAllTasks(): Promise<TasksResult> {
     tasks: transformServerResponse(response),
     fetchedAt: response.metadata?.fetched_at || null,
     authErrors: response.metadata?.errors || [],
+    failedSources: response.metadata?.failedSources || [],
   };
 }
 

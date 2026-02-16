@@ -1,6 +1,27 @@
+import { useSyncExternalStore } from "react";
 import type { TaskSource } from "../types/tasks";
-import { useTheme } from "../hooks/useTheme";
 import "./SourceIcon.css";
+
+/**
+ * Observe the `data-theme` attribute on <html> so every SourceIcon re-renders
+ * when the theme changes. We can't rely on useTheme() here because each call
+ * creates independent state — only the App instance's setTheme fires, leaving
+ * other instances stale. The DOM attribute is the single source of truth.
+ */
+function subscribeToTheme(callback: () => void) {
+  const observer = new MutationObserver(callback);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+  return () => observer.disconnect();
+}
+
+function getEffectiveTheme(): "light" | "dark" {
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? "dark"
+    : "light";
+}
 
 interface SourceIconProps {
   source: TaskSource;
@@ -55,7 +76,7 @@ export function SourceIcon({
   showLabel = false,
   size = 16,
 }: SourceIconProps) {
-  const { effectiveTheme } = useTheme();
+  const effectiveTheme = useSyncExternalStore(subscribeToTheme, getEffectiveTheme);
   const label = SOURCE_LABELS[source];
   const iconPath = getIconPath(source, effectiveTheme);
 

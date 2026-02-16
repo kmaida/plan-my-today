@@ -80,6 +80,8 @@ export interface UseChatReturn {
   /** Accumulated token usage for the entire chat session. */
   sessionUsage: SessionUsage;
   sendMessage: (text: string) => Promise<void>;
+  /** Abort the current in-flight request. Partial streamed text stays visible. */
+  cancel: () => void;
   clearMessages: () => void;
 }
 
@@ -299,6 +301,14 @@ export function useChat(
     [isConnected, mcpTools, callTool, buildSystemPrompt, onToolRoundComplete]
   );
 
+  /** Cancel the in-flight stream. Partial text stays in the chat (it's already
+   *  committed to React state). The existing catch block handles AbortError silently. */
+  const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+  }, []);
+
   const clearMessages = useCallback(() => {
     abortRef.current?.abort();
     setMessages([]);
@@ -313,7 +323,7 @@ export function useChat(
     clearPersistedChatState();
   }, []);
 
-  return { messages, isLoading, error, sessionUsage, sendMessage, clearMessages };
+  return { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages };
 }
 
 // ── Streaming API call ───────────────────────────────────────────────────────
