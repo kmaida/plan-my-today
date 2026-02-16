@@ -1,5 +1,4 @@
 import { getLogger } from "../../observability/logger";
-import { isActionCompleted } from "../../services/action-completion-store";
 import { AuthenticationError } from "../../utils/error-utils";
 import type { DocCommentEmail } from "./drive-comments-utils";
 import { verifyAndEnrichDocComments } from "./drive-comments-utils";
@@ -98,9 +97,13 @@ export async function fetchAssignedActions(
 
     if (wasAssigned || wasMentioned) {
       const target = activity.targets?.[0];
-      const fileTitle = target?.driveItem?.title || "Untitled";
+      const rawTitle = target?.driveItem?.title;
       const fileId = target?.driveItem?.name?.match(/^items\/(.+)$/)?.[1];
       const fileLink = fileId ? `https://drive.google.com/open?id=${fileId}` : null;
+
+      // Skip items with no title and no link — they'd show as unactionable "Untitled"
+      if (!rawTitle && !fileLink) continue;
+      const fileTitle = rawTitle || "Document";
 
       let actionType = "";
       if (comment.assignment) {
@@ -121,22 +124,11 @@ export async function fetchAssignedActions(
     }
   }
 
-  // Filter out completed actions
-  // The identifier used by dismiss-task is the fileLink URL or fileTitle
-  const filteredActions: AssignedActionDetail[] = [];
-  for (const action of actionItems) {
-    const identifier = action.fileLink || action.fileTitle;
-    if (identifier && (await isActionCompleted("drive", identifier))) {
-      continue;
-    }
-    filteredActions.push(action);
-  }
-
   // Enrich with Gmail-discovered doc comment emails (if context provided)
   if (commentEmailContext && commentEmailContext.docCommentEmails.length > 0) {
     // Build set of fileIds already surfaced via @mention/assignment (dedup)
     const existingFileIds = new Set(
-      filteredActions.map((a) => a.fileId).filter((id): id is string => !!id)
+      actionItems.map((a) => a.fileId).filter((id): id is string => !!id)
     );
 
     const verifiedComments = await verifyAndEnrichDocComments(
@@ -145,17 +137,10 @@ export async function fetchAssignedActions(
       existingFileIds
     );
 
-    // Filter out completed comment items
-    for (const item of verifiedComments) {
-      const identifier = item.fileLink || item.fileTitle;
-      if (identifier && (await isActionCompleted("drive", identifier))) {
-        continue;
-      }
-      filteredActions.push(item);
-    }
+    actionItems.push(...verifiedComments);
   }
 
-  return filteredActions;
+  return actionItems;
 }
 
 /**

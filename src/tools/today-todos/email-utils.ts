@@ -718,7 +718,10 @@ export function extractDocCommentEmails(messages: GmailFullMessage[]): {
     // Extract title from subject
     const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value || "";
     const titleMatch = subject.match(DOC_COMMENT_SUBJECT_PATTERN);
-    const fileTitle = titleMatch?.[1]?.trim() || subject || "Untitled";
+    // Fallback: strip Re: prefix and use full subject (sender already confirmed as Google Docs)
+    const fileTitle = titleMatch?.[1]?.trim()
+      || subject.replace(/^Re:\s*/i, "").trim()
+      || "Untitled";
 
     const emailTimestamp = message.internalDate ? parseInt(message.internalDate, 10) : undefined;
 

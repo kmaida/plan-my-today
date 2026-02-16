@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod/v3";
 import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
-import { isActionCompleted } from "../../services/action-completion-store";
 import { keycardClient } from "../../services/keycard-client";
 import { applyOverridesToTasks } from "../../services/priority-override-store";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
@@ -362,14 +361,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
               existingFileIds
             );
 
-            // Filter completed items and merge into assigned actions
-            for (const item of verifiedComments) {
-              const identifier = item.fileLink || item.fileTitle;
-              if (identifier && (await isActionCompleted("drive", identifier))) {
-                continue;
-              }
-              rawAssignedActions.push(item);
-            }
+            rawAssignedActions.push(...verifiedComments);
           }
         } catch {
           // Non-fatal: doc comment verification is best-effort
@@ -448,7 +440,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           ...msg,
           taskId: randomUUID(),
           stableId: computeStableId("slack", msg),
-          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user),
+          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user || "Someone"),
           timestamp: isoTimestamp,
           priorityMetadata,
         };

@@ -31,11 +31,10 @@ const mockedGetCompleted = getCompletedBySources as jest.MockedFunction<
  * Missing sources default to empty Sets.
  */
 function setCompletedIds(
-  overrides: Partial<Record<"slack" | "drive" | "meeting-note", string[]>>
+  overrides: Partial<Record<"slack" | "meeting-note", string[]>>
 ): void {
   const result = new Map<ActionSource, Set<string>>([
     ["slack", new Set(overrides.slack ?? [])],
-    ["drive", new Set(overrides.drive ?? [])],
     ["meeting-note", new Set(overrides["meeting-note"] ?? [])],
   ]);
   mockedGetCompleted.mockResolvedValue(result);
@@ -129,64 +128,6 @@ describe("Slack filtering", () => {
     await filterCompletedTasks(data);
 
     expect(data.slack).toHaveLength(1);
-  });
-});
-
-// ── Drive filtering ───────────────────────────────────────────────────────────
-
-describe("Drive filtering", () => {
-  it("should remove a dismissed doc by fileLink", async () => {
-    const link = "https://docs.google.com/document/d/abc123";
-    const data = {
-      drive: [{ fileLink: link, fileTitle: "My Doc" }],
-    };
-    setCompletedIds({ drive: [link] });
-
-    await filterCompletedTasks(data);
-
-    expect(data.drive).toHaveLength(0);
-  });
-
-  it("should remove a dismissed doc by fileTitle fallback", async () => {
-    const data = {
-      drive: [{ fileTitle: "Planning Notes" }],
-    };
-    setCompletedIds({ drive: ["Planning Notes"] });
-
-    await filterCompletedTasks(data);
-
-    expect(data.drive).toHaveLength(0);
-  });
-
-  it("should keep docs with empty-string identifier (no fileLink and no fileTitle)", async () => {
-    const data = {
-      drive: [{}],
-    };
-    setCompletedIds({ drive: [""] });
-
-    await filterCompletedTasks(data);
-
-    // The code does: const id = action.fileLink || action.fileTitle || ""
-    // Then: return !id || !driveCompleted.has(id)
-    // !id is true for "", so the item passes through
-    expect(data.drive).toHaveLength(1);
-  });
-
-  it("should not remove a doc that isn't dismissed", async () => {
-    const data = {
-      drive: [
-        { fileLink: "https://docs.google.com/document/d/abc123" },
-        { fileLink: "https://docs.google.com/document/d/def456" },
-      ],
-    };
-    setCompletedIds({
-      drive: ["https://docs.google.com/document/d/abc123"],
-    });
-
-    await filterCompletedTasks(data);
-
-    expect(data.drive).toHaveLength(1);
-    expect(data.drive[0].fileLink).toBe("https://docs.google.com/document/d/def456");
   });
 });
 
@@ -289,7 +230,6 @@ describe("Edge cases", () => {
     };
     setCompletedIds({
       slack: ["anything"],
-      drive: ["anything"],
       "meeting-note": ["anything"],
     });
 
@@ -306,11 +246,10 @@ describe("Edge cases", () => {
 // ── Cross-source isolation ───────────────────────────────────────────────────
 
 describe("Cross-source isolation", () => {
-  it("dismissing a Slack message should not affect Drive or meeting notes", async () => {
+  it("dismissing a Slack message should not affect meeting notes", async () => {
     const sharedId = "shared-identifier";
     const data = {
       slack: [{ type: "mention", dismissalId: sharedId }],
-      drive: [{ fileLink: sharedId }],
       meetingNotes: [{ documentId: sharedId, actionItem: "Action" }],
     };
     // Only Slack has this ID completed
@@ -319,7 +258,6 @@ describe("Cross-source isolation", () => {
     await filterCompletedTasks(data);
 
     expect(data.slack).toHaveLength(0); // Dismissed
-    expect(data.drive).toHaveLength(1); // Untouched
     expect(data.meetingNotes).toHaveLength(1); // Untouched
   });
 });

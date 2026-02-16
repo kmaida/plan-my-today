@@ -168,21 +168,16 @@ describe("getTaskIdentifier", () => {
     expect(getTaskIdentifier(task)).toBe("");
   });
 
-  it("Gmail: returns message id", () => {
+  it("Gmail: returns empty string (not dismissable)", () => {
     const task = makeGmail({ id: "msg-abc123" });
-    expect(getTaskIdentifier(task)).toBe("msg-abc123");
+    expect(getTaskIdentifier(task)).toBe("");
   });
 
-  it("Drive: returns fileLink when available", () => {
+  it("Drive: returns empty string (not dismissable)", () => {
     const task = makeDrive({
       fileLink: "https://drive.google.com/open?id=abc",
     });
-    expect(getTaskIdentifier(task)).toBe("https://drive.google.com/open?id=abc");
-  });
-
-  it("Drive: falls back to fileTitle when fileLink is empty", () => {
-    const task = makeDrive({ fileLink: "", fileTitle: "My Document" });
-    expect(getTaskIdentifier(task)).toBe("My Document");
+    expect(getTaskIdentifier(task)).toBe("");
   });
 
   it("MeetingNotes: returns documentId", () => {

@@ -12,9 +12,10 @@ import { Chevron } from './Chevron'
 import '../styles/hint-tooltip.css'
 import './TaskCard.css'
 
-// Sources that support dismissal from the UI.
-// Meeting-notes, drive, and slack (non-saved) use the no-auth REST endpoint (local completion store).
-const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'drive', 'slack']
+// Sources that support local dismissal via the completion store.
+// Meeting-notes and slack (non-saved messages only) can be dismissed here.
+// Drive items auto-clear when resolved in the source document.
+const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'slack']
 
 /** Labels for non-default Google Calendar event types shown in card metadata */
 const CALENDAR_EVENT_TYPE_LABELS: Record<string, string> = {
@@ -365,15 +366,6 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
                 >
                   {isCompleting ? 'Dismissing...' : hasError ? 'Failed — Retry' : 'Dismiss'}
                 </button>
-                {isDriveActionTask(task) && task.driveType === 'unresolved-comment' && (
-                  <span className="hint-tooltip">
-                    <svg className="hint-tooltip__icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-                      <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">!</text>
-                    </svg>
-                    <span className="hint-tooltip__tooltip">Resolve comments in Google Docs — they'll disappear from the dashboard automatically.</span>
-                  </span>
-                )}
               </>
             )}
           </div>

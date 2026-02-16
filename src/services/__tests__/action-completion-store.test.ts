@@ -43,7 +43,7 @@ describe("markActionIncomplete", () => {
 
   it("should be a no-op when the action was never completed", async () => {
     // Should not throw
-    await expect(markActionIncomplete("drive", "nonexistent")).resolves.not.toThrow();
+    await expect(markActionIncomplete("slack", "nonexistent")).resolves.not.toThrow();
   });
 
   it("should not affect other completions", async () => {
@@ -63,22 +63,19 @@ describe("getCompletedBySources", () => {
   it("should return identifiers grouped by source", async () => {
     await markActionComplete("slack", "C123:ts1");
     await markActionComplete("slack", "C456:ts2");
-    await markActionComplete("drive", "https://docs.google.com/d/abc");
     await markActionComplete("meeting-note", "doc-xyz");
 
-    const result = await getCompletedBySources(["slack", "drive", "meeting-note"]);
+    const result = await getCompletedBySources(["slack", "meeting-note"]);
 
     expect(result.get("slack")).toEqual(new Set(["C123:ts1", "C456:ts2"]));
-    expect(result.get("drive")).toEqual(new Set(["https://docs.google.com/d/abc"]));
     expect(result.get("meeting-note")).toEqual(new Set(["doc-xyz"]));
   });
 
   it("should return empty Sets for sources with no completions", async () => {
     await markActionComplete("slack", "C123:ts1");
 
-    const result = await getCompletedBySources(["drive", "meeting-note"]);
+    const result = await getCompletedBySources(["meeting-note"]);
 
-    expect(result.get("drive")).toEqual(new Set());
     expect(result.get("meeting-note")).toEqual(new Set());
   });
 
@@ -99,13 +96,13 @@ describe("getCompletedBySources", () => {
 
 describe("getCompletedBySource", () => {
   it("should return identifiers for a single source", async () => {
-    await markActionComplete("drive", "link-1");
-    await markActionComplete("drive", "link-2");
+    await markActionComplete("meeting-note", "doc-1");
+    await markActionComplete("meeting-note", "doc-2");
     await markActionComplete("slack", "unrelated");
 
-    const result = await getCompletedBySource("drive");
+    const result = await getCompletedBySource("meeting-note");
 
-    expect(result).toEqual(new Set(["link-1", "link-2"]));
+    expect(result).toEqual(new Set(["doc-1", "doc-2"]));
   });
 
   it("should return an empty Set when no completions exist for the source", async () => {
@@ -159,8 +156,8 @@ describe("forcePrune", () => {
           identifier: "id-1",
           completedAt: twoDaysAgo.toISOString(),
         },
-        "drive:id-2": {
-          source: "drive",
+        "meeting-note:id-2": {
+          source: "meeting-note",
           identifier: "id-2",
           completedAt: twoDaysAgo.toISOString(),
         },
@@ -173,7 +170,7 @@ describe("forcePrune", () => {
 
     expect(pruned).toBe(2);
     expect(await isActionCompleted("slack", "id-1")).toBe(false);
-    expect(await isActionCompleted("drive", "id-2")).toBe(false);
+    expect(await isActionCompleted("meeting-note", "id-2")).toBe(false);
   });
 
   it("should return 0 when nothing needs pruning", async () => {

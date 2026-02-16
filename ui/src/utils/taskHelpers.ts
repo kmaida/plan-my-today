@@ -77,14 +77,14 @@ export function getTaskUrl(task: Task): string | undefined {
 
 /**
  * Get the stable identifier used when marking a task complete.
+ * Only returns identifiers for dismissable sources (slack, meeting-notes).
  * Slack uses dismissalId (channel:ts) which is stable across fetches,
  * falling back to permalink for older task store data.
  */
 export function getTaskIdentifier(task: Task): string {
-  if (isGmailTask(task)) return task.id;
   if (isSlackTask(task)) return task.dismissalId || task.link || "";
   if (isMeetingNotesTask(task)) return task.documentId;
-  if (isDriveActionTask(task)) return task.fileLink || task.fileTitle;
+  // Gmail, Drive, Linear, GitHub, Calendar are not locally dismissable
   return "";
 }
 
