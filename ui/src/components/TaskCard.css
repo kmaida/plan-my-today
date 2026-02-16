@@ -18,10 +18,16 @@
 }
 
 .task-card-wrapper__inner {
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
   /* Margin lives here (inside the collapsing wrapper) so it collapses with the card */
   margin-bottom: var(--space-md);
+}
+
+/* Clip content only during enter/exit animations (required for grid-row collapse) */
+.task-card-wrapper--exiting .task-card-wrapper__inner,
+.task-card-wrapper--entering .task-card-wrapper__inner {
+  overflow: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {

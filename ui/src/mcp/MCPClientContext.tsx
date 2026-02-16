@@ -23,6 +23,10 @@ interface MCPClientContextValue {
   isConnected: boolean
   /** Connection error, if any. */
   error: string | null
+  /** Whether the connection has been lost (transport error detected). */
+  connectionLost: boolean
+  /** Manually trigger a full reconnection (teardown + reconnect). */
+  reconnect: () => void
   /** Call an MCP tool by name. */
   callTool: (name: string, args?: Record<string, unknown>) => Promise<ToolCallResult>
   /** List all available tools from the MCP server. */
@@ -47,33 +51,47 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
   const { token, isAuthenticated } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [connectionLost, setConnectionLost] = useState(false)
   const [tools, setTools] = useState<Tool[]>([])
 
   // Refs to hold the current client/transport (avoids stale closures)
   const clientRef = useRef<Client | null>(null)
   const transportRef = useRef<StreamableHTTPClientTransport | null>(null)
+  /** True when disconnect is intentional (logout, unmount, token change). */
+  const isDisconnectingRef = useRef(false)
+  /** Stash the token so event handlers can access it without stale closures. */
+  const tokenRef = useRef(token)
+  tokenRef.current = token
 
   // ── Connect / disconnect based on auth state ────────────────────────────────
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
+      isDisconnectingRef.current = true
       disconnect()
       return
     }
 
-    connect(token)
+    connect(token).catch(() => {
+      // Initial connect failure is already handled inside connect()
+      // (sets error state, logs). Catch here to avoid unhandled rejection.
+    })
 
     return () => {
+      isDisconnectingRef.current = true
       disconnect()
     }
   }, [isAuthenticated, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function connect(accessToken: string) {
     // Disconnect any existing connection first
+    isDisconnectingRef.current = true
     await disconnect()
+    isDisconnectingRef.current = false
 
     try {
       setError(null)
+      setConnectionLost(false)
 
       const transport = new StreamableHTTPClientTransport(
         new URL(MCP_URL),
@@ -90,9 +108,16 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
         { name: 'todo-dashboard', version: '1.0.0' },
       )
 
+      // The SDK uses Streamable HTTP (not WebSockets). When the server dies,
+      // the SSE stream errors — firing onerror, not onclose. The SDK has
+      // built-in SSE reconnection with backoff, so we don't need our own
+      // retry loop. We just track the error state for the UI banner.
       transport.onerror = (err) => {
         console.error('[MCP] Transport error:', err)
-        setError(err.message)
+        if (!isDisconnectingRef.current) {
+          setError(err.message)
+          setConnectionLost(true)
+        }
       }
 
       transport.onclose = () => {
@@ -105,6 +130,7 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
       clientRef.current = client
       transportRef.current = transport
       setIsConnected(true)
+      setConnectionLost(false)
 
       // Wire the MCP callTool into the API client module
       setMCPCallTool(async (name, args = {}) => client.callTool({ name, arguments: args }))
@@ -124,6 +150,7 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
       console.error('[MCP] Connection failed:', err)
       setError(msg)
       setIsConnected(false)
+      throw err
     }
   }
 
@@ -149,15 +176,32 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /** Manual reconnect — full teardown + fresh connection. */
+  const manualReconnect = useCallback(() => {
+    const currentToken = tokenRef.current
+    if (!currentToken) return
+    setError(null)
+    setConnectionLost(false)
+    connect(currentToken).catch(() => {
+      // Failure handled inside connect()
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Tool operations ─────────────────────────────────────────────────────────
 
   const callTool = useCallback(
     async (name: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> => {
       const client = clientRef.current
       if (!client) throw new Error('MCP client not connected')
-      return await client.callTool({ name, arguments: args })
+      const result = await client.callTool({ name, arguments: args })
+      // Successful tool call means connection is alive — clear any stale error state
+      if (connectionLost) {
+        setConnectionLost(false)
+        setError(null)
+      }
+      return result
     },
-    [],
+    [connectionLost],
   )
 
   const listToolsFn = useCallback(async (): Promise<Tool[]> => {
@@ -175,6 +219,8 @@ export function MCPClientProvider({ children }: { children: ReactNode }) {
       value={{
         isConnected,
         error,
+        connectionLost,
+        reconnect: manualReconnect,
         callTool,
         listTools: listToolsFn,
         tools,

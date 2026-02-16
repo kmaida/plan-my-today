@@ -417,6 +417,33 @@ button.auth-error-banner__reauth:active {
   }
 }
 
+/* ── Connection lost banner ─────────────────────────────────── */
+
+.connection-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-overlay);
+  border-bottom: 1px solid var(--color-divider);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.connection-banner__action {
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-focus);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.connection-banner__action:hover {
+  color: var(--color-text-primary);
+}
+
 /* ── Empty / loading states ─────────────────────────────────── */
 
 .app-status-message {
@@ -454,6 +481,11 @@ button.auth-error-banner__reauth:active {
 .app-empty-state p + p {
   margin-top: var(--space-xs);
   line-height: var(--line-height-relaxed);
+}
+
+.app-empty-state__error {
+  color: var(--color-critical);
+  font-size: var(--font-size-small);
 }
 
 .app-empty-state__actions {

@@ -44,3 +44,16 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Left-anchored variant — for tooltips near the left edge of a container */
+.hint-tooltip--left .hint-tooltip__tooltip {
+  right: auto;
+  left: 0;
+}
+
+/* Smaller inline icon — sits on the same line as adjacent text */
+.hint-tooltip__icon--inline {
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+}

@@ -41,7 +41,7 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 
 function App() {
   const { login, logout, isLoggingIn } = useAuth()
-  const { isConnected } = useMCP()
+  const { isConnected, connectionLost, reconnect } = useMCP()
   const { theme, effectiveTheme, setTheme } = useTheme()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
@@ -143,17 +143,18 @@ function App() {
     }
   }, [])
 
-  // After a reauth redirect, auto-refresh once MCP reconnects.
-  // The "Reauthorize" button sets a 'pending_refresh' flag in sessionStorage
-  // before redirecting. We check it here on the false→true transition of
-  // isConnected. Initial login and cold page loads never have the flag.
+  // Auto-refresh tasks whenever the MCP connection is (re-)established.
+  // Covers: initial connect, manual "Reconnect" after server dies, and reauth
+  // redirects. On cold start this triggers a live fetch automatically —
+  // the user no longer needs to click "Fetch tasks" manually.
   const wasConnected = useRef(isConnected)
   useEffect(() => {
-    const justReconnected = isConnected && !wasConnected.current
+    const justConnected = isConnected && !wasConnected.current
     wasConnected.current = isConnected
 
-    if (justReconnected && sessionStorage.getItem('pending_refresh')) {
-      handleRefresh().finally(() => { sessionStorage.removeItem('pending_refresh') })
+    if (justConnected) {
+      sessionStorage.removeItem('pending_refresh')
+      handleRefresh()
     }
   }, [isConnected, handleRefresh])
 
@@ -382,6 +383,17 @@ function App() {
           </div>
         )}
 
+        {connectionLost && (
+          <div className="connection-banner">
+            <span className="connection-banner__message">
+              Connection lost.
+            </span>
+            <button className="connection-banner__action" onClick={reconnect}>
+              Reconnect
+            </button>
+          </div>
+        )}
+
         <main className="app-main">
           <div className="app-content">
             {(loading || (refreshing && tasks.length === 0)) && (
@@ -397,7 +409,40 @@ function App() {
               </div>
             )}
 
-            {!loading && !refreshing && (error || tasks.length === 0) && (
+            {!loading && !refreshing && error && tasks.length === 0 && (
+              <div className="app-empty-state">
+                <p className="app-empty-state__heading">
+                  Something went wrong.
+                </p>
+                <p className="app-empty-state__error">{error}</p>
+                <div className="app-empty-state__actions">
+                  <button
+                    className="app-empty-state__fetch-btn"
+                    onClick={isConnected ? handleRefresh : fetchTasks}
+                    disabled={loading || refreshing}
+                  >
+                    Try again
+                  </button>
+                  <button className="app-empty-state__chat-btn" onClick={() => setChatOpen(true)}>
+                    <svg className="app-empty-state__sparkle" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="12" fill="#3D2E1F"/>
+                      {effectiveTheme === 'dark' ? (
+                        <path d="M10.4,14 L12,20 L13.6,14 L20,12 L13.6,10 L12,4 L10.4,10 L4,12 Z" fill="#FFBF2E"/>
+                      ) : (
+                        <>
+                          <path d="M10.5,15 L11.5,18.5 L12.5,15 L16,14 L12.5,13 L11.5,9.5 L10.5,13 L7,14 Z" fill="#FFBF2E"/>
+                          <path d="M16,11.5 L16.8,14 L17.6,11.5 L20,10.7 L17.6,9.9 L16.8,7.5 L16,9.9 L13.5,10.7 Z" fill="#FFBF2E"/>
+                          <path d="M6.5,11 L7.2,12.6 L7.9,11 L9.5,10.4 L7.9,9.8 L7.2,8.2 L6.5,9.8 L5,10.4 Z" fill="#FFBF2E"/>
+                        </>
+                      )}
+                    </svg>
+                    Ask Todaygent
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!loading && !refreshing && !error && tasks.length === 0 && (
               <div className="app-empty-state">
                 <p className="app-empty-state__heading">
                   Ready when you are.

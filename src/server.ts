@@ -98,6 +98,17 @@ export function createApp(): express.Application {
     app.use(mcpAuthMetadataRouter(singleTenantOptions));
   }
 
+  // Health check — no auth required, placed before logging to stay lightweight
+  app.get("/health", (_req: express.Request, res: express.Response) => {
+    res.json({
+      status: "ok",
+      version: "0.2.1",
+      mode: isMultiTenant ? "multi-tenant" : "single-tenant",
+      authConfigured: !!config.keycardClientId,
+      chatConfigured: !!config.anthropicApiKey,
+    });
+  });
+
   // Add logging middleware for /mcp endpoint
   app.use(httpLoggingMiddleware);
 

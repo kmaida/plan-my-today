@@ -37,7 +37,12 @@ function parseSlackLinks(text: string): ReactNode[] {
       parts.push(text.substring(lastIndex, match.index))
     }
     const url = match[1]
-    const label = match[2] || new URL(url).hostname
+    let label: string
+    try {
+      label = match[2] || new URL(url).hostname
+    } catch {
+      label = match[2] || url
+    }
     parts.push(
       <a key={match.index} href={url} target="_blank" rel="noopener noreferrer" className="task-card__inline-link">
         {label}
@@ -150,6 +155,9 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
       } else if (channel && !isRawId) {
         items.push(`#${channel}`)
       }
+      if (task.type === 'saved') {
+        items.push('Emoji')
+      }
       items.push(formatSmartDate(task.timestamp))
     }
 
@@ -246,7 +254,16 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
               {metadata.map((meta, i) => (
                 <span key={i} className="task-card__meta-item">
                   {i > 0 && ' · '}
-                  {meta}
+                  {meta === 'Emoji' ? (
+                    <span className="hint-tooltip hint-tooltip--left">
+                      {meta}
+                      <svg className="hint-tooltip__icon hint-tooltip__icon--inline" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                        <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">!</text>
+                      </svg>
+                      <span className="hint-tooltip__tooltip">Remove your reaction emoji in Slack to dismiss this item.</span>
+                    </span>
+                  ) : meta}
                 </span>
               ))}
             </div>
@@ -339,8 +356,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
                 View in {getSourceLabel(task.source)} →
               </a>
             )}
-            {onDismiss && DISMISSABLE_SOURCES.includes(task.source)
-              && !(isSlackTask(task) && task.type === 'saved') && (
+            {onDismiss && DISMISSABLE_SOURCES.includes(task.source) && !(isSlackTask(task) && task.type === 'saved') && (
               <>
                 <button
                   className={`task-card__action task-card__action--dismiss${hasError ? ' task-card__action--error' : ''}`}
