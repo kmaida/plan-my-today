@@ -281,9 +281,11 @@ function App() {
                   </div>
                 </div>
                 <div className="app-header__subtitle-row">
-                  <p className="app-header__subtitle">
-                    {loading ? 'Loading...' : tasks.length > 0 ? `${tasks.length} tasks across all sources` : ''}
-                  </p>
+                  {(loading || tasks.length > 0) && (
+                    <p className="app-header__subtitle">
+                      {loading ? 'Loading...' : `${tasks.length} tasks across all sources`}
+                    </p>
+                  )}
                   <button
                     className="app-header__reload"
                     onClick={isConnected ? handleRefresh : fetchTasks}
