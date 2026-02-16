@@ -50,6 +50,21 @@ function groupBySourceView(tasks: Task[]): TaskGroupData[] {
   }));
 }
 
+// --- Slug mapping (keeps pill click → DOM query in sync) ---
+
+/** Slugifies a label the same way TaskGroup generates its data-group attribute. */
+export function labelToSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+/** Maps a TaskSource to the `data-group` slug rendered by TaskGroup. */
+export function sourceToGroupSlug(source: TaskSource): string {
+  return labelToSlug(getSourceLabel(source));
+}
+
 // --- Public entry point ---
 
 export function groupTasks(tasks: Task[], viewMode: ViewMode): TaskGroupData[] {

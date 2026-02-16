@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import type { Task } from '../types/tasks'
 import { TaskCard } from './TaskCard'
 import { Chevron } from './Chevron'
@@ -19,6 +19,8 @@ interface TaskGroupProps {
   exitingTaskIds?: Set<string>
   restoredTaskId?: string | null
   onExitComplete?: (taskId: string) => void
+  /** One-shot signal: when true, expands this group (user can still re-collapse). */
+  forceExpanded?: boolean
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -33,9 +35,14 @@ export const TaskGroup = memo(function TaskGroup({
   exitingTaskIds,
   restoredTaskId,
   onExitComplete,
+  forceExpanded,
 }: TaskGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+
+  useEffect(() => {
+    if (forceExpanded) setIsCollapsed(false)
+  }, [forceExpanded])
 
   const visibleTasks = useMemo(() => tasks.slice(0, visibleCount), [tasks, visibleCount])
   const remaining = tasks.length - visibleCount

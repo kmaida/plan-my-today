@@ -11,7 +11,7 @@ import { useTheme } from './hooks/useTheme'
 import type { Task, TaskSource, ViewMode, FilterState } from './types/tasks'
 import { DEFAULT_FILTERS, isSlackTask } from './types/tasks'
 import { applyFilters, getTaskIdentifier, normalizeSource } from './utils/taskHelpers'
-import { groupTasks } from './utils/taskGrouping'
+import { groupTasks, sourceToGroupSlug, labelToSlug } from './utils/taskGrouping'
 import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import { SourceIcon, getSourceLabel } from './components/SourceIcon'
 import { Toast } from './components/Toast'
@@ -67,6 +67,7 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('priority')
+  const [scrollToSource, setScrollToSource] = useState<TaskSource | null>(null)
   const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
   const [dismissingTaskIds, setDismissingTaskIds] = useState<Set<string>>(new Set())
   const [dismissError, setDismissError] = useState<string | null>(null)
@@ -224,8 +225,28 @@ function App() {
     return counts
   }, [tasks])
 
+  /** Click a header source pill → switch to source view and scroll to that section. */
+  const handleSourcePillClick = useCallback((source: TaskSource) => {
+    setViewMode("source")
+    setScrollToSource(source)
+  }, [])
+
+  // Scroll to the target source group after React commits the source-view DOM
+  useEffect(() => {
+    if (!scrollToSource) return
+    const slug = sourceToGroupSlug(scrollToSource)
+    // Defer to next frame so layout is finalized (needed when switching views)
+    const rafId = requestAnimationFrame(() => {
+      const el = appElRef.current?.querySelector<HTMLElement>(`[data-group="${slug}"]`)
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+      setScrollToSource(null)
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [scrollToSource])
+
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
+  const targetSlug = scrollToSource ? sourceToGroupSlug(scrollToSource) : null
 
   const handleDismiss = useCallback(async (task: Task) => {
     setDismissingTaskIds(prev => new Set(prev).add(task.taskId))
@@ -378,23 +399,29 @@ function App() {
                 </div>
                 <div className="app-header__subtitle-row">
                   {(loading || tasks.length > 0) && (
-                    <p className="app-header__subtitle">
+                    <div className="app-header__subtitle">
                       {loading ? 'Loading...' : (
                         <>
                           {tasks.length} tasks
                           {sourceCounts.size > 0 && (
                             <span className="source-status">
                               {SOURCE_ORDER.filter(src => sourceCounts.has(src)).map(src => (
-                                <span key={src} className="source-status__pill">
-                                  <SourceIcon source={src} size={12} />
-                                  {sourceCounts.get(src)}
+                                <span key={src} className="source-status__item">
+                                  <button
+                                    className="source-status__pill"
+                                    onClick={() => handleSourcePillClick(src)}
+                                    title={`View ${getSourceLabel(src)} tasks`}
+                                  >
+                                    <SourceIcon source={src} size={12} />
+                                    {sourceCounts.get(src)}
+                                  </button>
                                 </span>
                               ))}
                             </span>
                           )}
                         </>
                       )}
-                    </p>
+                    </div>
                   )}
                   <button
                     className="app-header__reload"
@@ -564,19 +591,20 @@ function App() {
                   </p>
                 ) : (
                   taskGroups.map((group, index) => (
-                    <TaskGroup
-                      key={`${viewMode}-${group.label}`}
-                      label={group.label}
-                      count={group.count}
-                      tasks={group.tasks}
-                      defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
-                      onDismiss={handleDismiss}
-                      dismissingTaskIds={dismissingTaskIds}
-                      dismissError={dismissError}
-                      exitingTaskIds={exitingTaskIds}
-                      restoredTaskId={restoredTaskId}
-                      onExitComplete={handleExitComplete}
-                    />
+                      <TaskGroup
+                        key={`${viewMode}-${group.label}`}
+                        label={group.label}
+                        count={group.count}
+                        tasks={group.tasks}
+                        defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
+                        forceExpanded={targetSlug !== null && targetSlug === labelToSlug(group.label)}
+                        onDismiss={handleDismiss}
+                        dismissingTaskIds={dismissingTaskIds}
+                        dismissError={dismissError}
+                        exitingTaskIds={exitingTaskIds}
+                        restoredTaskId={restoredTaskId}
+                        onExitComplete={handleExitComplete}
+                      />
                   ))
                 )}
               </>

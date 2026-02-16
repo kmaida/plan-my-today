@@ -188,7 +188,7 @@
 .source-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   margin-left: var(--space-sm);
   margin-right: var(--space-xs);
   padding-left: var(--space-sm);
@@ -200,14 +200,29 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  padding: 2px 4px;
+  margin: 0;
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.source-status__pill + .source-status__pill::before {
+.source-status__pill:hover {
+  background-color: var(--color-divider);
+  color: var(--color-text-primary);
+}
+
+.source-status__item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.source-status__item + .source-status__item::before {
   content: "·";
   color: var(--color-text-tertiary);
-  margin-right: 2px;
+  margin-right: 3px;
 }
 
 .app-main {
