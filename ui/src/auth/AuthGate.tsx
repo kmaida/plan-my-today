@@ -11,7 +11,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
-          <AppLogo animated size={90} className="auth-gate__logo" />
           <p className="auth-gate__loading">Checking authentication...</p>
         </div>
       </div>
