@@ -55,9 +55,30 @@
   word-break: break-word;
 }
 
-.auth-gate__button {
+.auth-gate__button.btn--inverted {
   font-size: var(--font-size-task);
   padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-full);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.auth-gate__button.btn--inverted:hover {
+  transform: translateY(-1px);
+  background: var(--color-text-secondary);
+  color: var(--color-surface);
+}
+
+[data-theme="dark"] .auth-gate__button.btn--inverted:hover {
+  color: #1A1A1A;
+}
+
+.auth-gate__button.btn--inverted:disabled:hover {
+  transform: none;
+  background: var(--color-text-primary);
+}
+
+.auth-gate__button.btn--inverted:active {
+  transform: translateY(0);
 }
 
 .auth-gate__hint {
