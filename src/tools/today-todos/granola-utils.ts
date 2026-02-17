@@ -1,7 +1,7 @@
 import { config } from "../../config";
 import { FETCH_LIMITS } from "../../constants";
 import { getLogger } from "../../observability/logger";
-import { isActionCompleted } from "../../services/action-completion-store";
+import { getCompletedBySource } from "../../services/action-completion-store";
 import {
   type ExtractionCacheData,
   getCachedItems,
@@ -565,18 +565,15 @@ export async function fetchMeetingNoteActions(
     return scoreB - scoreA;
   });
 
-  // Filter out completed actions
-  // The identifier used by dismiss-task may be just the documentId
-  // (dismisses all actions from that doc) or documentId:hash (specific action)
-  const filteredActions: MeetingNoteActionDetail[] = [];
-  for (const action of allActionItems) {
-    const docCompleted = await isActionCompleted("meeting-note", action.documentId);
-    if (docCompleted) continue;
+  // Filter out completed actions (1 file read → Set for O(1) lookups).
+  // The identifier may be just the documentId (dismisses all actions from
+  // that doc) or documentId:hash (specific action).
+  const completedSet = await getCompletedBySource("meeting-note");
+  const filteredActions = allActionItems.filter((action) => {
+    if (completedSet.has(action.documentId)) return false;
     const specificId = `${action.documentId}:${hashActionText(action.actionItem)}`;
-    const specificCompleted = await isActionCompleted("meeting-note", specificId);
-    if (specificCompleted) continue;
-    filteredActions.push(action);
-  }
+    return !completedSet.has(specificId);
+  });
 
   // Cap total meeting note actions — items are already sorted by priority,
   // so slicing keeps the most important ones and avoids dashboard overload.

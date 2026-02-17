@@ -1,6 +1,6 @@
 import { SLACK_SAVED_MESSAGES } from "../../constants";
 import { getLogger } from "../../observability/logger";
-import { isActionCompleted } from "../../services/action-completion-store";
+import { getCompletedBySource } from "../../services/action-completion-store";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { SlackMessageDetail } from "./types";
 
@@ -668,20 +668,16 @@ export async function fetchSlackMessages(
   // this never changes across fetches even when different thread messages are returned.
   // Emoji-saved messages are excluded from filtering because those are
   // dismissed in Slack itself (by removing the emoji reaction).
-  const filteredMessages: SlackMessageDetail[] = [];
-  for (const msg of enrichedMessages) {
-    if (msg.type !== "saved") {
-      if (msg.dismissalId && (await isActionCompleted("slack", msg.dismissalId))) {
-        continue;
-      }
-      // Backward compat: check legacy permalink-based key for entries created
-      // before the switch to channel:ts identifiers. Will auto-expire via 30-day prune.
-      if (msg.permalink && (await isActionCompleted("slack", msg.permalink))) {
-        continue;
-      }
-    }
-    filteredMessages.push(msg);
-  }
+  // Single file read → Set for O(1) lookups (replaces serial isActionCompleted loop).
+  const completedSet = await getCompletedBySource("slack");
+  const filteredMessages = enrichedMessages.filter((msg) => {
+    if (msg.type === "saved") return true;
+    if (msg.dismissalId && completedSet.has(msg.dismissalId)) return false;
+    // Backward compat: check legacy permalink-based key for entries created
+    // before the switch to channel:ts identifiers. Will auto-expire via 30-day prune.
+    if (msg.permalink && completedSet.has(msg.permalink)) return false;
+    return true;
+  });
 
   return filteredMessages;
 }
