@@ -88,6 +88,7 @@ export interface UseChatReturn {
 export function useChat(
   buildSystemPrompt?: () => SystemPromptParts,
   onToolRoundComplete?: (result: ToolRoundResult) => void,
+  onFetchStarted?: () => void,
 ): UseChatReturn {
   const { callTool, tools: mcpTools, isConnected } = useMCP();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -237,6 +238,11 @@ export function useChat(
           const toolResults: ContentBlock[] = [];
 
           for (const block of toolUseBlocks) {
+            // Signal the header animation before the big API call starts
+            if (block.name === "list-all-tasks-today" && onFetchStarted) {
+              onFetchStarted();
+            }
+
             let resultText: string;
             let isError = false;
 
@@ -298,7 +304,7 @@ export function useChat(
         setIsLoading(false);
       }
     },
-    [isConnected, mcpTools, callTool, buildSystemPrompt, onToolRoundComplete]
+    [isConnected, mcpTools, callTool, buildSystemPrompt, onToolRoundComplete, onFetchStarted]
   );
 
   /** Cancel the in-flight stream. Partial text stays in the chat (it's already

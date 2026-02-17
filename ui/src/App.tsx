@@ -58,6 +58,50 @@ const SOURCE_ORDER: TaskSource[] = [
   'drive',           // reference (Drive mentions)
 ]
 
+/**
+ * Cycling header phrases shown while fetching tasks.
+ * Source-themed phrases appear ~86% of the time; easter eggs ~14%.
+ */
+const SOURCE_PHRASES = [
+  'Checking calendar', 'Scanning Linear', 'Reading emails',
+  'Browsing Slack', 'Pulling GitHub activity', 'Reviewing meeting notes',
+  'Gathering tasks', 'Rounding up to-dos', 'Sorting priorities',
+  'Collecting action items',
+]
+
+const EASTER_EGG_PHRASES = [
+  'Reticulating splines',           // The Sims
+  'Inserting chaos generator',       // The Sims
+  'Constructing additional pylons',  // StarCraft
+  'Rolling for initiative',          // D&D / Baldur's Gate
+  'Calibrating flux capacitor',      // Back to the Future
+  'Following the white rabbit',      // The Matrix
+  'Consulting the cloud',
+  'Compiling excuses',
+  'Herding cats',
+  'Untangling dependencies',
+  'Spinning up hamster wheels',
+  'Bribing the task gods',
+  'Warming up the to-do engine',
+]
+
+/** Weighted pool: source ×8 (~86%) + easter eggs ×1 (~14%). */
+const FETCH_PHRASE_POOL = [
+  ...Array(8).fill(SOURCE_PHRASES).flat(),
+  ...EASTER_EGG_PHRASES,
+]
+
+/** Pick a random phrase different from the current one (avoids stuttering). */
+function pickPhrase(current: string): string {
+  let next = current
+  let attempts = 0
+  while (next === current && attempts < 10) {
+    next = FETCH_PHRASE_POOL[Math.floor(Math.random() * FETCH_PHRASE_POOL.length)]
+    attempts++
+  }
+  return next
+}
+
 function App() {
   const { login, logout, isLoggingIn } = useAuth()
   const { isConnected, connectionLost, reconnect } = useMCP()
@@ -85,7 +129,6 @@ function App() {
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
   const [authErrorsExpanded, setAuthErrorsExpanded] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
-
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true)
@@ -149,6 +192,9 @@ function App() {
         setFailedSources(stored.failedSources)
       } catch {
         // Non-fatal: task store read failed, tasks stay as-is
+      } finally {
+        // Stop the header loading animation that onFetchStarted triggered
+        setRefreshing(false)
       }
     }
     if (result.authErrors.length > 0 || storeErrors.length > 0) {
@@ -226,6 +272,30 @@ function App() {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [handleRefresh])
+
+  // Cycling fetch phrases — shown in the subtitle row while fetching tasks.
+  // Reuses the same fade+swap pattern as ThinkingIndicator.
+  const [fetchPhrase, setFetchPhrase] = useState(() => pickPhrase(''))
+  const [phraseFading, setPhraseFading] = useState(false)
+  const showCycling = refreshing
+  const showDimmed = refreshing && tasks.length > 0
+
+  const cyclePhrase = useCallback(() => {
+    setPhraseFading(true)
+    setTimeout(() => {
+      setFetchPhrase((prev) => pickPhrase(prev))
+      setPhraseFading(false)
+    }, 200)
+  }, [])
+
+  useEffect(() => {
+    if (!showCycling) return
+    // Pick a fresh phrase immediately when cycling starts
+    setFetchPhrase((prev) => pickPhrase(prev))
+    setPhraseFading(false)
+    const interval = setInterval(cyclePhrase, 2300)
+    return () => clearInterval(interval)
+  }, [showCycling, cyclePhrase])
 
   // Per-source task counts for the header pills
   const sourceCounts = useMemo(() => {
@@ -410,7 +480,14 @@ function App() {
                   </div>
                 </div>
                 <div className="app-header__subtitle-row">
-                  {(loading || tasks.length > 0) && (
+                  {showCycling && (
+                    <div className="app-header__subtitle app-header__subtitle--cycling">
+                      <span className={phraseFading ? 'app-header__phrase--fading' : ''}>
+                        {fetchPhrase}...
+                      </span>
+                    </div>
+                  )}
+                  {!showCycling && (loading || tasks.length > 0) && (
                     <div className="app-header__subtitle">
                       {loading ? 'Loading...' : (
                         <>
@@ -445,7 +522,7 @@ function App() {
                   </button>
                 </div>
                 {snapshotLabel && (
-                  <p className="app-header__snapshot">{snapshotLabel}</p>
+                  <p className={`app-header__snapshot${showDimmed ? ' app-header__snapshot--dimmed' : ''}`}>{snapshotLabel}</p>
                 )}
               </div>
             </div>
@@ -637,6 +714,7 @@ function App() {
             isOpen={chatOpen}
             onToggle={() => setChatOpen(false)}
             onToolCallsComplete={handleToolCallsComplete}
+            onFetchStarted={() => setRefreshing(true)}
           />
         </Suspense>
       ) : (

@@ -31,6 +31,9 @@ interface ChatPanelProps {
    *  list-all-tasks-today ran (so the caller can re-read the task store) and any
    *  auth errors detected from tool results. */
   onToolCallsComplete?: (result: { didFetchAllTasks: boolean; authErrors: string[] }) => void
+  /** Called just before list-all-tasks-today executes, so the header can start
+   *  its loading animation (cycling text, logo spin) during the API call. */
+  onFetchStarted?: () => void
 }
 
 const WELCOME_MESSAGES = [
@@ -59,7 +62,7 @@ const PLACEHOLDERS = [
   'Brief me, Todaygent',
 ]
 
-export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelProps) {
+export function ChatPanel({ isOpen, onToggle, onToolCallsComplete, onFetchStarted }: ChatPanelProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, error: mcpError } = useMCP()
   // Auth error detection is handled inside useChat at call time (via the
@@ -67,6 +70,7 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete }: ChatPanelPr
   const { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages } = useChat(
     buildSystemPrompt,
     onToolCallsComplete,
+    onFetchStarted,
   )
   const [input, setInput] = useState('')
   const messagesRef = useRef<HTMLDivElement>(null)
