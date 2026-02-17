@@ -1,0 +1,187 @@
+/* ── AppLogo: animated clipboard ───────────────────────────────────────────── */
+
+/* All animated SVG elements need fill-box so transform-origin works relative
+   to the element's own bounding box, not the SVG viewport origin. */
+.app-logo__checkbox,
+.app-logo__line,
+.app-logo__check,
+.app-logo__sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Lines grow from the left edge */
+.app-logo__line {
+  transform-origin: left center;
+}
+
+/* ── Dark mode: edge lift (applies to all usages of AppLogo) ───────────────── */
+
+[data-theme="dark"] .app-logo {
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
+}
+
+/* ── Animated state ────────────────────────────────────────────────────────── */
+
+/*
+ * Choreography on a 5s cycle:
+ *   0–5%    : row elements start invisible
+ *   5–30%   : checkboxes fade in, lines scale in (staggered 0.25s per row)
+ *   30–50%  : checkmarks draw on rows 1-2
+ *   50–72%  : hold — everything visible
+ *   72–88%  : all fade out together
+ *   88–100% : blank gap before loop restarts
+ */
+
+/* --- Checkboxes: fade in (staggered 0.25s per row) --- */
+
+.app-logo--animated .app-logo__checkbox {
+  animation: app-logo-fade-in 5s ease-in-out infinite;
+}
+
+.app-logo--animated .app-logo__row--1 .app-logo__checkbox { animation-delay: 0s; }
+.app-logo--animated .app-logo__row--2 .app-logo__checkbox { animation-delay: 0.25s; }
+.app-logo--animated .app-logo__row--3 .app-logo__checkbox { animation-delay: 0.5s; }
+.app-logo--animated .app-logo__row--4 .app-logo__checkbox { animation-delay: 0.75s; }
+.app-logo--animated .app-logo__row--5 .app-logo__checkbox { animation-delay: 1.0s; }
+
+/* --- Task lines: scale in from left (0.1s after each checkbox) --- */
+
+.app-logo--animated .app-logo__line {
+  animation: app-logo-line-draw 5s ease-in-out infinite;
+}
+
+.app-logo--animated .app-logo__row--1 .app-logo__line { animation-delay: 0.1s; }
+.app-logo--animated .app-logo__row--2 .app-logo__line { animation-delay: 0.35s; }
+.app-logo--animated .app-logo__row--3 .app-logo__line { animation-delay: 0.6s; }
+.app-logo--animated .app-logo__row--4 .app-logo__line { animation-delay: 0.85s; }
+.app-logo--animated .app-logo__row--5 .app-logo__line { animation-delay: 1.1s; }
+
+/* --- Checkmarks: stroke draw on rows 1-2 --- */
+
+/* No animation-delay — the late entrance is baked into each keyframe
+   so the fade-out phase stays in sync with checkboxes and lines. */
+.app-logo--animated .app-logo__check--1 {
+  stroke-dasharray: 42;
+  stroke-dashoffset: 42;
+  animation: app-logo-check-draw-1 5s ease-in-out infinite;
+}
+
+.app-logo--animated .app-logo__check--2 {
+  stroke-dasharray: 42;
+  stroke-dashoffset: 42;
+  animation: app-logo-check-draw-2 5s ease-in-out infinite;
+}
+
+/* --- Sparkles: twinkle (reuses TodaygentMascot timing pattern) --- */
+
+.app-logo--animated .app-logo__sparkle {
+  animation: app-logo-twinkle 3s ease-in-out infinite;
+}
+
+.app-logo--animated .app-logo__sparkle--1 { animation-delay: 0s; }
+.app-logo--animated .app-logo__sparkle--2 { animation-delay: 1s; }
+.app-logo--animated .app-logo__sparkle--3 { animation-delay: 2s; }
+
+/* ── Keyframes ─────────────────────────────────────────────────────────────── */
+
+/* Checkbox: invisible → visible → hold → fade out → blank */
+@keyframes app-logo-fade-in {
+  0%, 4% {
+    opacity: 0;
+  }
+  12%, 72% {
+    opacity: 1;
+  }
+  85%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Task line: materialises as it scales in, then fades out with the group */
+@keyframes app-logo-line-draw {
+  0%, 4% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  12% {
+    transform: scaleX(0.4);
+    opacity: 0.5;
+  }
+  22%, 72% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  85%, 100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+/* Checkmark 1: invisible until ~28%, draws by ~45%, fades with group at 72-85% */
+@keyframes app-logo-check-draw-1 {
+  0%, 28% {
+    stroke-dashoffset: 42;
+    opacity: 0;
+  }
+  30% {
+    stroke-dashoffset: 42;
+    opacity: 1;
+  }
+  45%, 72% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  85%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+/* Checkmark 2: waits for check 1 to finish (~45%), draws by ~58%, fades with group */
+@keyframes app-logo-check-draw-2 {
+  0%, 46% {
+    stroke-dashoffset: 42;
+    opacity: 0;
+  }
+  48% {
+    stroke-dashoffset: 42;
+    opacity: 1;
+  }
+  58%, 72% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  85%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+/* Sparkle twinkle: scale + opacity pulse (matches TodaygentMascot pattern) */
+@keyframes app-logo-twinkle {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+/* Override the global animation-duration:0.01ms to ensure elements render in
+   their fully-drawn static state (not frozen at the invisible 0% keyframe). */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-logo--animated .app-logo__checkbox,
+  .app-logo--animated .app-logo__line,
+  .app-logo--animated .app-logo__check,
+  .app-logo--animated .app-logo__sparkle {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}

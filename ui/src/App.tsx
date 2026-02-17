@@ -4,6 +4,7 @@ import { TaskGroup } from './components/TaskGroup'
 import { ViewSwitcher } from './components/ViewSwitcher'
 import { FilterBar } from './components/FilterBar'
 import { TodaygentMascot } from './components/Chat/TodaygentMascot'
+import { AppLogo } from './components/AppLogo'
 import { listAllTasks, refreshAllTasks, dismissTask, restoreDismissedTask } from './api/client'
 import { mergeAuthErrors } from './chat/tool-round-utils'
 import { useMCP } from './mcp'
@@ -102,21 +103,32 @@ function App() {
     }
   }, [])
 
+  /** Deduplicate concurrent refresh calls (MCP connect + tab-focus + manual click). */
+  const inflightRefreshRef = useRef<Promise<void> | null>(null)
+
   const handleRefresh = useCallback(async () => {
-    try {
-      setRefreshing(true)
-      setError(null)
-      const result = await refreshAllTasks()
-      setTasks(result.tasks)
-      setFetchedAt(result.fetchedAt)
-      setAuthErrors(result.authErrors)
-      setFailedSources(result.failedSources)
-      setAuthErrorsDismissed(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
-    } finally {
-      setRefreshing(false)
+    if (inflightRefreshRef.current) return inflightRefreshRef.current
+
+    const doRefresh = async () => {
+      try {
+        setRefreshing(true)
+        setError(null)
+        const result = await refreshAllTasks()
+        setTasks(result.tasks)
+        setFetchedAt(result.fetchedAt)
+        setAuthErrors(result.authErrors)
+        setFailedSources(result.failedSources)
+        setAuthErrorsDismissed(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
+      } finally {
+        setRefreshing(false)
+        inflightRefreshRef.current = null
+      }
     }
+
+    inflightRefreshRef.current = doRefresh()
+    return inflightRefreshRef.current
   }, [])
 
   /**
@@ -341,7 +353,7 @@ function App() {
         <header className="app-header">
           <div className="app-header__content">
             <div className="app-header__banner">
-              <img src="/logo.svg" alt="" className="app-header__logo" />
+              <AppLogo animated={loading || refreshing} className="app-header__logo" />
               <div className="app-header__text">
                 <div className="app-header__top">
                   <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
@@ -506,11 +518,6 @@ function App() {
           <div className="app-content">
             {(loading || (refreshing && tasks.length === 0)) && (
               <div className="app-loading">
-                <div className="app-loading__notes" aria-hidden="true">
-                  <div className="app-loading__note app-loading__note--1" />
-                  <div className="app-loading__note app-loading__note--2" />
-                  <div className="app-loading__note app-loading__note--3" />
-                </div>
                 <p className="app-loading__text">
                   {sessionStorage.getItem('pending_refresh') ? 'Restoring tasks...' : 'Fetching tasks...'}
                 </p>

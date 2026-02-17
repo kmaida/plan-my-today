@@ -52,12 +52,6 @@
   margin-top: 0;
 }
 
-/* In dark mode the clipboard's brown frame disappears into the background.
-   A tight edge highlight lifts it off without touching the SVG. */
-[data-theme="dark"] .app-header__logo {
-  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.5));
-}
-
 .app-header__text {
   flex: 1;
   min-width: 0;
@@ -371,7 +365,7 @@ button.auth-error-banner__reauth:active {
   color: var(--color-text-primary);
 }
 
-/* ── Loading indicator (card-peel animation) ───────────────── */
+/* ── Loading indicator ──────────────────────────────────────── */
 
 .app-loading {
   display: flex;
@@ -381,82 +375,11 @@ button.auth-error-banner__reauth:active {
   padding: calc(var(--space-xl) * 2) var(--space-xl);
 }
 
-.app-loading__notes {
-  position: relative;
-  width: 36px;
-  height: 36px;
-}
-
-.app-loading__note {
-  position: absolute;
-  inset: 0;
-  border-radius: 3px;
-  background: var(--color-divider);
-}
-
-.app-loading__note--1 {
-  opacity: 0.3;
-  transform: rotate(-2deg);
-}
-
-.app-loading__note--2 {
-  opacity: 0.5;
-  animation: app-note-shift 2.4s ease-in-out infinite;
-}
-
-.app-loading__note--3 {
-  opacity: 0.9;
-  transform-origin: bottom left;
-  animation: app-note-peel 2.4s ease-in-out infinite;
-}
-
 .app-loading__text {
   font-size: var(--font-size-meta);
   font-style: italic;
   color: var(--color-text-tertiary);
   margin: 0;
-}
-
-@keyframes app-note-peel {
-  0%, 100% {
-    transform: rotate(0deg) translateY(0);
-    opacity: 0.9;
-  }
-  40% {
-    transform: rotate(-12deg) translateY(-6px);
-    opacity: 0.7;
-  }
-  60% {
-    transform: rotate(-12deg) translateY(-6px);
-    opacity: 0.5;
-  }
-  80% {
-    transform: rotate(-20deg) translateY(-10px);
-    opacity: 0;
-  }
-  81% {
-    transform: rotate(0deg) translateY(0);
-    opacity: 0;
-  }
-  95% {
-    opacity: 0.9;
-  }
-}
-
-@keyframes app-note-shift {
-  0%, 100% {
-    transform: rotate(0deg);
-  }
-  50% {
-    transform: rotate(1.5deg) translateX(1px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-loading__note--2,
-  .app-loading__note--3 {
-    animation: none;
-  }
 }
 
 /* ── Connection lost banner ─────────────────────────────────── */

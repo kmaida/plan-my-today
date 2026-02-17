@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import { AuthHint } from './AuthHint'
+import { AppLogo } from '../components/AppLogo'
 import './AuthGate.css'
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -10,6 +11,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
+          <AppLogo animated size={90} className="auth-gate__logo" />
           <p className="auth-gate__loading">Checking authentication...</p>
         </div>
       </div>
@@ -20,7 +22,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="auth-gate">
         <div className="auth-gate__card">
-          <img src="/logo.svg" alt="" className="auth-gate__logo" />
+          <AppLogo animated size={90} className="auth-gate__logo" />
           <h1 className="auth-gate__title app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
           <p className="auth-gate__subtitle">Your <span className="app-brand__to">Tod</span><strong>a</strong><span className="app-brand__to">y</span><strong>gent</strong> is waiting.</p>
 
