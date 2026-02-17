@@ -102,6 +102,30 @@ function pickPhrase(current: string): string {
   return next
 }
 
+const SESSION_VIEW_KEY = "pmt_viewMode";
+const SESSION_FILTERS_KEY = "pmt_filters";
+
+/** Read persisted view mode from sessionStorage, falling back to 'priority'. */
+function readSessionViewMode(): ViewMode {
+  try {
+    const stored = sessionStorage.getItem(SESSION_VIEW_KEY);
+    if (stored === "priority" || stored === "source") return stored;
+  } catch { /* private browsing */ }
+  return "priority";
+}
+
+/** Read persisted filter chip selections from sessionStorage (search always starts empty). */
+function readSessionFilters(): FilterState {
+  try {
+    const raw = sessionStorage.getItem(SESSION_FILTERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_FILTERS, ...parsed, search: "" };
+    }
+  } catch { /* private browsing / corrupt JSON */ }
+  return DEFAULT_FILTERS;
+}
+
 function App() {
   const { login, logout, isLoggingIn } = useAuth()
   const { isConnected, connectionLost, reconnect } = useMCP()
@@ -111,9 +135,9 @@ function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('priority')
+  const [viewMode, setViewMode] = useState<ViewMode>(readSessionViewMode)
   const [scrollToSource, setScrollToSource] = useState<TaskSource | null>(null)
-  const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTERS)
+  const [filterState, setFilterState] = useState<FilterState>(readSessionFilters)
   const [dismissingTaskIds, setDismissingTaskIds] = useState<Set<string>>(new Set())
   const [dismissError, setDismissError] = useState<string | null>(null)
   const [exitingTaskIds, setExitingTaskIds] = useState<Set<string>>(new Set())
@@ -133,6 +157,21 @@ function App() {
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
   const [authErrorsExpanded, setAuthErrorsExpanded] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
+
+  // Persist view mode to sessionStorage so it survives page refresh
+  useEffect(() => {
+    try { sessionStorage.setItem(SESSION_VIEW_KEY, viewMode); }
+    catch { /* private browsing */ }
+  }, [viewMode]);
+
+  // Persist filter chip selections to sessionStorage (search text excluded)
+  useEffect(() => {
+    try {
+      const { search: _search, ...chips } = filterState;
+      sessionStorage.setItem(SESSION_FILTERS_KEY, JSON.stringify(chips));
+    } catch { /* private browsing */ }
+  }, [filterState]);
+
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true)
