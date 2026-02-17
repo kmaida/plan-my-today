@@ -120,6 +120,8 @@ function App() {
   const [restoredTaskId, setRestoredTaskId] = useState<string | null>(null)
   /** Stash dismiss metadata per task so each onExitComplete resolves independently */
   const pendingDismissMap = useRef<Map<string, { task: Task; source: string; identifier: string }>>(new Map())
+  /** Pending scroll timer — cleared on rapid re-clicks so latest target wins */
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const [chatOpen, setChatOpen] = useState(false)
   const chatToggleRef = useRef<HTMLButtonElement>(null)
   const prevChatOpenRef = useRef(chatOpen)
@@ -313,17 +315,23 @@ function App() {
     setScrollToSource(source)
   }, [])
 
-  // Scroll to the target source group after React commits the source-view DOM
+  // Scroll to the target source group after collapse/expand transitions finish.
+  // forceCollapsed/forceExpanded props are applied in the same render that sets
+  // scrollToSource, so by the time this effect runs the CSS transitions have started.
+  // We wait 280ms (250ms transition + 30ms buffer) for layout to stabilize.
+  // When prefers-reduced-motion is active, transitions are ~instant so we only
+  // need a single rAF for layout to commit.
   useEffect(() => {
     if (!scrollToSource) return
-    const slug = sourceToGroupSlug(scrollToSource)
-    // Defer to next frame so layout is finalized (needed when switching views)
-    const rafId = requestAnimationFrame(() => {
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const delay = reducedMotion ? 50 : 280
+    scrollTimerRef.current = setTimeout(() => {
+      const slug = sourceToGroupSlug(scrollToSource)
       const el = appElRef.current?.querySelector<HTMLElement>(`[data-group="${slug}"]`)
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
       setScrollToSource(null)
-    })
-    return () => cancelAnimationFrame(rafId)
+    }, delay)
+    return () => clearTimeout(scrollTimerRef.current)
   }, [scrollToSource])
 
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
@@ -682,6 +690,7 @@ function App() {
                         tasks={group.tasks}
                         defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
                         forceExpanded={targetSlug !== null && targetSlug === labelToSlug(group.label)}
+                        forceCollapsed={targetSlug !== null && targetSlug !== labelToSlug(group.label)}
                         onDismiss={handleDismiss}
                         dismissingTaskIds={dismissingTaskIds}
                         dismissError={dismissError}

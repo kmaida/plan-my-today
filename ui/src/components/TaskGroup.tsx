@@ -21,6 +21,8 @@ interface TaskGroupProps {
   onExitComplete?: (taskId: string) => void
   /** One-shot signal: when true, expands this group (user can still re-collapse). */
   forceExpanded?: boolean
+  /** One-shot signal: when true, collapses this group (user can still re-expand). */
+  forceCollapsed?: boolean
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -36,6 +38,7 @@ export const TaskGroup = memo(function TaskGroup({
   restoredTaskId,
   onExitComplete,
   forceExpanded,
+  forceCollapsed,
 }: TaskGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
@@ -43,6 +46,10 @@ export const TaskGroup = memo(function TaskGroup({
   useEffect(() => {
     if (forceExpanded) setIsCollapsed(false)
   }, [forceExpanded])
+
+  useEffect(() => {
+    if (forceCollapsed) setIsCollapsed(true)
+  }, [forceCollapsed])
 
   const visibleTasks = useMemo(() => tasks.slice(0, visibleCount), [tasks, visibleCount])
   const remaining = tasks.length - visibleCount
