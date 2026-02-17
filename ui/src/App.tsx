@@ -192,11 +192,11 @@ function App() {
         setFailedSources(stored.failedSources)
       } catch {
         // Non-fatal: task store read failed, tasks stay as-is
-      } finally {
-        // Stop the header loading animation that onFetchStarted triggered
-        setRefreshing(false)
       }
     }
+    // Always stop the header loading animation that onFetchStarted triggered,
+    // even if the tool call failed (didFetchAllTasks: false).
+    setRefreshing(false)
     if (result.authErrors.length > 0 || storeErrors.length > 0) {
       setAuthErrors((prev) => mergeAuthErrors(prev, result.authErrors, storeErrors))
       setAuthErrorsDismissed(false)

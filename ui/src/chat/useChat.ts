@@ -165,6 +165,10 @@ export function useChat(
       // Add to Anthropic history
       historyRef.current.push({ role: "user", content: userText });
 
+      // Track whether onFetchStarted was called this turn so we can ensure
+      // onToolRoundComplete always fires to reset the header animation.
+      let fetchStartedThisTurn = false;
+
       try {
         const tools = toAnthropicTools(mcpTools);
         // Compute system prompt once per user message (not per tool round)
@@ -241,6 +245,7 @@ export function useChat(
             // Signal the header animation before the big API call starts
             if (block.name === "list-all-tasks-today" && onFetchStarted) {
               onFetchStarted();
+              fetchStartedThisTurn = true;
             }
 
             let resultText: string;
@@ -280,6 +285,9 @@ export function useChat(
             const roundResult = evaluateToolRound(toolCalls);
             if (roundResult) {
               onToolRoundComplete(roundResult);
+              // Normal path handled — clear the flag so the finally-block
+              // safety net doesn't fire a redundant notification.
+              fetchStartedThisTurn = false;
             }
           }
 
@@ -297,10 +305,24 @@ export function useChat(
         }
       } catch (err) {
         // Don't surface abort errors — they're intentional (unmount / new request)
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // If we signalled the header animation, send a no-op round result
+          // so the caller resets refreshing state.
+          if (fetchStartedThisTurn && onToolRoundComplete) {
+            onToolRoundComplete({ didFetchAllTasks: false, authErrors: [] });
+            fetchStartedThisTurn = false;
+          }
+          return;
+        }
         const msg = err instanceof Error ? err.message : "Chat request failed";
         setError(msg);
       } finally {
+        // If we signalled the header animation but onToolRoundComplete never
+        // fired (e.g., non-abort error before tool round finished), ensure
+        // the caller still gets notified to reset refreshing state.
+        if (fetchStartedThisTurn && onToolRoundComplete) {
+          onToolRoundComplete({ didFetchAllTasks: false, authErrors: [] });
+        }
         setIsLoading(false);
       }
     },
