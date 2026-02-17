@@ -17,13 +17,13 @@
 
   <!-- Checkbox 1 - checked -->
   <rect x="120" y="112" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
-  <polyline points="127,132 136,143 153,121" fill="none" stroke="#4A8B4A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="127,132 136,143 153,121" fill="none" stroke="#4A8B4A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- Line 1 -->
   <rect x="176" y="122" width="184" height="16" rx="8" ry="8" fill="#D4C9BC"/>
 
   <!-- Checkbox 2 - checked -->
   <rect x="120" y="180" width="36" height="36" rx="8" ry="8" fill="#F5F0EB" stroke="#8B7355" stroke-width="3"/>
-  <polyline points="127,200 136,211 153,189" fill="none" stroke="#4A8B4A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="127,200 136,211 153,189" fill="none" stroke="#4A8B4A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- Line 2 -->
   <rect x="176" y="190" width="148" height="16" rx="8" ry="8" fill="#D4C9BC"/>
 
