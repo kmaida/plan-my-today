@@ -537,6 +537,14 @@ function App() {
                   </div>
                 </div>
                 <div className="app-header__subtitle-row">
+                  <button
+                    className="app-header__reload"
+                    onClick={isConnected ? handleRefresh : fetchTasks}
+                    disabled={loading || refreshing}
+                    title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
+                  >
+                    Fetch tasks
+                  </button>
                   {showCycling && (
                     <div className="app-header__subtitle app-header__subtitle--cycling">
                       <span className={phraseFading ? 'app-header__phrase--fading' : ''}>
@@ -544,39 +552,27 @@ function App() {
                       </span>
                     </div>
                   )}
-                  {!showCycling && (loading || tasks.length > 0) && (
+                  {!showCycling && tasks.length > 0 && (
                     <div className="app-header__subtitle">
-                      {loading ? 'Loading...' : (
-                        <>
-                          {tasks.length} tasks
-                          {sourceCounts.size > 0 && (
-                            <span className="source-status">
-                              {SOURCE_ORDER.filter(src => sourceCounts.has(src)).map(src => (
-                                <span key={src} className="source-status__item">
-                                  <button
-                                    className="source-status__pill"
-                                    onClick={() => handleSourcePillClick(src)}
-                                    title={`View ${getSourceLabel(src)} tasks`}
-                                  >
-                                    <SourceIcon source={src} size={12} />
-                                    {sourceCounts.get(src)}
-                                  </button>
-                                </span>
-                              ))}
+                      {tasks.length} tasks
+                      {sourceCounts.size > 0 && (
+                        <span className="source-status">
+                          {SOURCE_ORDER.filter(src => sourceCounts.has(src)).map(src => (
+                            <span key={src} className="source-status__item">
+                              <button
+                                className="source-status__pill"
+                                onClick={() => handleSourcePillClick(src)}
+                                title={`View ${getSourceLabel(src)} tasks`}
+                              >
+                                <SourceIcon source={src} size={12} />
+                                {sourceCounts.get(src)}
+                              </button>
                             </span>
-                          )}
-                        </>
+                          ))}
+                        </span>
                       )}
                     </div>
                   )}
-                  <button
-                    className="app-header__reload"
-                    onClick={isConnected ? handleRefresh : fetchTasks}
-                    disabled={loading || refreshing}
-                    title={isConnected ? 'Fetch fresh data from all sources' : 'Reload from latest snapshot'}
-                  >
-                    {refreshing ? 'Fetching...' : loading ? 'Loading...' : 'Fetch tasks'}
-                  </button>
                 </div>
                 {snapshotLabel && (
                   <p className={`app-header__snapshot${showDimmed ? ' app-header__snapshot--dimmed' : ''}`}>{snapshotLabel}</p>
@@ -650,14 +646,6 @@ function App() {
 
         <main className="app-main">
           <div className="app-content">
-            {/* {(loading || (refreshing && tasks.length === 0)) && (
-              <div className="app-loading">
-                <p className="app-loading__text">
-                  {sessionStorage.getItem('pending_refresh') ? 'Restoring tasks...' : 'Fetching tasks...'}
-                </p>
-              </div>
-            )} */}
-
             {!loading && !refreshing && error && tasks.length === 0 && (
               <div className="app-empty-state">
                 <p className="app-empty-state__heading">
