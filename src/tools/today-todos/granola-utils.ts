@@ -483,71 +483,69 @@ export async function fetchMeetingNoteActions(
   const pruned = pruneCacheEntries(cache, eligibleDocIds);
   if (pruned > 0) cacheModified = true;
 
-  // Process each document (with concurrency limit)
-  const concurrencyLimit = 3;
-  for (let i = 0; i < eligibleDocs.length; i += concurrencyLimit) {
-    const batch = eligibleDocs.slice(i, i + concurrencyLimit);
-    const batchResults = await Promise.all(
-      batch.map(async (doc) => {
-        if (!doc.id || !doc.name) return [];
+  // Process all docs in a single concurrent batch — FETCH_LIMITS.MEETINGS caps
+  // the eligible list at 5, and the LLM recency gate ensures only 1-2 docs
+  // actually hit the API. No need for sequential batching.
+  const batchResults = await Promise.all(
+    eligibleDocs.map(async (doc) => {
+      if (!doc.id || !doc.name) return [];
 
-        // Parse meeting date from filename
-        const meetingDate = parseDateFromFilename(doc.name);
+      // Parse meeting date from filename
+      const meetingDate = parseDateFromFilename(doc.name);
 
-        try {
-          // Check extraction cache — meeting docs are write-once, so cached
-          // results are valid indefinitely until the doc leaves the lookback window.
-          const cached = getCachedItems(cache, doc.id);
-          if (cached) {
-            logger.info(`Cache hit for document ${doc.name}`);
-            const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
-            return buildActionDetails(cached, doc, timestamp, meetingDate, now);
-          }
-
-          // Cache miss — full extraction pipeline
-          logger.info(`Cache miss for document ${doc.name}, running extraction`);
-          const content = await exportDocAsText(accessToken, doc.id);
-          const extractedItems = extractActionItemsFromContent(content);
-
-          // LLM supplement: only for recent docs (≤ 3 business days).
-          // Older meetings likely have action items in Linear already.
-          // Cache hits bypass this gate — they return whatever was cached
-          // when the doc was first processed (including LLM results).
-          const dateForRecency = meetingDate
-            ?? (doc.modifiedTime ? new Date(doc.modifiedTime) : null);
-          const isRecentEnough = dateForRecency
-            ? isWithinBusinessDays(dateForRecency, LLM_RECENCY_BUSINESS_DAYS, now)
-            : true;
-
-          if (isRecentEnough && shouldUseLlmExtraction(content)) {
-            const llmItems = await extractActionItemsWithLlmChunked(
-              content,
-              extractedItems.map((item) => item.text),
-              config.userDisplayNames
-            );
-            extractedItems.push(...llmItems);
-          }
-
-          // Store combined results (regex + LLM) in the in-memory cache.
-          // setCachedItems is synchronous — no race condition between
-          // concurrent docs in the same Promise.all batch.
-          setCachedItems(cache, doc.id, extractedItems);
-          cacheModified = true;
-
+      try {
+        // Check extraction cache — meeting docs are write-once, so cached
+        // results are valid indefinitely until the doc leaves the lookback window.
+        const cached = getCachedItems(cache, doc.id);
+        if (cached) {
+          logger.info(`Cache hit for document ${doc.name}`);
           const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
-          return buildActionDetails(extractedItems, doc, timestamp, meetingDate, now);
-        } catch (error) {
-          // Skip documents that fail to export
-          logger.error(`Failed to process document ${doc.name}`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return [];
+          return buildActionDetails(cached, doc, timestamp, meetingDate, now);
         }
-      })
-    );
 
-    allActionItems.push(...batchResults.flat());
-  }
+        // Cache miss — full extraction pipeline
+        logger.info(`Cache miss for document ${doc.name}, running extraction`);
+        const content = await exportDocAsText(accessToken, doc.id);
+        const extractedItems = extractActionItemsFromContent(content);
+
+        // LLM supplement: only for recent docs (≤ 3 business days).
+        // Older meetings likely have action items in Linear already.
+        // Cache hits bypass this gate — they return whatever was cached
+        // when the doc was first processed (including LLM results).
+        const dateForRecency = meetingDate
+          ?? (doc.modifiedTime ? new Date(doc.modifiedTime) : null);
+        const isRecentEnough = dateForRecency
+          ? isWithinBusinessDays(dateForRecency, LLM_RECENCY_BUSINESS_DAYS, now)
+          : true;
+
+        if (isRecentEnough && shouldUseLlmExtraction(content)) {
+          const llmItems = await extractActionItemsWithLlmChunked(
+            content,
+            extractedItems.map((item) => item.text),
+            config.userDisplayNames
+          );
+          extractedItems.push(...llmItems);
+        }
+
+        // Store combined results (regex + LLM) in the in-memory cache.
+        // setCachedItems is synchronous — no race condition between
+        // concurrent docs in the same Promise.all batch.
+        setCachedItems(cache, doc.id, extractedItems);
+        cacheModified = true;
+
+        const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
+        return buildActionDetails(extractedItems, doc, timestamp, meetingDate, now);
+      } catch (error) {
+        // Skip documents that fail to export
+        logger.error(`Failed to process document ${doc.name}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return [];
+      }
+    })
+  );
+
+  allActionItems.push(...batchResults.flat());
 
   // Persist cache to disk once after all processing is complete
   if (cacheModified) {
