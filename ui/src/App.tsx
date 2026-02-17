@@ -118,6 +118,8 @@ function App() {
   const [dismissError, setDismissError] = useState<string | null>(null)
   const [exitingTaskIds, setExitingTaskIds] = useState<Set<string>>(new Set())
   const [restoredTaskId, setRestoredTaskId] = useState<string | null>(null)
+  /** Tracks whether the initial stagger-in animation has fired (ref to avoid re-render). */
+  const hasAnimatedIn = useRef(false)
   /** Stash dismiss metadata per task so each onExitComplete resolves independently */
   const pendingDismissMap = useRef<Map<string, { task: Task; source: string; identifier: string }>>(new Map())
   /** Pending scroll timer — cleared on rapid re-clicks so latest target wins */
@@ -336,7 +338,15 @@ function App() {
 
   const filteredTasks = useMemo(() => applyFilters(tasks, filterState), [tasks, filterState])
   const taskGroups = useMemo(() => groupTasks(filteredTasks, viewMode), [filteredTasks, viewMode])
+  const isInitialAppearance = !hasAnimatedIn.current && taskGroups.length > 0
   const targetSlug = scrollToSource ? sourceToGroupSlug(scrollToSource) : null
+
+  // Flip the ref after the first render with task groups so subsequent renders skip the stagger.
+  useEffect(() => {
+    if (taskGroups.length > 0 && !hasAnimatedIn.current) {
+      hasAnimatedIn.current = true
+    }
+  }, [taskGroups.length])
 
   const handleDismiss = useCallback(async (task: Task) => {
     setDismissingTaskIds(prev => new Set(prev).add(task.taskId))
@@ -601,13 +611,13 @@ function App() {
 
         <main className="app-main">
           <div className="app-content">
-            {(loading || (refreshing && tasks.length === 0)) && (
+            {/* {(loading || (refreshing && tasks.length === 0)) && (
               <div className="app-loading">
                 <p className="app-loading__text">
                   {sessionStorage.getItem('pending_refresh') ? 'Restoring tasks...' : 'Fetching tasks...'}
                 </p>
               </div>
-            )}
+            )} */}
 
             {!loading && !refreshing && error && tasks.length === 0 && (
               <div className="app-empty-state">
@@ -691,6 +701,7 @@ function App() {
                         defaultCollapsed={getDefaultCollapsed(viewMode, group.label, group.count, index)}
                         forceExpanded={targetSlug !== null && targetSlug === labelToSlug(group.label)}
                         forceCollapsed={targetSlug !== null && targetSlug !== labelToSlug(group.label)}
+                        staggerIndex={isInitialAppearance ? index : undefined}
                         onDismiss={handleDismiss}
                         dismissingTaskIds={dismissingTaskIds}
                         dismissError={dismissError}

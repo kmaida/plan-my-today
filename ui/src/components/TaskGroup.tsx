@@ -23,6 +23,8 @@ interface TaskGroupProps {
   forceExpanded?: boolean
   /** One-shot signal: when true, collapses this group (user can still re-expand). */
   forceCollapsed?: boolean
+  /** When set, animates this group in with a staggered delay on initial load. */
+  staggerIndex?: number
 }
 
 export const TaskGroup = memo(function TaskGroup({
@@ -39,6 +41,7 @@ export const TaskGroup = memo(function TaskGroup({
   onExitComplete,
   forceExpanded,
   forceCollapsed,
+  staggerIndex,
 }: TaskGroupProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
@@ -59,8 +62,16 @@ export const TaskGroup = memo(function TaskGroup({
     [label],
   )
 
+  const staggerStyle = staggerIndex !== undefined
+    ? { '--stagger-index': staggerIndex } as React.CSSProperties
+    : undefined
+
   return (
-    <div className="task-group" data-group={groupSlug}>
+    <div
+      className={`task-group${staggerIndex !== undefined ? ' task-group--stagger-in' : ''}`}
+      data-group={groupSlug}
+      style={staggerStyle}
+    >
       <button
         className="task-group__header"
         onClick={() => setIsCollapsed(!isCollapsed)}
