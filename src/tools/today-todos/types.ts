@@ -4,6 +4,13 @@
 
 import type { PriorityMetadata } from "./priority-utils";
 
+/** Slack file attachment metadata (images, documents, etc.) */
+export interface SlackFileAttachment {
+  name?: string;
+  title?: string;
+  mimetype?: string;
+}
+
 /**
  * Dependency metadata for tasks (what blocks/is blocked by this item)
  */
@@ -255,6 +262,7 @@ export interface SlackMessageDetail {
   threadTs?: string; // Thread identifier
   type: "mention" | "thread" | "dm" | "saved"; // Message type
   replyCount?: number; // For threads
+  files?: SlackFileAttachment[];
   priorityMetadata?: PriorityMetadata;
 }
 

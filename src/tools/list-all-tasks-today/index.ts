@@ -55,6 +55,7 @@ import type {
   ListAllTasksResponse,
   MeetingNoteActionDetail,
   MeetingSummaryDetail,
+  SlackFileAttachment,
   SlackMessageDetail,
 } from "../today-todos/types";
 
@@ -82,21 +83,69 @@ const SLACK_SCOPES = [
 
 const SLACK_TITLE_MAX_LENGTH = 80;
 
+const SLACK_TYPE_LABELS: Record<string, string> = {
+  mention: "Mention",
+  dm: "Direct message",
+  saved: "Saved message",
+  thread: "Thread reply",
+};
+
+/**
+ * Generate a human-readable label for a Slack file attachment.
+ * Prefers the file title/name, falls back to MIME type category.
+ */
+function describeFile(file: SlackFileAttachment): string {
+  const raw = file.title || file.name;
+  if (raw) {
+    // Limit length to avoid excessively long titles from file names
+    return raw.length > 50 ? `${raw.slice(0, 47)}...` : raw;
+  }
+
+  const mime = file.mimetype || "";
+  if (mime.startsWith("image/")) return "Image";
+  if (mime.startsWith("video/")) return "Video";
+  if (mime.startsWith("audio/")) return "Audio";
+  if (mime.includes("pdf")) return "PDF";
+  return "File attachment";
+}
+
+/**
+ * Build a fallback title for messages with no extractable text content.
+ * Used for image-only, emoji-only, /giphy, and similar non-text messages.
+ */
+function buildFallbackTitle(
+  type: string,
+  userName: string,
+  files?: SlackFileAttachment[]
+): string {
+  const typeLabel = SLACK_TYPE_LABELS[type] || "Message";
+
+  if (files && files.length > 0) {
+    const fileLabel = describeFile(files[0]);
+    if (files.length === 1) {
+      return fileLabel;
+    }
+    return `${fileLabel} (+${files.length - 1} more)`;
+  }
+
+  return `${typeLabel} from ${userName}`;
+}
+
 /**
  * Generate a short display title from a Slack message.
  * Takes the first line, strips non-link Slack formatting (emoji codes, user/channel mentions),
  * and truncates to a reasonable length. Preserves Slack link markup (<url|label> / <url>)
  * so the UI can render them as clickable hyperlinks.
+ * Falls back to file metadata for image-only/emoji-only messages.
  */
-function summarizeSlackMessage(text: string, type: string, userName: string): string {
+function summarizeSlackMessage(
+  text: string,
+  type: string,
+  userName: string,
+  files?: SlackFileAttachment[]
+): string {
   if (!text) {
-    const labels: Record<string, string> = {
-      mention: "Mention",
-      dm: "Direct message",
-      saved: "Saved message",
-      thread: "Thread reply",
-    };
-    return `${labels[type] || "Message"} from ${userName}`;
+    return buildFallbackTitle(type, userName, files);
   }
 
   // Take first line only
@@ -117,15 +166,9 @@ function summarizeSlackMessage(text: string, type: string, userName: string): st
   // Collapse multiple spaces
   title = title.replace(/\s+/g, " ").trim();
 
-  // If first line is empty after stripping, fall back to type label
+  // If first line is empty after stripping (e.g., emoji-only, /giphy), use fallback
   if (!title) {
-    const labels: Record<string, string> = {
-      mention: "Mention",
-      dm: "Direct message",
-      saved: "Saved message",
-      thread: "Thread reply",
-    };
-    return `${labels[type] || "Message"} from ${userName}`;
+    return buildFallbackTitle(type, userName, files);
   }
 
   // Truncate based on visible text length (excluding link URL markup).
@@ -441,7 +484,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           ...msg,
           taskId: randomUUID(),
           stableId: computeStableId("slack", msg),
-          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user || "Someone"),
+          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user || "Someone", msg.files),
           timestamp: isoTimestamp,
           priorityMetadata,
         };
