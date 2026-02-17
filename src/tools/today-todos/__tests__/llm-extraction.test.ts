@@ -100,7 +100,7 @@ describe("extractActionItemsWithLlm", () => {
 
     const body = JSON.parse(options.body);
     expect(body.model).toBe("claude-sonnet-4-5-20250929");
-    expect(body.max_tokens).toBe(1024);
+    expect(body.max_tokens).toBe(2048);
     expect(body.messages).toHaveLength(1);
     expect(body.messages[0].role).toBe("user");
     expect(body.messages[0].content).toContain("Meeting notes content");

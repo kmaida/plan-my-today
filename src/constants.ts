@@ -57,8 +57,10 @@ export const FETCH_LIMITS = {
   GMAIL: 15,
   /** Slack messages fetch limit */
   SLACK: 10,
-  /** Meeting summaries fetch limit */
+  /** Meeting summaries fetch limit (max Google Docs to fetch) */
   MEETINGS: 5,
+  /** Max action items returned from meeting notes (applied after priority sort) */
+  MEETING_NOTE_ACTIONS: 10,
 } as const;
 
 /** OAuth state management */

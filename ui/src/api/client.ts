@@ -20,8 +20,9 @@ export function setMCPCallTool(fn: MCPCallToolFn | null): void {
 
 // ── Timeout ──────────────────────────────────────────────────────────────────
 
-/** Default request timeout (ms). Generous for 7-source parallel fetch (can take 20-30s). */
-const REQUEST_TIMEOUT_MS = 45_000;
+/** Default request timeout (ms). Must accommodate 7-source parallel fetch plus
+ *  LLM-augmented meeting note extraction on cold cache (can take 30-40s). */
+const REQUEST_TIMEOUT_MS = 60_000;
 
 // ── Bearer token injection (kept for REST endpoints that don't use MCP) ───────
 

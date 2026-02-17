@@ -1,11 +1,22 @@
 import { config } from "../../config";
-import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
+import { FETCH_LIMITS } from "../../constants";
 import { getLogger } from "../../observability/logger";
 import { isActionCompleted } from "../../services/action-completion-store";
+import {
+  type ExtractionCacheData,
+  getCachedItems,
+  loadCache,
+  pruneCacheEntries,
+  saveCache,
+  setCachedItems,
+} from "../../services/llm-cache";
 import { hashActionText } from "../../utils/action-identifiers";
 import { isWithinBusinessDays, parseDateFromFilename } from "../../utils/date-utils";
 import { containsExactToken } from "./cross-reference-utils";
-import { LLM_CONTENT_LIMIT, extractActionItemsWithLlm, shouldUseLlmExtraction } from "./llm-extraction";
+import {
+  extractActionItemsWithLlmChunked,
+  shouldUseLlmExtraction,
+} from "./llm-extraction";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { MeetingNoteActionDetail } from "./types";
 
@@ -44,9 +55,13 @@ export interface FetchMeetingNotesOptions {
 }
 
 const DEFAULT_FOLDER_NAME = "Meeting Notes";
-const _DEFAULT_DAYS_BACK = TIME_WINDOWS.DEFAULT_DAYS_BACK;
 const DEFAULT_MAX_RESULTS = FETCH_LIMITS.MEETINGS;
 const BUSINESS_DAYS_LOOKBACK = 10;
+
+/** Max meeting age for LLM extraction (business days). Older docs get regex-only —
+ *  by then, action items are likely captured in Linear. Cache hits still return
+ *  LLM-extracted items from when the doc was recent. */
+const LLM_RECENCY_BUSINESS_DAYS = 3;
 
 /**
  * Finds the ID of a folder by name in Google Drive
@@ -370,6 +385,49 @@ export function calculateMeetingNotePriority(
 }
 
 /**
+ * Builds MeetingNoteActionDetail objects from extracted items, applying
+ * user-name filtering and priority scoring. Used by both the cache-hit
+ * and cache-miss paths to keep the logic DRY.
+ */
+function buildActionDetails(
+  extractedItems: ExtractedActionItem[],
+  doc: DriveFile,
+  timestamp: number,
+  meetingDate: Date | null,
+  now: Date
+): MeetingNoteActionDetail[] {
+  // Filter to items relevant to the current user (if configured)
+  const userNames = config.userDisplayNames;
+  const relevantItems =
+    userNames.length > 0
+      ? extractedItems.filter((item) => {
+          if (!item.assignee) return true; // Keep unassigned items
+          const assigneeLower = item.assignee.toLowerCase();
+          const textLower = item.text.toLowerCase();
+          return userNames.some(
+            (name) =>
+              containsExactToken(assigneeLower, name) || containsExactToken(textLower, name)
+          );
+        })
+      : extractedItems;
+
+  return relevantItems.map((item) => {
+    const actionDetail: MeetingNoteActionDetail = {
+      documentId: doc.id!,
+      documentTitle: doc.name!,
+      documentLink: doc.webViewLink || `https://docs.google.com/document/d/${doc.id}`,
+      actionItem: item.text,
+      assignee: item.assignee,
+      isUrgent: item.isUrgent,
+      timestamp,
+      meetingDate: meetingDate || undefined,
+    };
+    actionDetail.priorityMetadata = calculateMeetingNotePriority(actionDetail, now);
+    return actionDetail;
+  });
+}
+
+/**
  * Fetches and processes meeting notes from Google Drive
  */
 export async function fetchMeetingNoteActions(
@@ -412,7 +470,18 @@ export async function fetchMeetingNoteActions(
     return [];
   }
 
+  const logger = getLogger().withOperation("meeting_notes");
   const allActionItems: MeetingNoteActionDetail[] = [];
+
+  // Load cache once — all lookups and writes happen in-memory to avoid
+  // race conditions when multiple docs are processed concurrently.
+  const cache: ExtractionCacheData = await loadCache().catch(() => ({ entries: {} }));
+  let cacheModified = false;
+
+  // Prune stale cache entries for docs no longer in the eligible window
+  const eligibleDocIds = new Set(eligibleDocs.map((d) => d.id).filter(Boolean) as string[]);
+  const pruned = pruneCacheEntries(cache, eligibleDocIds);
+  if (pruned > 0) cacheModified = true;
 
   // Process each document (with concurrency limit)
   const concurrencyLimit = 3;
@@ -426,60 +495,67 @@ export async function fetchMeetingNoteActions(
         const meetingDate = parseDateFromFilename(doc.name);
 
         try {
+          // Check extraction cache — meeting docs are write-once, so cached
+          // results are valid indefinitely until the doc leaves the lookback window.
+          const cached = getCachedItems(cache, doc.id);
+          if (cached) {
+            logger.info(`Cache hit for document ${doc.name}`);
+            const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
+            return buildActionDetails(cached, doc, timestamp, meetingDate, now);
+          }
+
+          // Cache miss — full extraction pipeline
+          logger.info(`Cache miss for document ${doc.name}, running extraction`);
           const content = await exportDocAsText(accessToken, doc.id);
           const extractedItems = extractActionItemsFromContent(content);
 
-          // LLM supplement: extract additional items regex missed.
-          // extractActionItemsWithLlm is non-throwing — returns [] on any failure.
-          if (shouldUseLlmExtraction(content)) {
-            const llmItems = await extractActionItemsWithLlm(
-              content.substring(0, LLM_CONTENT_LIMIT),
-              extractedItems.map((i) => i.text),
+          // LLM supplement: only for recent docs (≤ 3 business days).
+          // Older meetings likely have action items in Linear already.
+          // Cache hits bypass this gate — they return whatever was cached
+          // when the doc was first processed (including LLM results).
+          const dateForRecency = meetingDate
+            ?? (doc.modifiedTime ? new Date(doc.modifiedTime) : null);
+          const isRecentEnough = dateForRecency
+            ? isWithinBusinessDays(dateForRecency, LLM_RECENCY_BUSINESS_DAYS, now)
+            : true;
+
+          if (isRecentEnough && shouldUseLlmExtraction(content)) {
+            const llmItems = await extractActionItemsWithLlmChunked(
+              content,
+              extractedItems.map((item) => item.text),
               config.userDisplayNames
             );
             extractedItems.push(...llmItems);
           }
 
+          // Store combined results (regex + LLM) in the in-memory cache.
+          // setCachedItems is synchronous — no race condition between
+          // concurrent docs in the same Promise.all batch.
+          setCachedItems(cache, doc.id, extractedItems);
+          cacheModified = true;
+
           const timestamp = doc.modifiedTime ? new Date(doc.modifiedTime).getTime() : now.getTime();
-
-          // Filter to items relevant to the current user (if configured)
-          const userNames = config.userDisplayNames;
-          const relevantItems =
-            userNames.length > 0
-              ? extractedItems.filter((item) => {
-                  if (!item.assignee) return true; // Keep unassigned items
-                  const assigneeLower = item.assignee.toLowerCase();
-                  const textLower = item.text.toLowerCase();
-                  return userNames.some(
-                    (name) =>
-                      containsExactToken(assigneeLower, name) || containsExactToken(textLower, name)
-                  );
-                })
-              : extractedItems;
-
-          return relevantItems.map((item) => {
-            const actionDetail: MeetingNoteActionDetail = {
-              documentId: doc.id!,
-              documentTitle: doc.name!,
-              documentLink: doc.webViewLink || `https://docs.google.com/document/d/${doc.id}`,
-              actionItem: item.text,
-              assignee: item.assignee,
-              isUrgent: item.isUrgent,
-              timestamp,
-              meetingDate: meetingDate || undefined,
-            };
-            actionDetail.priorityMetadata = calculateMeetingNotePriority(actionDetail, now);
-            return actionDetail;
-          });
+          return buildActionDetails(extractedItems, doc, timestamp, meetingDate, now);
         } catch (error) {
           // Skip documents that fail to export
-          console.error(`Failed to process document ${doc.name}:`, error);
+          logger.error(`Failed to process document ${doc.name}`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
           return [];
         }
       })
     );
 
     allActionItems.push(...batchResults.flat());
+  }
+
+  // Persist cache to disk once after all processing is complete
+  if (cacheModified) {
+    await saveCache(cache).catch((err) => {
+      logger.warn("Failed to write extraction cache", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   }
 
   // Sort by priority score (highest first)
@@ -502,5 +578,7 @@ export async function fetchMeetingNoteActions(
     filteredActions.push(action);
   }
 
-  return filteredActions;
+  // Cap total meeting note actions — items are already sorted by priority,
+  // so slicing keeps the most important ones and avoids dashboard overload.
+  return filteredActions.slice(0, FETCH_LIMITS.MEETING_NOTE_ACTIONS);
 }
