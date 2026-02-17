@@ -389,7 +389,7 @@ export function calculateMeetingNotePriority(
  * user-name filtering and priority scoring. Used by both the cache-hit
  * and cache-miss paths to keep the logic DRY.
  */
-function buildActionDetails(
+export function buildActionDetails(
   extractedItems: ExtractedActionItem[],
   doc: DriveFile,
   timestamp: number,
