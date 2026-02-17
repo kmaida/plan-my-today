@@ -147,7 +147,7 @@
   transition: all var(--transition-fast);
 }
 
-.app-header__reload:hover {
+.app-header__reload:hover:not(:disabled) {
   color: var(--color-text-primary);
   border-color: var(--color-text-secondary);
   box-shadow: var(--shadow-sm);
@@ -552,7 +552,7 @@ button.auth-error-banner__reauth:active {
   box-shadow: var(--shadow-md);
 }
 
-.app-empty-state__fetch-btn:hover {
+.app-empty-state__fetch-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
   background: var(--color-bg);
