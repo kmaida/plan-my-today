@@ -276,6 +276,23 @@
     font-size: 24px;
   }
 
+  .app-header__logo {
+    width: 64px;
+  }
+
+  .app-header__banner {
+    gap: var(--space-sm);
+  }
+
+  /* Hide elements too small to tap on touch screens */
+  .source-status {
+    display: none;
+  }
+
+  .theme-switcher {
+    display: none;
+  }
+
   .app-main {
     padding: var(--space-sm);
   }
@@ -288,6 +305,25 @@
     bottom: 0;
     width: 100%;
     z-index: var(--z-modal);
+  }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+  .app-header__content {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .app-header__logo {
+    width: 48px;
+  }
+
+  .app-header h1 {
+    font-size: 20px;
+  }
+
+  .app-header__top {
+    gap: var(--space-sm);
   }
 }
 

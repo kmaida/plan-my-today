@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, type ReactNode } from 'react'
+import { useState, useRef, useMemo, useCallback, useEffect, type ReactNode } from 'react'
 import type { FilterState, TaskSource, PriorityCategory } from '../types/tasks'
 import { DEFAULT_FILTERS } from '../types/tasks'
 import { SourceIcon, getSourceLabel } from './SourceIcon'
@@ -72,6 +72,27 @@ export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount,
     if (searchRef.current) searchRef.current.value = ''
   }, [onFiltersChange])
 
+  /**
+   * Auto-clear source filters when viewport enters mobile range (source row
+   * is hidden by CSS).  We keep `filters` in a ref so the matchMedia listener
+   * can read the latest value without being in the useEffect dependency array
+   * (which would cause an infinite re-render loop).
+   */
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches && filtersRef.current.sources.length > 0) {
+        onFiltersChange({ ...filtersRef.current, sources: [] });
+      }
+    };
+    handleChange(mq);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, [onFiltersChange]);
+
   return (
     <div className="filter-bar">
       <div className="filter-bar__header">
@@ -107,7 +128,7 @@ export function FilterBar({ filters, onFiltersChange, totalCount, filteredCount,
             />
           </div>
 
-          <div className="filter-bar__row">
+          <div className="filter-bar__row filter-bar__row--source">
             <span className="filter-bar__label">Source</span>
             <div className="filter-bar__chips">
               {SOURCES.map(source => (

@@ -194,12 +194,14 @@
     display: none;
   }
 
-  .filter-bar__chips {
-    gap: 3px;
+  /* Hide source filter row — too small to tap; filters auto-cleared via JS */
+  .filter-bar__row--source {
+    display: none;
   }
 
+  /* Bigger chips for touch targets */
   .filter-bar__chip {
-    font-size: 11px;
-    padding: 2px 6px;
+    font-size: var(--font-size-small);
+    padding: var(--space-sm) var(--space-md);
   }
 }
