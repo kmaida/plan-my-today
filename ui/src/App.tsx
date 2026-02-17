@@ -17,6 +17,7 @@ import { formatTime, formatDate, isToday } from './utils/dateHelpers'
 import { SourceIcon, getSourceLabel } from './components/SourceIcon'
 import { Toast } from './components/Toast'
 import { Chevron } from './components/Chevron'
+import { ShuffledCycler } from './utils/shuffledCycler'
 import './App.css'
 
 const ChatPanel = lazy(() => import('./components/Chat/ChatPanel'))
@@ -85,22 +86,7 @@ const EASTER_EGG_PHRASES = [
   'Warming up the to-do engine',
 ]
 
-/** Weighted pool: source ×8 (~86%) + easter eggs ×1 (~14%). */
-const FETCH_PHRASE_POOL = [
-  ...Array(8).fill(SOURCE_PHRASES).flat(),
-  ...EASTER_EGG_PHRASES,
-]
-
-/** Pick a random phrase different from the current one (avoids stuttering). */
-function pickPhrase(current: string): string {
-  let next = current
-  let attempts = 0
-  while (next === current && attempts < 10) {
-    next = FETCH_PHRASE_POOL[Math.floor(Math.random() * FETCH_PHRASE_POOL.length)]
-    attempts++
-  }
-  return next
-}
+const phraseCycler = new ShuffledCycler([...SOURCE_PHRASES, ...EASTER_EGG_PHRASES]);
 
 const SESSION_VIEW_KEY = "pmt_viewMode";
 const SESSION_FILTERS_KEY = "pmt_filters";
@@ -318,7 +304,7 @@ function App() {
 
   // Cycling fetch phrases — shown in the subtitle row while fetching tasks.
   // Reuses the same fade+swap pattern as ThinkingIndicator.
-  const [fetchPhrase, setFetchPhrase] = useState(() => pickPhrase(''))
+  const [fetchPhrase, setFetchPhrase] = useState(() => phraseCycler.next())
   const [phraseFading, setPhraseFading] = useState(false)
   const showCycling = refreshing
   const showDimmed = refreshing && tasks.length > 0
@@ -326,7 +312,7 @@ function App() {
   const cyclePhrase = useCallback(() => {
     setPhraseFading(true)
     setTimeout(() => {
-      setFetchPhrase((prev) => pickPhrase(prev))
+      setFetchPhrase(() => phraseCycler.next())
       setPhraseFading(false)
     }, 200)
   }, [])
@@ -334,7 +320,7 @@ function App() {
   useEffect(() => {
     if (!showCycling) return
     // Pick a fresh phrase immediately when cycling starts
-    setFetchPhrase((prev) => pickPhrase(prev))
+    setFetchPhrase(() => phraseCycler.next())
     setPhraseFading(false)
     const interval = setInterval(cyclePhrase, 2300)
     return () => clearInterval(interval)
