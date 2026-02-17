@@ -89,6 +89,7 @@
   margin: 0;
   line-height: var(--line-height-normal);
   flex: 1;
+  padding-right: var(--space-sm);
 }
 
 .task-card__inline-link {
