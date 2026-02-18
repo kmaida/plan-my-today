@@ -17,7 +17,7 @@
     "build:check": "tsc --noEmit",
     "build:all": "npm run build && cd ui && npm install && npm run build",
     "dev": "nodemon --ignore data/ --exec ts-node -r tsconfig-paths/register src/index.ts",
-    "dashboard": "bash scripts/start.sh",
+    "plan-my-today": "bash scripts/start.sh",
     "lint": "biome lint src/",
     "lint:fix": "biome lint --write src/",
     "format": "biome format --write src/",
