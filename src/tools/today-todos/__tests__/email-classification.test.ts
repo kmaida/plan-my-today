@@ -6,7 +6,9 @@
  * silently hide emails from real people that need replies.
  */
 
+import type { GmailFullMessage } from "../email-utils";
 import {
+  calculateEmailPriority,
   collapseByThread,
   extractDocCommentEmails,
   extractSenderName,
@@ -15,7 +17,6 @@ import {
   isLowImportance,
   isNewsletter,
 } from "../email-utils";
-import type { GmailFullMessage } from "../email-utils";
 import type { GmailMessageDetail } from "../types";
 
 // ── isFromIndividual ──
@@ -248,6 +249,63 @@ describe("filterEmails", () => {
       expect(filterEmails(emails, false)).toHaveLength(1);
     });
   });
+
+  describe("starred email override", () => {
+    it("keeps starred newsletter emails even with strict filtering", () => {
+      const emails = [
+        makeEmail({
+          from: "newsletter@techsite.com",
+          subject: "This Week in Tech",
+          isStarred: true,
+        }),
+      ];
+      expect(filterEmails(emails, true)).toHaveLength(1);
+    });
+
+    it("keeps starred low-importance emails even with strict filtering", () => {
+      const emails = [
+        makeEmail({
+          from: "someone@company.com",
+          subject: "FYI: Team update",
+          isStarred: true,
+        }),
+      ];
+      expect(filterEmails(emails, true)).toHaveLength(1);
+    });
+
+    it("still excludes starred calendar emails (redundancy filter)", () => {
+      const emails = [
+        makeEmail({
+          from: "calendar-notification@google.com",
+          subject: "Invitation: Team standup",
+          isStarred: true,
+        }),
+      ];
+      expect(filterEmails(emails, true)).toHaveLength(0);
+    });
+
+    it("still excludes starred Linear emails (redundancy filter)", () => {
+      const emails = [
+        makeEmail({
+          from: "notifications@linear.app",
+          subject: "KIM-123: Fix bug",
+          isStarred: true,
+        }),
+      ];
+      expect(filterEmails(emails, true)).toHaveLength(0);
+    });
+
+    it("does not affect non-starred newsletters (regression guard)", () => {
+      const emails = [
+        makeEmail({
+          from: "newsletter@techsite.com",
+          subject: "This Week in Tech",
+          isStarred: false,
+        }),
+      ];
+      expect(filterEmails(emails, true)).toHaveLength(0);
+    });
+  });
 });
 
 // ── extractSenderName ──
@@ -430,6 +488,39 @@ describe("collapseByThread", () => {
 
   it("handles empty input", () => {
     expect(collapseByThread([])).toEqual([]);
+  });
+});
+
+// ── calculateEmailPriority ──
+
+describe("calculateEmailPriority", () => {
+  const now = new Date();
+
+  function makeEmail(overrides: Partial<GmailMessageDetail>): GmailMessageDetail {
+    return {
+      id: "msg-1",
+      subject: "Test subject",
+      from: "noreply@example.com",
+      link: "https://mail.google.com/mail/u/0/#inbox/msg-1",
+      ...overrides,
+    };
+  }
+
+  it("gives starred emails a +100 boost", () => {
+    const starred = makeEmail({ isStarred: true });
+    const unstarred = makeEmail({ isStarred: false });
+    const starredResult = calculateEmailPriority(starred, now);
+    const unstarredResult = calculateEmailPriority(unstarred, now);
+    expect(starredResult.score - unstarredResult.score).toBe(100);
+    expect(starredResult.reasons).toContain("Starred");
+  });
+
+  it("starred noreply email outscores unstarred noreply email", () => {
+    const starred = makeEmail({ from: "noreply@example.com", isStarred: true });
+    const unstarred = makeEmail({ from: "noreply@example.com", isStarred: false });
+    expect(calculateEmailPriority(starred, now).score).toBeGreaterThan(
+      calculateEmailPriority(unstarred, now).score
+    );
   });
 });
 

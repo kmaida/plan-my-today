@@ -593,6 +593,8 @@ export async function fetchMeetingSummaries(
 
 /**
  * Filters out unwanted emails (calendar, Linear automated, newsletters, low importance).
+ * Starred emails bypass content filters (newsletters, low importance) but not redundancy
+ * filters (calendar, Linear — those items already appear from their native tools).
  * Uses shared pattern constants and helpers defined at the top of this file.
  *
  * @param strictFiltering - If false, only excludes calendar and Linear automation (for agent use)
@@ -616,6 +618,12 @@ export function filterEmails(
     const emailDomain = extractDomain(fromLower);
     if (emailDomain?.includes("linear.app")) {
       return false;
+    }
+
+    // Starred = user explicitly wants this email; bypass content filters.
+    // Calendar/Linear stay excluded above (redundancy, not importance).
+    if (email.isStarred) {
+      return true;
     }
 
     // Only apply these filters if strictFiltering is enabled
@@ -1023,8 +1031,9 @@ export function calculateEmailPriority(email: GmailMessageDetail, now: Date): Pr
     reasons.push("Marked important");
   }
 
-  // Starred
+  // Starred — strongest explicit user signal, independent of other flags
   if (email.isStarred) {
+    score += 100;
     reasons.push("Starred");
   }
 
