@@ -122,9 +122,14 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
   const metadata = useMemo(() => {
     const items: string[] = []
 
-    if (isLinearTask(task) && task.dueDate) {
-      const due = formatDueDate(task.dueDate)
-      items.push(due.text)
+    if (isLinearTask(task)) {
+      if (task.state) {
+        items.push(task.state)
+      }
+      if (task.dueDate) {
+        const due = formatDueDate(task.dueDate)
+        items.push(due.text)
+      }
     }
 
     if (isGmailTask(task)) {
