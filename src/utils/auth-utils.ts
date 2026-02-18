@@ -1,4 +1,4 @@
-import type { AuthInfo, JWTPayload } from "../types/auth";
+import type { JWTPayload } from "../types/auth";
 import { parseJWTPayload } from "../types/auth";
 
 /**
@@ -22,28 +22,4 @@ export function decodeJWT(token: string): JWTPayload | null {
   } catch {
     return null;
   }
-}
-
-/**
- * Extracts the user ID from authentication info by decoding the JWT token
- *
- * @param authInfo - Authentication information containing the JWT token
- * @returns User ID from the JWT 'sub' claim
- * @throws Error if no token is available, JWT is invalid, or 'sub' claim is missing
- */
-export function extractUserIdFromAuthInfo(authInfo?: AuthInfo): string {
-  if (!authInfo?.token) {
-    throw new Error("No auth token available");
-  }
-
-  const parsed = decodeJWT(authInfo.token);
-  if (!parsed) {
-    throw new Error("Invalid JWT format");
-  }
-
-  if (!parsed.sub) {
-    throw new Error("JWT missing 'sub' claim");
-  }
-
-  return parsed.sub;
 }

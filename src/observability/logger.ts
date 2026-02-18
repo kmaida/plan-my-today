@@ -171,30 +171,6 @@ export function createMcpLogger(
   return new McpLogger(attributes, logLevel);
 }
 
-export function createMcpAttributes(
-  sessionId?: string,
-  requestId?: string,
-  userId?: string,
-  operation?: string,
-  additional?: LogAttributes
-): LogAttributes {
-  const attributes: LogAttributes = { ...additional };
-
-  if (sessionId) attributes.sessionId = sessionId;
-  if (requestId) attributes.requestId = requestId;
-  if (userId) attributes.userId = userId;
-  if (operation) attributes.operation = operation;
-
-  return attributes;
-}
-
-/** No-op — trace context propagation removed with OTel. Returns headers unchanged. */
-export function injectContextIntoHeaders(
-  headers: Record<string, string> = {}
-): Record<string, string> {
-  return { ...headers };
-}
-
 function parseLogLevelFromEnv(): LogLevel {
   const envLevel = process.env.LOG_LEVEL?.toUpperCase();
 
@@ -216,14 +192,3 @@ function parseLogLevelFromEnv(): LogLevel {
   }
 }
 
-export function setGlobalLogLevel(level: LogLevel): void {
-  globalLogger.setLevel(level);
-}
-
-export const logger = {
-  setLevel: setGlobalLogLevel,
-  isDebugEnabled: (): boolean => globalLogger.isLevelEnabled(LogLevel.DEBUG),
-  isInfoEnabled: (): boolean => globalLogger.isLevelEnabled(LogLevel.INFO),
-  isWarnEnabled: (): boolean => globalLogger.isLevelEnabled(LogLevel.WARN),
-  isErrorEnabled: (): boolean => globalLogger.isLevelEnabled(LogLevel.ERROR),
-};

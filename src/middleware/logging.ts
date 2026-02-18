@@ -3,7 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { createMcpLogger, type IMcpLogger } from "../observability/logger";
 import { getSessionIdFromHeaders } from "../types/index";
 
-export interface RequestContext {
+interface RequestContext {
   requestId: string;
   sessionId?: string;
   traceId?: string;
@@ -65,5 +65,3 @@ export function createLoggingMiddleware(operation: string) {
 }
 
 export const httpLoggingMiddleware = createLoggingMiddleware("http_request");
-export const mcpLoggingMiddleware = createLoggingMiddleware("mcp_request");
-export const generalLoggingMiddleware = createLoggingMiddleware("general");

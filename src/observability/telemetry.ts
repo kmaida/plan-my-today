@@ -44,10 +44,4 @@ function createConsoleLogger() {
 
 export const customLogger = createConsoleLogger();
 
-/** No-op — OTel has been removed. Kept for API compatibility with index.ts. */
-export function initializeTelemetry(): void {}
-
-/** No-op — OTel has been removed. Kept for API compatibility with index.ts. */
-export async function shutdownTelemetry(): Promise<void> {}
-
 export { customLogger as logger };

@@ -4,8 +4,6 @@ import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type {
-  CalendarEventDetail,
-  CategorizedIssues,
   LinearIssueDetail,
   LinearRelatedIssueRef,
   LinearRelationType,
@@ -255,114 +253,6 @@ export async function fetchLinearIssues(
     limit: FETCH_LIMITS.LINEAR,
     additionalFilter: actionableFilter,
   });
-}
-
-/**
- * Categorizes Linear issues by urgency and priority
- */
-export function categorizeIssues(issues: LinearIssueDetail[], today: Date): CategorizedIssues {
-  const overdue: LinearIssueDetail[] = [];
-  const dueToday: LinearIssueDetail[] = [];
-  const dueThisWeek: LinearIssueDetail[] = [];
-  const noDueDate: LinearIssueDetail[] = [];
-  const highPriority: LinearIssueDetail[] = [];
-
-  for (const issue of issues) {
-    if (issue.dueDate) {
-      const due = parseLocalDate(issue.dueDate);
-      const daysUntilDue = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysUntilDue < 0) {
-        overdue.push(issue);
-      } else if (daysUntilDue === 0) {
-        dueToday.push(issue);
-      } else if (daysUntilDue <= 7) {
-        dueThisWeek.push(issue);
-      }
-    } else {
-      noDueDate.push(issue);
-    }
-
-    // High priority (Urgent or High)
-    if (issue.priority <= 2) {
-      highPriority.push(issue);
-    }
-  }
-
-  return { overdue, dueToday, dueThisWeek, noDueDate, highPriority };
-}
-
-/**
- * Detects themes/focus areas from meetings and tasks
- * Merges similar themes to avoid duplication
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cross-source theme detection with deduplication
-export function detectThemes(
-  calendarEvents: CalendarEventDetail[],
-  linearIssues: LinearIssueDetail[]
-): { theme: string; items: string[]; isMainFocus: boolean }[] {
-  const themes: Map<string, Set<string>> = new Map();
-
-  // Common keywords to look for (lowercase)
-  const keywordPatterns = [
-    { pattern: /messaging\s*framework/i, theme: "Messaging Framework" },
-    { pattern: /marketing/i, theme: "Marketing" },
-    { pattern: /sso|auth|oauth|identity/i, theme: "SSO/Identity" },
-    { pattern: /onboarding/i, theme: "Onboarding" },
-    { pattern: /workshop/i, theme: "Workshop" },
-    { pattern: /sync|standup|stand-up|1:1|1-1/i, theme: "Syncs & 1:1s" },
-    { pattern: /docs|documentation/i, theme: "Documentation" },
-    { pattern: /rsa|conference|booth/i, theme: "RSA Conference" },
-  ];
-
-  // Helper to check if text matches any keyword pattern
-  const matchesKeywordPattern = (text: string): boolean => {
-    return keywordPatterns.some(({ pattern }) => pattern.test(text));
-  };
-
-  // Scan calendar events
-  for (const event of calendarEvents) {
-    const title = event.summary || "";
-    for (const { pattern, theme } of keywordPatterns) {
-      if (pattern.test(title)) {
-        if (!themes.has(theme)) themes.set(theme, new Set());
-        themes.get(theme)!.add(`📅 ${title}`);
-      }
-    }
-  }
-
-  // Scan Linear issues
-  for (const issue of linearIssues) {
-    const text = `${issue.title} ${issue.project?.name || ""}`;
-    let _matchedKeyword = false;
-
-    for (const { pattern, theme } of keywordPatterns) {
-      if (pattern.test(text)) {
-        if (!themes.has(theme)) themes.set(theme, new Set());
-        themes.get(theme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
-        _matchedKeyword = true;
-      }
-    }
-
-    // Only add project theme if it doesn't overlap with keyword patterns
-    // This prevents "Messaging Framework v0.1" duplicating "Messaging Framework"
-    if (issue.project?.name && !matchesKeywordPattern(issue.project.name)) {
-      const projectTheme = issue.project.name;
-      if (!themes.has(projectTheme)) themes.set(projectTheme, new Set());
-      themes.get(projectTheme)!.add(`📋 ${issue.identifier}: ${issue.title}`);
-    }
-  }
-
-  // Convert to array and sort by item count
-  const themeArray = Array.from(themes.entries())
-    .map(([theme, items]) => ({
-      theme,
-      items: Array.from(items),
-      isMainFocus: items.size >= 2, // 2+ items = significant theme
-    }))
-    .sort((a, b) => b.items.length - a.items.length);
-
-  return themeArray;
 }
 
 /**

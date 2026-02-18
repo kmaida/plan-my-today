@@ -41,13 +41,13 @@ export function detectLinearMentions(
 
   // Search emails for issue ID (subject + body snippet)
   for (const email of gmail) {
-    const searchText = `${email.subject || ""} ${email.snippet || ""}`;
+    const searchText = `${email.subject} ${email.snippet || ""}`;
     if (containsExactToken(searchText, issueId)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
         id: email.id,
-        snippet: (email.subject || "").substring(0, 100),
+        snippet: email.subject.substring(0, 100),
         url: email.link,
       });
     }
@@ -55,13 +55,12 @@ export function detectLinearMentions(
 
   // Search Slack messages for issue ID
   for (const msg of slack) {
-    const text = msg.text || "";
-    if (containsExactToken(text, issueId)) {
+    if (containsExactToken(msg.text, issueId)) {
       mentionedIn.add("slack");
       relatedItems.push({
         source: "slack",
         id: msg.timestamp,
-        snippet: text.substring(0, 100),
+        snippet: msg.text.substring(0, 100),
         url: msg.permalink,
       });
     }
@@ -82,13 +81,13 @@ export function detectLinearMentions(
 
   // Search meeting summaries for issue ID (subject + snippet)
   for (const summary of meetingSummaries ?? []) {
-    const searchText = `${summary.subject || ""} ${summary.snippet || ""}`;
+    const searchText = `${summary.subject} ${summary.snippet}`;
     if (containsExactToken(searchText, issueId)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
         id: summary.link,
-        snippet: (summary.subject || "").substring(0, 100),
+        snippet: summary.subject.substring(0, 100),
         url: summary.link,
       });
     }
@@ -137,13 +136,13 @@ export function detectGitHubMentions(
 
   // Search emails (subject + body snippet)
   for (const email of gmail) {
-    const searchText = `${email.subject || ""} ${email.snippet || ""}`;
+    const searchText = `${email.subject} ${email.snippet || ""}`;
     if (hasGitHubRef(searchText)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
         id: email.id,
-        snippet: (email.subject || "").substring(0, 100),
+        snippet: email.subject.substring(0, 100),
         url: email.link,
       });
     }
@@ -151,13 +150,12 @@ export function detectGitHubMentions(
 
   // Search Slack messages
   for (const msg of slack) {
-    const text = msg.text || "";
-    if (hasGitHubRef(text)) {
+    if (hasGitHubRef(msg.text)) {
       mentionedIn.add("slack");
       relatedItems.push({
         source: "slack",
         id: msg.timestamp,
-        snippet: text.substring(0, 100),
+        snippet: msg.text.substring(0, 100),
         url: msg.permalink,
       });
     }
@@ -178,13 +176,13 @@ export function detectGitHubMentions(
 
   // Search meeting summaries (subject + snippet)
   for (const summary of meetingSummaries ?? []) {
-    const searchText = `${summary.subject || ""} ${summary.snippet || ""}`;
+    const searchText = `${summary.subject} ${summary.snippet}`;
     if (hasGitHubRef(searchText)) {
       mentionedIn.add("gmail");
       relatedItems.push({
         source: "gmail",
         id: summary.link,
-        snippet: (summary.subject || "").substring(0, 100),
+        snippet: summary.subject.substring(0, 100),
         url: summary.link,
       });
     }

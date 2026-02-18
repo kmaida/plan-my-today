@@ -63,12 +63,6 @@ export const FETCH_LIMITS = {
   MEETING_NOTE_ACTIONS: 10,
 } as const;
 
-/** OAuth state management */
-export const OAUTH = {
-  /** OAuth state expiry time in milliseconds (10 minutes) */
-  STATE_EXPIRY_MS: 10 * 60 * 1000,
-} as const;
-
 /** File paths */
 export const PATHS = {
   /** Task store JSON written by list-all-tasks-today, read by UI and read-dashboard-tasks */

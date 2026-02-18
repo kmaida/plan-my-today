@@ -2,7 +2,7 @@
 
 // ===== Drive Action Types =====
 
-export type DriveType = "mention" | "assignment" | "unresolved-comment";
+type DriveType = "mention" | "assignment" | "unresolved-comment";
 
 // ===== Task Sources =====
 

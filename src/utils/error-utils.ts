@@ -46,12 +46,3 @@ export function formatAuthError(serviceName: string, error: unknown): string {
   // Never expose raw error.message which may contain user IDs or internal URLs.
   return `${serviceName}: Service unavailable — try again later`;
 }
-
-/**
- * Generate a footer with troubleshooting tips when there are errors
- */
-export function getErrorFooter(hasAuthErrors: boolean): string {
-  if (!hasAuthErrors) return "";
-
-  return "\n\nReauthorize to refresh your grants. If issues persist, restart the MCP server.";
-}

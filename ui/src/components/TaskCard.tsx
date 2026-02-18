@@ -149,7 +149,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
     if (isSlackTask(task)) {
       const channel = task.channel
       const isRawId = channel && /^[A-Z0-9]+$/.test(channel)
-      const userLabel = task.isSelf ? 'me' : (task.user || '')
+      const userLabel = task.isSelf ? 'me' : task.user
       const userSuffix = userLabel ? `: ${userLabel}` : ''
       if (channel && channel.startsWith('DM:')) {
         items.push(task.isSelf ? `${channel} (me)` : channel)

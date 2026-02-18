@@ -5,7 +5,7 @@ dotenv.config({ override: true });
 /**
  * Server configuration interface
  */
-export interface ServerConfig {
+interface ServerConfig {
   port: string;
   host: string;
   baseUrl: string;
@@ -41,7 +41,7 @@ export interface ServerConfig {
  * @throws Error if required environment variables are missing
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: sequential env var validation with fallback logic
-export function getConfig(): ServerConfig {
+function getConfig(): ServerConfig {
   const PORT = process.env.PORT || "9005";
 
   // Validate PORT is numeric
