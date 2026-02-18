@@ -581,10 +581,9 @@ async function resolveSlackNames(
     // May overlap with the DM branch above (both can resolve the same user ID).
     // This is harmless — Map.set is last-write-wins with identical values.
     try {
-      const response = await fetch(
-        `https://slack.com/api/users.info?user=${userId}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      const response = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const userData = (await response.json()) as SlackUserInfoResponse;
       const name = extractDisplayName(userData);
       if (name) {

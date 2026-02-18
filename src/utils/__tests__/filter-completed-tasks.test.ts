@@ -30,9 +30,7 @@ const mockedGetCompleted = getCompletedBySources as jest.MockedFunction<
  * Helper: set up the mock to return the given completed identifiers per source.
  * Missing sources default to empty Sets.
  */
-function setCompletedIds(
-  overrides: Partial<Record<"slack" | "meeting-note", string[]>>
-): void {
+function setCompletedIds(overrides: Partial<Record<"slack" | "meeting-note", string[]>>): void {
   const result = new Map<ActionSource, Set<string>>([
     ["slack", new Set(overrides.slack ?? [])],
     ["meeting-note", new Set(overrides["meeting-note"] ?? [])],

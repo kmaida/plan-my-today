@@ -113,10 +113,7 @@ function describeFile(file: SlackFileAttachment): string {
  * Build a fallback title for messages with no extractable text content.
  * Used for image-only, emoji-only, /giphy, and similar non-text messages.
  */
-function buildFallbackTitle(
-  type: string,
-  files?: SlackFileAttachment[]
-): string {
+function buildFallbackTitle(type: string, files?: SlackFileAttachment[]): string {
   const typeLabel = SLACK_TYPE_LABELS[type] || "Message";
 
   if (files && files.length > 0) {
@@ -135,11 +132,7 @@ function buildFallbackTitle(
  * so the UI can render them as clickable hyperlinks.
  * Falls back to file metadata for image-only/emoji-only messages.
  */
-function summarizeSlackMessage(
-  text: string,
-  type: string,
-  files?: SlackFileAttachment[]
-): string {
+function summarizeSlackMessage(text: string, type: string, files?: SlackFileAttachment[]): string {
   if (!text) {
     return buildFallbackTitle(type, files);
   }

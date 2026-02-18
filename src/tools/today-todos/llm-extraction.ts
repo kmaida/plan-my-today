@@ -72,10 +72,7 @@ function isDuplicate(llmText: string, existingTexts: string[]): boolean {
     // Skip empty existing items — every string contains "", which would
     // cause all LLM items to be incorrectly marked as duplicates.
     if (!normalizedExisting) continue;
-    if (
-      normalizedLlm.includes(normalizedExisting) ||
-      normalizedExisting.includes(normalizedLlm)
-    ) {
+    if (normalizedLlm.includes(normalizedExisting) || normalizedExisting.includes(normalizedLlm)) {
       return true;
     }
   }
@@ -219,7 +216,13 @@ ${content}`;
     if (isDuplicate(text, existingItems)) continue;
 
     // Also skip duplicates within the LLM's own output
-    if (isDuplicate(text, results.map((r) => r.text))) continue;
+    if (
+      isDuplicate(
+        text,
+        results.map((r) => r.text)
+      )
+    )
+      continue;
 
     results.push({
       text,
@@ -236,11 +239,7 @@ ${content}`;
  * Each chunk is at most `chunkSize` chars with `overlap` chars of context
  * carried over from the previous chunk to avoid missing items at boundaries.
  */
-function splitIntoChunks(
-  content: string,
-  chunkSize: number,
-  overlap: number
-): string[] {
+function splitIntoChunks(content: string, chunkSize: number, overlap: number): string[] {
   const chunks: string[] = [];
   let start = 0;
 
@@ -285,13 +284,13 @@ export async function extractActionItemsWithLlmChunked(
 
     const logger = getLogger().withOperation("llm_extraction_chunked");
     const chunks = splitIntoChunks(content, LLM_CONTENT_LIMIT, CHUNK_OVERLAP);
-    logger.info(`Splitting ${content.length} char document into ${chunks.length} chunks for LLM extraction`);
+    logger.info(
+      `Splitting ${content.length} char document into ${chunks.length} chunks for LLM extraction`
+    );
 
     // Run all chunks in parallel — each chunk gets the same regex items for dedup context
     const chunkResults = await Promise.all(
-      chunks.map((chunk) =>
-        extractActionItemsWithLlm(chunk, existingItems, userNames)
-      )
+      chunks.map((chunk) => extractActionItemsWithLlm(chunk, existingItems, userNames))
     );
 
     // Merge all chunk results, then deduplicate across chunks
@@ -303,7 +302,13 @@ export async function extractActionItemsWithLlmChunked(
       // per-chunk, but belt-and-suspenders for overlap regions)
       if (isDuplicate(item.text, existingItems)) continue;
       // Skip duplicates against other chunks' results
-      if (isDuplicate(item.text, deduped.map((d) => d.text))) continue;
+      if (
+        isDuplicate(
+          item.text,
+          deduped.map((d) => d.text)
+        )
+      )
+        continue;
       deduped.push(item);
     }
 

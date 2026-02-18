@@ -238,19 +238,17 @@ describe("mergeAuthErrors", () => {
     const result = mergeAuthErrors(
       [],
       [], // round errors — empty because isError was false
-      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+      ["Gmail: Authentication failed — reauthorize to refresh grants"]
     );
 
-    expect(result).toEqual([
-      "Gmail: Authentication failed — reauthorize to refresh grants",
-    ]);
+    expect(result).toEqual(["Gmail: Authentication failed — reauthorize to refresh grants"]);
   });
 
   it("should merge round errors and store errors together", () => {
     const result = mergeAuthErrors(
       [],
       ["list-meeting-notes-actions: ❌ Authorization failed"],
-      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+      ["Gmail: Authentication failed — reauthorize to refresh grants"]
     );
 
     expect(result).toHaveLength(2);
@@ -262,7 +260,7 @@ describe("mergeAuthErrors", () => {
     const result = mergeAuthErrors(
       ["Slack: token expired"],
       [],
-      ["Gmail: Authentication failed — reauthorize to refresh grants"],
+      ["Gmail: Authentication failed — reauthorize to refresh grants"]
     );
 
     expect(result).toHaveLength(2);
@@ -274,7 +272,7 @@ describe("mergeAuthErrors", () => {
     const result = mergeAuthErrors(
       ["Gmail: Authentication failed"],
       ["Gmail: Authentication failed"],
-      ["Gmail: Authentication failed"],
+      ["Gmail: Authentication failed"]
     );
 
     expect(result).toEqual(["Gmail: Authentication failed"]);

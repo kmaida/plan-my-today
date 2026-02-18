@@ -15,7 +15,7 @@ import type { CalendarEventDetail } from "../types";
 /** Create a minimal all-day event with just `start.date` (no dateTime). */
 function makeAllDayEvent(
   dateStr: string,
-  overrides: Partial<CalendarEventDetail> = {},
+  overrides: Partial<CalendarEventDetail> = {}
 ): CalendarEventDetail {
   return {
     summary: "All-Day Event",
@@ -29,7 +29,7 @@ function makeAllDayEvent(
 function makeTimedEvent(
   startISO: string,
   endISO: string,
-  overrides: Partial<CalendarEventDetail> = {},
+  overrides: Partial<CalendarEventDetail> = {}
 ): CalendarEventDetail {
   return {
     summary: "Timed Meeting",
