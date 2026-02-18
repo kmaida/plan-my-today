@@ -12,6 +12,7 @@ import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
 import { registerSetTaskPriorityTool } from "./set-task-priority";
 import { registerSlackListTool } from "./slack-list";
+import { registerTestScopedCredentialsTool } from "./test-scoped-credentials";
 
 /**
  * Tool registry - maps tool names to their registration functions
@@ -30,6 +31,7 @@ export const TOOL_REGISTRY = [
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
   { name: "read-dashboard-tasks", register: registerReadDashboardTasksTool },
   { name: "set-task-priority", register: registerSetTaskPriorityTool },
+  { name: "test-scoped-credentials", register: registerTestScopedCredentialsTool },
 ] as const;
 
 /**

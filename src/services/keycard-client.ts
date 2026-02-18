@@ -1,5 +1,6 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
+import { getLogger } from "../observability/logger";
 import { parseJWTPayload } from "../types/index";
 import { decodeJWT } from "../utils/auth-utils";
 
@@ -70,10 +71,11 @@ export class KeycardClient {
     return decodeJWT(authInfo.token)?.iss;
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: scope verification adds branching after the core exchange logic
   async exchange(
     authInfo: AuthInfo,
     resource: string,
-    scopes?: string[]
+    scopes?: readonly string[]
   ): Promise<TokenExchangeResponse> {
     const keycardBaseUrl = this.keycardBaseUrl || this.getIssuerFromAuthInfo(authInfo);
     if (!keycardBaseUrl) {
@@ -119,7 +121,40 @@ export class KeycardClient {
       );
     }
 
-    return (await response.json()) as TokenExchangeResponse;
+    const result = (await response.json()) as TokenExchangeResponse;
+
+    // Log scope verification: compare what we requested vs. what Keycard granted
+    if (scopes?.length) {
+      const logger = getLogger().withOperation("token_exchange");
+      const requested = new Set(scopes);
+      const granted = result.scope ? new Set(result.scope.split(" ")) : undefined;
+
+      if (!granted) {
+        logger.debug("Keycard response omitted scope field", {
+          resource,
+          requestedScopes: scopes.join(" "),
+        });
+      } else {
+        const missing = [...requested].filter((s) => !granted.has(s));
+        const extra = [...granted].filter((s) => !requested.has(s));
+        if (missing.length > 0 || extra.length > 0) {
+          logger.warn("Keycard granted different scopes than requested", {
+            resource,
+            requestedScopes: scopes.join(" "),
+            grantedScopes: result.scope,
+            missingScopes: missing.length > 0 ? missing.join(" ") : undefined,
+            extraScopes: extra.length > 0 ? extra.join(" ") : undefined,
+          });
+        } else {
+          logger.debug("Scope verification passed", {
+            resource,
+            scopes: result.scope,
+          });
+        }
+      }
+    }
+
+    return result;
   }
 }
 
