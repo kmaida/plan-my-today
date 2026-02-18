@@ -613,25 +613,31 @@ export function filterEmails(
   });
 }
 
-// ── Google Docs comment email extraction ─────────────────────────────────────
+// ── Google Workspace comment email extraction ────────────────────────────────
 
 const DOC_COMMENT_SENDER = "comments-noreply@docs.google.com";
 
 /**
- * Regex to find a direct-to-comment URL in an email body.
- * Matches: https://docs.google.com/document/d/{fileId}/comment?discussion={id}...
- * Also matches: https://docs.google.com/a/{domain}/document/d/{fileId}/...
+ * Regex to find a Google Workspace file URL in a comment notification email body.
+ * Captures the fileId in group 1; full match preserves the deep-link URL.
+ *
+ * Matches Docs, Sheets, and Slides:
+ *   https://docs.google.com/document/d/{fileId}/comment?discussion={id}...
+ *   https://docs.google.com/spreadsheets/d/{fileId}/edit?disco={id}...
+ *   https://docs.google.com/presentation/d/{fileId}/edit?disco={id}...
+ *   https://docs.google.com/a/{domain}/spreadsheets/d/{fileId}/...
  */
 const DOC_COMMENT_URL_PATTERN =
-  /https:\/\/docs\.google\.com\/(?:a\/[^/]+\/)?document\/d\/([^/\s"]+)\/[^\s"]*comment[^\s"]*/;
+  /https:\/\/docs\.google\.com\/(?:a\/[^/]+\/)?(?:document|spreadsheets|presentation)\/d\/([^/\s"]+)[^\s"]*/;
 
 /**
- * Regex to extract doc title from a Google Docs comment notification subject.
+ * Regex to extract file title from a Google Workspace comment notification subject.
  * Typical formats:
  *   "Ian Ornstein (via Google Docs) - My Document Title"
- *   "Re: Ian Ornstein (via Google Docs) - My Document Title"
+ *   "Ian Ornstein (via Google Sheets) - Q1 Budget"
+ *   "Re: Ian Ornstein (via Google Slides) - Pitch Deck"
  */
-const DOC_COMMENT_SUBJECT_PATTERN = /(?:Re:\s*)?.*?\(via Google Docs\)\s*[-–]\s*(.+)/i;
+const DOC_COMMENT_SUBJECT_PATTERN = /(?:Re:\s*)?.*?\(via Google (?:Docs|Sheets|Slides)\)\s*[-–]\s*(.+)/i;
 
 /**
  * Decode base64url-encoded email body data from the Gmail API.

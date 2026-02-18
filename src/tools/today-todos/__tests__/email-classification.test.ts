@@ -8,12 +8,14 @@
 
 import {
   collapseByThread,
+  extractDocCommentEmails,
   extractSenderName,
   filterEmails,
   isFromIndividual,
   isLowImportance,
   isNewsletter,
 } from "../email-utils";
+import type { GmailFullMessage } from "../email-utils";
 import type { GmailMessageDetail } from "../types";
 
 // ── isFromIndividual ──
@@ -392,5 +394,236 @@ describe("collapseByThread", () => {
 
   it("handles empty input", () => {
     expect(collapseByThread([])).toEqual([]);
+  });
+});
+
+// ── extractDocCommentEmails ──
+
+describe("extractDocCommentEmails", () => {
+  const COMMENT_SENDER = "comments-noreply@docs.google.com";
+
+  /** Build a minimal GmailFullMessage with a comment notification sender. */
+  function makeCommentMessage(overrides: {
+    subject?: string;
+    snippet?: string;
+    bodyData?: string;
+    from?: string;
+    internalDate?: string;
+  }): GmailFullMessage {
+    const from = overrides.from ?? COMMENT_SENDER;
+    const parts: GmailFullMessage["payload"] = {
+      headers: [
+        { name: "From", value: from },
+        { name: "Subject", value: overrides.subject ?? "Test subject" },
+      ],
+      mimeType: "text/html",
+    };
+    // If bodyData is provided, base64url-encode it into payload.body
+    if (overrides.bodyData) {
+      const encoded = Buffer.from(overrides.bodyData)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+      parts.body = { data: encoded };
+    }
+    return {
+      id: "msg-comment-1",
+      payload: parts,
+      snippet: overrides.snippet,
+      internalDate: overrides.internalDate,
+    };
+  }
+
+  describe("URL extraction by file type", () => {
+    it("extracts fileId from Google Sheets comment URLs", () => {
+      const msg = makeCommentMessage({
+        subject: "Kim Maida (via Google Sheets) - Q1 Budget",
+        snippet:
+          "Check cell B4 https://docs.google.com/spreadsheets/d/SHEET_ID_123/edit?disco=AAAB more text",
+      });
+      const { commentEmails, remainingMessages } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].fileId).toBe("SHEET_ID_123");
+      expect(commentEmails[0].commentUrl).toContain("disco=AAAB");
+      expect(commentEmails[0].fileTitle).toBe("Q1 Budget");
+      expect(remainingMessages).toHaveLength(0);
+    });
+
+    it("extracts fileId from Google Slides comment URLs", () => {
+      const msg = makeCommentMessage({
+        subject: "Ben Ornstein (via Google Slides) - Pitch Deck",
+        snippet:
+          "See slide 3 https://docs.google.com/presentation/d/SLIDES_ID_456/edit?disco=AAAC",
+      });
+      const { commentEmails, remainingMessages } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].fileId).toBe("SLIDES_ID_456");
+      expect(commentEmails[0].fileTitle).toBe("Pitch Deck");
+      expect(remainingMessages).toHaveLength(0);
+    });
+
+    it("still extracts fileId from Google Docs comment URLs (regression)", () => {
+      const msg = makeCommentMessage({
+        subject: "Ian Ornstein (via Google Docs) - Project Spec",
+        snippet:
+          "Please review https://docs.google.com/document/d/DOC_ID_789/comment?discussion=abc123",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].fileId).toBe("DOC_ID_789");
+      expect(commentEmails[0].commentUrl).toContain("comment?discussion=abc123");
+      expect(commentEmails[0].fileTitle).toBe("Project Spec");
+    });
+
+    it("handles Google Workspace domain URLs (a/{domain}/ prefix)", () => {
+      const msg = makeCommentMessage({
+        subject: "Person (via Google Sheets) - Report",
+        snippet:
+          "Review https://docs.google.com/a/keycard.ai/spreadsheets/d/DOMAIN_SHEET_ID/edit?disco=X",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].fileId).toBe("DOMAIN_SHEET_ID");
+    });
+  });
+
+  describe("commentUrl preserves full deep-link", () => {
+    it("preserves Sheets disco query parameter", () => {
+      const msg = makeCommentMessage({
+        snippet: "https://docs.google.com/spreadsheets/d/SID/edit?disco=AAABz&ts=12345",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].commentUrl).toBe(
+        "https://docs.google.com/spreadsheets/d/SID/edit?disco=AAABz&ts=12345"
+      );
+    });
+
+    it("preserves Docs comment discussion path", () => {
+      const msg = makeCommentMessage({
+        snippet: "https://docs.google.com/document/d/DID/comment?discussion=abc&hl=en",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].commentUrl).toBe(
+        "https://docs.google.com/document/d/DID/comment?discussion=abc&hl=en"
+      );
+    });
+
+    it("preserves Sheets fragment identifier (#gid=...&disco=...)", () => {
+      const msg = makeCommentMessage({
+        snippet: "https://docs.google.com/spreadsheets/d/FID/edit#gid=0&disco=XYZ end",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].commentUrl).toBe(
+        "https://docs.google.com/spreadsheets/d/FID/edit#gid=0&disco=XYZ"
+      );
+    });
+  });
+
+  describe("subject title extraction", () => {
+    it("extracts title from Sheets subject", () => {
+      const msg = makeCommentMessage({
+        subject: "Kim Maida (via Google Sheets) - Budget 2026",
+        snippet: "https://docs.google.com/spreadsheets/d/X/edit?disco=Y",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].fileTitle).toBe("Budget 2026");
+    });
+
+    it("extracts title from Slides subject", () => {
+      const msg = makeCommentMessage({
+        subject: "Ben (via Google Slides) - Q1 Deck",
+        snippet: "https://docs.google.com/presentation/d/X/edit?disco=Y",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].fileTitle).toBe("Q1 Deck");
+    });
+
+    it("handles Re: prefix in subject", () => {
+      const msg = makeCommentMessage({
+        subject: "Re: Kim Maida (via Google Sheets) - Budget 2026",
+        snippet: "https://docs.google.com/spreadsheets/d/X/edit?disco=Y",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      expect(commentEmails[0].fileTitle).toBe("Budget 2026");
+    });
+
+    it("uses full subject as fallback for unrecognized Workspace types", () => {
+      const msg = makeCommentMessage({
+        subject: "Person (via Google Forms) - My Survey",
+        snippet: "https://docs.google.com/spreadsheets/d/X/edit?disco=Y",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+      // Falls back to full subject (minus Re:) since "via Google Forms" doesn't match
+      expect(commentEmails[0].fileTitle).toBe("Person (via Google Forms) - My Survey");
+    });
+  });
+
+  describe("routing: what goes where", () => {
+    it("non-matching sender goes to remainingMessages", () => {
+      const msg = makeCommentMessage({
+        from: "jane.doe@company.com",
+        snippet: "https://docs.google.com/spreadsheets/d/X/edit?disco=Y",
+      });
+      const { commentEmails, remainingMessages } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(0);
+      expect(remainingMessages).toHaveLength(1);
+    });
+
+    it("comment sender with no recognizable URL goes to remainingMessages", () => {
+      const msg = makeCommentMessage({
+        snippet: "Check out https://example.com/some-page for details",
+      });
+      const { commentEmails, remainingMessages } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(0);
+      expect(remainingMessages).toHaveLength(1);
+    });
+  });
+
+  describe("dedup and body extraction", () => {
+    it("deduplicates by fileId, keeping the most recent", () => {
+      const older = makeCommentMessage({
+        snippet: "https://docs.google.com/spreadsheets/d/SAME_ID/edit?disco=OLD",
+        internalDate: "1000",
+      });
+      const newer = makeCommentMessage({
+        snippet: "https://docs.google.com/spreadsheets/d/SAME_ID/edit?disco=NEW",
+        internalDate: "2000",
+      });
+      // Intentionally pass older first
+      const { commentEmails } = extractDocCommentEmails([older, newer]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].commentUrl).toContain("disco=NEW");
+    });
+
+    it("extracts URL from base64url-encoded body (not just snippet)", () => {
+      const bodyHtml =
+        '<a href="https://docs.google.com/spreadsheets/d/BODY_ID/edit?disco=Z">View</a>';
+      const msg = makeCommentMessage({
+        bodyData: bodyHtml,
+        subject: "Person (via Google Sheets) - From Body",
+      });
+      const { commentEmails } = extractDocCommentEmails([msg]);
+
+      expect(commentEmails).toHaveLength(1);
+      expect(commentEmails[0].fileId).toBe("BODY_ID");
+      // commentUrl should stop at the closing " of the href attribute
+      expect(commentEmails[0].commentUrl).toBe(
+        "https://docs.google.com/spreadsheets/d/BODY_ID/edit?disco=Z"
+      );
+    });
+  });
+
+  it("handles empty input", () => {
+    const { commentEmails, remainingMessages } = extractDocCommentEmails([]);
+    expect(commentEmails).toEqual([]);
+    expect(remainingMessages).toEqual([]);
   });
 });
