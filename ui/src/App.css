@@ -42,6 +42,10 @@
   gap: var(--space-md);
 }
 
+.app-header__home-link {
+  display: contents;
+}
+
 .app-header__logo {
   width: 90px;
   height: auto;

@@ -522,7 +522,9 @@ function App() {
         <header className="app-header">
           <div className="app-header__content">
             <div className="app-header__banner">
-              <AppLogo animated={loading || refreshing} className="app-header__logo" />
+              <a href="/" className="app-header__home-link" aria-label="Return to dashboard">
+                <AppLogo animated={loading || refreshing} className="app-header__logo" />
+              </a>
               <div className="app-header__text">
                 <div className="app-header__top">
                   <h1 className="app-brand">PLAN MY <span className="app-brand__to">TO</span>DAY</h1>
