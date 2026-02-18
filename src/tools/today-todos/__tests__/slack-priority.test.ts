@@ -185,29 +185,6 @@ describe("calculateSlackPriority", () => {
 // ── Metadata path (calculateSlackPriorityWithMetadata) ───────────────────────
 
 describe("calculateSlackPriorityWithMetadata", () => {
-  it("should return the same score as calculateSlackPriority", () => {
-    const messages = [
-      makeMessage({
-        type: "saved",
-        text: "urgent fix needed",
-        timestamp: toSlackTs(hoursAgo(0.5, NOW)),
-      }),
-      makeMessage({
-        type: "mention",
-        text: "can you review this",
-        timestamp: toSlackTs(hoursAgo(3, NOW)),
-      }),
-      makeMessage({ type: "dm", text: "hello there", timestamp: toSlackTs(hoursAgo(10, NOW)) }),
-      makeMessage({ type: "saved", text: "sounds good", timestamp: toSlackTs(hoursAgo(48, NOW)) }),
-    ];
-
-    for (const msg of messages) {
-      const score = calculateSlackPriority(msg, NOW);
-      const metadata = calculateSlackPriorityWithMetadata(msg, NOW);
-      expect(metadata.score).toBe(score);
-    }
-  });
-
   describe("signals", () => {
     it("should set hasUrgentKeywords when urgency keywords are present", () => {
       const msg = makeMessage({

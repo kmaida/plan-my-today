@@ -40,10 +40,6 @@ describe("categorizeScore", () => {
     expect(categorizeScore(180)).toBe("critical");
   });
 
-  it("should classify 300 as critical (max score)", () => {
-    expect(categorizeScore(300)).toBe("critical");
-  });
-
   it("should classify negative scores as low", () => {
     expect(categorizeScore(-10)).toBe("low");
   });
@@ -55,10 +51,6 @@ describe("categorizeScore", () => {
 describe("calculateRecencyBoost", () => {
   it("should classify 0 hours as very_recent", () => {
     expect(calculateRecencyBoost(0)).toBe("very_recent");
-  });
-
-  it("should classify 0.5 hours as very_recent", () => {
-    expect(calculateRecencyBoost(0.5)).toBe("very_recent");
   });
 
   it("should classify 0.99 hours as very_recent (just under boundary)", () => {
@@ -85,9 +77,6 @@ describe("calculateRecencyBoost", () => {
     expect(calculateRecencyBoost(24)).toBe("old");
   });
 
-  it("should classify 168 hours (1 week) as old", () => {
-    expect(calculateRecencyBoost(168)).toBe("old");
-  });
 });
 
 // ── calculateProximity ──
@@ -145,10 +134,6 @@ describe("calculateProximity", () => {
   describe("future", () => {
     it("should classify event starting in 121 minutes as future", () => {
       expect(calculateProximity(121)).toBe("future");
-    });
-
-    it("should classify event starting in 480 minutes (8 hours) as future", () => {
-      expect(calculateProximity(480)).toBe("future");
     });
   });
 

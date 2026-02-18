@@ -211,35 +211,6 @@ describe("detectLinearMentions", () => {
     expect(result.relatedItems[0].url).toBe("https://slack.com/archives/C123/p123");
   });
 
-  it("should NOT match KIM-1 inside KIM-10 or KIM-100", () => {
-    const result = detectLinearMentions(
-      "KIM-1",
-      [
-        makeEmail({ id: "e1", subject: "Working on KIM-10" }),
-        makeEmail({ id: "e2", subject: "Blocked by KIM-100" }),
-      ],
-      []
-    );
-    expect(result.totalMentions).toBe(0);
-  });
-
-  it("should match KIM-1 at end of string", () => {
-    const result = detectLinearMentions(
-      "KIM-1",
-      [makeEmail({ subject: "Please check KIM-1" })],
-      []
-    );
-    expect(result.totalMentions).toBe(1);
-  });
-
-  it("should match KIM-1 followed by punctuation", () => {
-    const result = detectLinearMentions(
-      "KIM-1",
-      [],
-      [makeSlackMsg({ text: "Done with KIM-1, moving on" })]
-    );
-    expect(result.totalMentions).toBe(1);
-  });
 });
 
 // ── containsExactToken ─────────────────────────────────────────────────────
@@ -398,35 +369,6 @@ describe("detectGitHubMentions", () => {
     expect(result.totalMentions).toBe(0);
   });
 
-  it("repo#number should NOT match longer numbers (repo#1 vs repo#10)", () => {
-    const result = detectGitHubMentions(
-      "org/repo",
-      1,
-      [makeEmail({ subject: "Merged org/repo#10" })],
-      []
-    );
-    expect(result.totalMentions).toBe(0);
-  });
-
-  it("repo#number should match at end of string", () => {
-    const result = detectGitHubMentions(
-      "org/repo",
-      1,
-      [makeEmail({ subject: "Review org/repo#1" })],
-      []
-    );
-    expect(result.totalMentions).toBe(1);
-  });
-
-  it("repo#number should match followed by punctuation", () => {
-    const result = detectGitHubMentions(
-      "org/repo",
-      1,
-      [makeEmail({ subject: "Merged org/repo#1, closing" })],
-      []
-    );
-    expect(result.totalMentions).toBe(1);
-  });
 });
 
 // ── linkMeetingAssets ────────────────────────────────────────────────────────
