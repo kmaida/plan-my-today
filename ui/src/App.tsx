@@ -45,6 +45,9 @@ function getDefaultCollapsed(viewMode: ViewMode, groupLabel: string, groupCount:
 /** Auto-refresh when the user returns to the tab after this threshold. */
 const STALE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
 
+/** Minimum seconds between manual "Fetch tasks" clicks (matches server-side freshness guard). */
+const FETCH_COOLDOWN_MS = 60 * 1000 // 60 seconds
+
 /**
  * Fixed display order for source status pills (stable layout across fetches).
  * Grouped by information type: scheduled → tracked work → communication → reference.
@@ -88,6 +91,19 @@ const EASTER_EGG_PHRASES = [
 ]
 
 const phraseCycler = new ShuffledCycler([...SOURCE_PHRASES, ...EASTER_EGG_PHRASES]);
+
+/** Phrases shown when the user clicks Fetch during the 60s cooldown window. */
+const cooldownCycler = new ShuffledCycler([
+  "6 APIs need a moment",
+  "The APIs are still recovering",
+  "APIs are RESTing",
+  "Let the servers breathe",
+  "You work too fast",
+  "Fast worker!",
+  "You're on fire today",
+  "Well, that was quick",
+  "So fast you could be AI",
+]);
 
 const SESSION_VIEW_KEY = "pmt_viewMode";
 const SESSION_FILTERS_KEY = "pmt_filters";
@@ -144,6 +160,20 @@ function App() {
   const [authErrorsDismissed, setAuthErrorsDismissed] = useState(false)
   const [authErrorsExpanded, setAuthErrorsExpanded] = useState(false)
   const [dismissedInfo, setDismissedInfo] = useState<{ task: Task; source: string; identifier: string } | null>(null)
+  /** Countdown seconds remaining shown in the snapshot label slot when fetch is on cooldown. */
+  const [cooldownSeconds, setCooldownSeconds] = useState<number | null>(null)
+  const cooldownIntervalRef = useRef<ReturnType<typeof setInterval>>()
+  const cooldownPhraseRef = useRef("")
+  useEffect(() => () => clearInterval(cooldownIntervalRef.current), [])
+
+  // Refs mirror state so callbacks (handleRefresh, onVisible) stay stable
+  // without re-registration on every fetch cycle.
+  const fetchedAtRef = useRef(fetchedAt)
+  fetchedAtRef.current = fetchedAt
+  const refreshingRef = useRef(refreshing)
+  refreshingRef.current = refreshing
+  const failedSourcesRef = useRef(failedSources)
+  failedSourcesRef.current = failedSources
 
   // Persist view mode to sessionStorage so it survives page refresh
   useEffect(() => {
@@ -181,6 +211,36 @@ function App() {
 
   const handleRefresh = useCallback(async () => {
     if (inflightRefreshRef.current) return inflightRefreshRef.current
+
+    // Cooldown: when all sources succeeded the data is fully fresh — no point
+    // re-fetching. When some sources failed, skip the cooldown entirely so the
+    // user can reauthorize and retry immediately (the inflight guard still
+    // prevents truly concurrent calls).
+    const ts = fetchedAtRef.current
+    if (ts && failedSourcesRef.current.length === 0) {
+      const fetchedAtMs = new Date(ts).getTime()
+      const elapsed = Date.now() - fetchedAtMs
+      if (elapsed < FETCH_COOLDOWN_MS) {
+        // Start a live countdown that ticks every second until cooldown expires.
+        // We store the deadline so each tick recalculates from the clock (no drift).
+        // Pick a new phrase each click so repeated clicks cycle through the pool.
+        cooldownPhraseRef.current = cooldownCycler.next()
+        const deadline = fetchedAtMs + FETCH_COOLDOWN_MS
+        const remaining = Math.ceil((deadline - Date.now()) / 1000)
+        setCooldownSeconds(remaining)
+        clearInterval(cooldownIntervalRef.current)
+        cooldownIntervalRef.current = setInterval(() => {
+          const secsLeft = Math.ceil((deadline - Date.now()) / 1000)
+          if (secsLeft <= 0) {
+            clearInterval(cooldownIntervalRef.current)
+            setCooldownSeconds(null)
+          } else {
+            setCooldownSeconds(secsLeft)
+          }
+        }, 1000)
+        return
+      }
+    }
 
     const doRefresh = async () => {
       try {
@@ -283,13 +343,6 @@ function App() {
   }, [chatOpen])
 
   // Auto-refresh on tab focus when data is stale.
-  // Refs mirror state so the visibilitychange listener stays stable
-  // (no re-registration on every fetch cycle).
-  const fetchedAtRef = useRef(fetchedAt)
-  fetchedAtRef.current = fetchedAt
-  const refreshingRef = useRef(refreshing)
-  refreshingRef.current = refreshing
-
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
@@ -431,9 +484,12 @@ function App() {
     }
   }, [dismissedInfo])
 
-  const snapshotLabel = fetchedAt
-    ? `Last updated ${isToday(fetchedAt) ? 'today' : formatDate(fetchedAt)} at ${formatTime(fetchedAt)}`
-    : null
+  const isCooldownActive = cooldownSeconds !== null
+  const snapshotLabel = isCooldownActive
+    ? `${cooldownPhraseRef.current} · rate-limit ${cooldownSeconds}s`
+    : (fetchedAt
+      ? `Last updated ${isToday(fetchedAt) ? 'today' : formatDate(fetchedAt)} at ${formatTime(fetchedAt)}`
+      : null)
 
   // Back-to-top: track scroll position on the .app container.
   // Uses a callback ref because AuthGate defers rendering children

@@ -4,6 +4,21 @@ import { getCompletedBySource } from "../../services/action-completion-store";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { SlackFileAttachment, SlackMessageDetail } from "./types";
 
+// ---------------------------------------------------------------------------
+// In-memory caches — persist across calls, cleared on server restart.
+// ---------------------------------------------------------------------------
+
+const NAME_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Module-level cache for Slack channel ID → display name. */
+const slackChannelNames = new Map<string, { name: string; cachedAt: number }>();
+
+/** Module-level cache for Slack user ID → display name. */
+const slackUserNames = new Map<string, { name: string; cachedAt: number }>();
+
+/** Module-level cache for auth.test result (Slack user ID for a given token). */
+let cachedSlackUserId: { token: string; userId: string } | null = null;
+
 /**
  * Shape of a raw Slack message from the Search/Reactions APIs.
  * Defined once here and reused across fetchSlackSavedMessages,
@@ -68,9 +83,14 @@ interface SlackReactionsResponse {
 }
 
 /**
- * Get the authenticated user's Slack ID
+ * Get the authenticated user's Slack ID.
+ * Caches the result in-memory since the user ID never changes for a given token.
  */
 async function getUserId(accessToken: string): Promise<string> {
+  if (cachedSlackUserId && cachedSlackUserId.token === accessToken) {
+    return cachedSlackUserId.userId;
+  }
+
   const response = await fetch("https://slack.com/api/auth.test", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -88,6 +108,7 @@ async function getUserId(accessToken: string): Promise<string> {
     throw new Error(data.error || "Failed to get user ID");
   }
 
+  cachedSlackUserId = { token: accessToken, userId: data.user_id };
   return data.user_id;
 }
 
@@ -483,9 +504,16 @@ function extractDisplayName(userData: SlackUserInfoResponse): string | undefined
 }
 
 /**
+ * Check if a module-level name cache entry is still valid (within TTL).
+ */
+function isCacheValid(entry: { cachedAt: number } | undefined): boolean {
+  return !!entry && Date.now() - entry.cachedAt < NAME_CACHE_TTL_MS;
+}
+
+/**
  * Resolve channel IDs to human-readable names and user IDs to display names.
  * Combines both resolutions in a single pass to avoid redundant iteration.
- * Uses conversations.info for channels, users.info for user display names.
+ * Uses module-level caches (24h TTL) so previously-seen IDs skip API calls.
  * DMs (D-prefixed channels) are resolved to the other user's display name.
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: combined channel + user name resolution with API fallbacks
@@ -503,115 +531,127 @@ async function resolveSlackNames(
       // Always re-resolve DM channels — the search API returns a truthy but
       // unhelpful name (e.g., "kimmaida") that the UI can't use.
       if (!msg.channelName || (isDmChannel && !alreadyResolvedDm)) {
-        channelIdsToResolve.add(msg.channel);
+        // Check module-level cache first
+        const cached = slackChannelNames.get(msg.channel);
+        if (!isCacheValid(cached)) {
+          channelIdsToResolve.add(msg.channel);
+        }
       }
     }
     if (!msg.userName && msg.user) {
-      userIdsToResolve.add(msg.user);
+      const cached = slackUserNames.get(msg.user);
+      if (!isCacheValid(cached)) {
+        userIdsToResolve.add(msg.user);
+      }
     }
   }
 
-  if (channelIdsToResolve.size === 0 && userIdsToResolve.size === 0) return messages;
-
-  const channelNameCache = new Map<string, string>();
-  const userNameCache = new Map<string, string>();
   const logger = getLogger().withOperation("slack_utils");
 
-  // Resolve channels and users in a single concurrent batch
-  const channelPromises = Array.from(channelIdsToResolve).map(async (channelId) => {
-    try {
-      if (channelId.startsWith("D")) {
-        // DM channel — resolve via conversations.info to get the user, then users.info for name
-        const convResponse = await fetch(
-          `https://slack.com/api/conversations.info?channel=${channelId}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        const convData = (await convResponse.json()) as {
-          ok: boolean;
-          channel?: { user?: string };
-        };
-        if (convData.ok && convData.channel?.user) {
-          const userResponse = await fetch(
-            `https://slack.com/api/users.info?user=${convData.channel.user}`,
+  // Only make API calls for IDs not already in the module cache
+  if (channelIdsToResolve.size > 0 || userIdsToResolve.size > 0) {
+    const now = Date.now();
+
+    // Resolve channels and users in a single concurrent batch
+    const channelPromises = Array.from(channelIdsToResolve).map(async (channelId) => {
+      try {
+        if (channelId.startsWith("D")) {
+          // DM channel — resolve via conversations.info to get the user, then users.info for name
+          const convResponse = await fetch(
+            `https://slack.com/api/conversations.info?channel=${channelId}`,
             { headers: { Authorization: `Bearer ${accessToken}` } }
           );
-          const userData = (await userResponse.json()) as SlackUserInfoResponse;
-          const name = extractDisplayName(userData);
-          channelNameCache.set(channelId, name ? `DM: ${name}` : "DM");
-          // Bonus: if we also needed this user's name, cache it to avoid a duplicate call
-          if (name && convData.channel.user && userIdsToResolve.has(convData.channel.user)) {
-            userNameCache.set(convData.channel.user, name);
+          const convData = (await convResponse.json()) as {
+            ok: boolean;
+            channel?: { user?: string };
+          };
+          if (convData.ok && convData.channel?.user) {
+            const userResponse = await fetch(
+              `https://slack.com/api/users.info?user=${convData.channel.user}`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const userData = (await userResponse.json()) as SlackUserInfoResponse;
+            const name = extractDisplayName(userData);
+            const channelName = name ? `DM: ${name}` : "DM";
+            slackChannelNames.set(channelId, { name: channelName, cachedAt: now });
+            // Bonus: cache the user name too if we needed it
+            if (name && convData.channel.user && userIdsToResolve.has(convData.channel.user)) {
+              slackUserNames.set(convData.channel.user, { name, cachedAt: now });
+            }
+          } else {
+            slackChannelNames.set(channelId, { name: "DM", cachedAt: now });
           }
         } else {
-          channelNameCache.set(channelId, "DM");
+          // Regular channel
+          const response = await fetch(
+            `https://slack.com/api/conversations.info?channel=${channelId}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          const data = (await response.json()) as {
+            ok: boolean;
+            channel?: { name?: string };
+            error?: string;
+          };
+          if (data.ok && data.channel?.name) {
+            slackChannelNames.set(channelId, { name: data.channel.name, cachedAt: now });
+          } else {
+            logger.debug("conversations.info returned no name", {
+              channelId,
+              ok: data.ok,
+              error: data.error,
+            });
+          }
         }
-      } else {
-        // Regular channel
+      } catch (error) {
+        logger.debug("Failed to resolve channel name", {
+          channelId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (channelId.startsWith("D")) {
+          slackChannelNames.set(channelId, { name: "DM", cachedAt: now });
+        }
+      }
+    });
+
+    const userPromises = Array.from(userIdsToResolve).map(async (userId) => {
+      // May overlap with the DM branch above (both can resolve the same user ID).
+      // This is harmless — Map.set is last-write-wins with identical values.
+      try {
         const response = await fetch(
-          `https://slack.com/api/conversations.info?channel=${channelId}`,
+          `https://slack.com/api/users.info?user=${userId}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
-        const data = (await response.json()) as {
-          ok: boolean;
-          channel?: { name?: string };
-          error?: string;
-        };
-        if (data.ok && data.channel?.name) {
-          channelNameCache.set(channelId, data.channel.name);
-        } else {
-          logger.debug("conversations.info returned no name", {
-            channelId,
-            ok: data.ok,
-            error: data.error,
-          });
+        const userData = (await response.json()) as SlackUserInfoResponse;
+        const name = extractDisplayName(userData);
+        if (name) {
+          slackUserNames.set(userId, { name, cachedAt: now });
         }
+      } catch (error) {
+        logger.debug("Failed to resolve user name", {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
-    } catch (error) {
-      logger.debug("Failed to resolve channel name", {
-        channelId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      if (channelId.startsWith("D")) {
-        channelNameCache.set(channelId, "DM");
-      }
-    }
-  });
+    });
 
-  const userPromises = Array.from(userIdsToResolve).map(async (userId) => {
-    // May overlap with the DM branch above (both can resolve the same user ID).
-    // This is harmless — Map.set is last-write-wins with identical values.
-    try {
-      const response = await fetch(
-        `https://slack.com/api/users.info?user=${userId}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const userData = (await response.json()) as SlackUserInfoResponse;
-      const name = extractDisplayName(userData);
-      if (name) {
-        userNameCache.set(userId, name);
-      }
-    } catch (error) {
-      logger.debug("Failed to resolve user name", {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
+    await Promise.all([...channelPromises, ...userPromises]);
+  }
 
-  await Promise.all([...channelPromises, ...userPromises]);
-
+  // Apply resolved names from module cache to messages
   return messages.map((msg) => {
     let updated = msg;
     // Apply channel name — for DM channels, always overwrite because the
     // search API returns an unhelpful name (e.g., the username string)
-    if (channelNameCache.has(updated.channel)) {
-      updated = { ...updated, channelName: channelNameCache.get(updated.channel) };
+    const cachedChannel = slackChannelNames.get(updated.channel);
+    if (cachedChannel) {
+      updated = { ...updated, channelName: cachedChannel.name };
     } else if (!updated.channelName && updated.channel.startsWith("D")) {
       updated = { ...updated, channelName: "DM" };
     }
     // Apply user name
-    if (!updated.userName && userNameCache.has(updated.user)) {
-      updated = { ...updated, userName: userNameCache.get(updated.user) };
+    const cachedUser = slackUserNames.get(updated.user);
+    if (!updated.userName && cachedUser) {
+      updated = { ...updated, userName: cachedUser.name };
     }
     return updated;
   });

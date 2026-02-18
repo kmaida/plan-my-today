@@ -183,11 +183,52 @@ function summarizeSlackMessage(
   return title;
 }
 
+// ---------------------------------------------------------------------------
+// Freshness guard — skip redundant re-fetches within a short window.
+// ---------------------------------------------------------------------------
+
+/** Seconds within which a re-call returns cached counts instead of re-fetching. */
+const FRESHNESS_WINDOW_SECONDS = 60;
+
+/**
+ * Build the per-source item counts from a ListAllTasksResponse (or parsed JSON with the same shape).
+ * Used by both the normal return path and the freshness guard to avoid duplicating the counts structure.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: accepts both typed ListAllTasksResponse and parsed JSON
+function buildCounts(data: Record<string, any>) {
+  return {
+    calendar: data.calendar?.length ?? 0,
+    linear: data.linear?.length ?? 0,
+    gmail: data.gmail?.length ?? 0,
+    slack: data.slack?.length ?? 0,
+    github: {
+      prs: data.github?.prs?.length ?? 0,
+      issues: data.github?.issues?.length ?? 0,
+    },
+    drive: data.drive?.length ?? 0,
+    meetingSummaries: data.meetingSummaries?.length ?? 0,
+    meetingNotes: data.meetingNotes?.length ?? 0,
+  };
+}
+
+/**
+ * Timestamp of the last successful fetch (zero failed sources).
+ * Module-level so it persists across calls within the same server process.
+ * Resets to null on server restart (first call always fetches).
+ */
+let lastSuccessfulFetch: number | null = null;
+
 /**
  * Input schema for the list-all-tasks-today tool
  */
 const listAllTasksTodayInputSchema = {
   includeGithub: z.boolean().describe("Include GitHub PRs and issues (default: true)").optional(),
+  force: z
+    .boolean()
+    .describe(
+      "Force a fresh fetch even if data was recently fetched. Use when the user explicitly asks to refresh."
+    )
+    .optional(),
 };
 
 /**
@@ -226,6 +267,48 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
             },
           ],
         };
+      }
+
+      // ============================================
+      // FRESHNESS GUARD: skip redundant re-fetches
+      // ============================================
+      const guardTimestamp = Date.now();
+      const elapsedSeconds =
+        lastSuccessfulFetch !== null ? (guardTimestamp - lastSuccessfulFetch) / 1000 : Infinity;
+
+      if (!args.force && elapsedSeconds < FRESHNESS_WINDOW_SECONDS) {
+        const secondsSinceFetch = Math.round(elapsedSeconds);
+        const suggestedWait = FRESHNESS_WINDOW_SECONDS - secondsSinceFetch;
+
+        // Read counts + metadata from the existing task store
+        let counts: ReturnType<typeof buildCounts> | null = null;
+        let metadata: Record<string, unknown> = {};
+        try {
+          const taskStorePath = path.join(process.cwd(), "data", "latest-tasks.json");
+          const raw = JSON.parse(await fs.readFile(taskStorePath, "utf-8"));
+          counts = buildCounts(raw);
+          metadata = raw.metadata ?? {};
+        } catch {
+          // Task store unreadable — fall through to normal fetch
+        }
+
+        if (counts) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  status: "fresh",
+                  message: `Tasks were fetched from all sources ${secondsSinceFetch} seconds ago and are still current. Use read-dashboard-tasks to access this data. To force a fresh fetch, call again with force: true.`,
+                  secondsSinceFetch,
+                  suggestedWait,
+                  counts,
+                  metadata,
+                }),
+              },
+            ],
+          };
+        }
       }
 
       const includeGithub = args.includeGithub ?? true;
@@ -662,6 +745,11 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           path.join(dataDir, "latest-tasks.json"),
           JSON.stringify(responseData, null, 2)
         );
+        // Only guard future calls when every source succeeded — partial failures
+        // should allow immediate retry without hitting the freshness guard.
+        if (failedSources.length === 0) {
+          lastSuccessfulFetch = Date.now();
+        }
       } catch {
         // Non-fatal: task store write failed
       }
@@ -674,16 +762,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
             type: "text",
             text: JSON.stringify({
               status: "ok",
-              counts: {
-                calendar: calendarEvents.length,
-                linear: linearIssues.length,
-                gmail: gmailTodos.length,
-                slack: slackMessages.length,
-                github: { prs: githubPRs.length, issues: githubIssues.length },
-                drive: assignedActions.length,
-                meetingSummaries: meetingSummaries.length,
-                meetingNotes: meetingNoteActions.length,
-              },
+              counts: buildCounts(responseData),
               metadata: responseData.metadata,
             }),
           },

@@ -4,10 +4,18 @@ import { AuthenticationError } from "../../utils/error-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { GitHubIssueDetail, GitHubPRDetail } from "./types";
 
+/** Module-level cache for GitHub username (never changes for a given token). */
+let cachedGitHubUser: { token: string; login: string } | null = null;
+
 /**
- * Gets the authenticated user's GitHub username
+ * Gets the authenticated user's GitHub username.
+ * Caches the result in-memory since the login never changes for a given token.
  */
 async function getGitHubUsername(accessToken: string): Promise<string | null> {
+  if (cachedGitHubUser && cachedGitHubUser.token === accessToken) {
+    return cachedGitHubUser.login;
+  }
+
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/vnd.github.v3+json",
@@ -24,6 +32,7 @@ async function getGitHubUsername(accessToken: string): Promise<string | null> {
   }
 
   const user = (await response.json()) as { login: string };
+  cachedGitHubUser = { token: accessToken, login: user.login };
   return user.login;
 }
 
