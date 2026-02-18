@@ -9,6 +9,7 @@ import {
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+import compression from "compression";
 import express from "express";
 import { config } from "./config";
 import { PATHS } from "./constants";
@@ -66,6 +67,19 @@ export function createApp(): express.Application {
 
   // Parse JSON requests (increased limit for chat payloads with tool results)
   app.use(express.json({ limit: "2mb" }));
+
+  // Compress static assets and JSON API responses. Exclude SSE streams
+  // (chat proxy, MCP transport) so compression doesn't buffer real-time chunks.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (res.getHeader("Content-Type")?.toString().includes("text/event-stream")) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    })
+  );
 
   // Check if we're in multi-tenant mode
   const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;

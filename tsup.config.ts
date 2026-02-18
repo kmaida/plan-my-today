@@ -26,6 +26,7 @@ export default defineConfig({
   // - zod: runtime schema builders, large but necessary
   external: [
     "express",
+    "compression",
     /^@keycardlabs\/.*/,
     /^@modelcontextprotocol\/.*/,
     "dotenv",

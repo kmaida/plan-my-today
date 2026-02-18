@@ -10,6 +10,22 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            // Isolate large vendor deps into cache-friendly chunks so that
+            // app-only changes don't invalidate the (unchanged) vendor cache.
+            if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+              return 'vendor-react'
+            }
+            if (id.includes('node_modules/@modelcontextprotocol/')) {
+              return 'vendor-mcp'
+            }
+          },
+        },
+      },
+    },
     server: {
       port: 9006,
       proxy: {
