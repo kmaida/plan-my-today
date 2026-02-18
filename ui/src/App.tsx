@@ -84,6 +84,7 @@ const EASTER_EGG_PHRASES = [
   'Spinning up hamster wheels',
   'Bribing the task gods',
   'Warming up the to-do engine',
+  'Operating nullish coalescing',
 ]
 
 const phraseCycler = new ShuffledCycler([...SOURCE_PHRASES, ...EASTER_EGG_PHRASES]);

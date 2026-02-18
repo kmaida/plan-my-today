@@ -219,6 +219,48 @@ describe("deduplicateAndGroup", () => {
     });
   });
 
+  // ── isSelf flag ─────────────────────────────────────────────────────────
+
+  describe("isSelf flag", () => {
+    it("should set isSelf: true for messages sent by the authenticated user", () => {
+      const selfMsg = makeRaw({ ts: "1000.000000", user: USER_ID });
+
+      const result = deduplicateAndGroup([selfMsg], [], [], [], USER_ID);
+
+      expect(result[0].isSelf).toBe(true);
+    });
+
+    it("should set isSelf: false for messages sent by other users", () => {
+      const otherMsg = makeRaw({ ts: "1000.000000", user: "U_OTHER" });
+
+      const result = deduplicateAndGroup([otherMsg], [], [], [], USER_ID);
+
+      expect(result[0].isSelf).toBe(false);
+    });
+
+    it("should set isSelf correctly across all message types", () => {
+      const selfSaved = makeRaw({ ts: "1000.000000", user: USER_ID });
+      const otherMention = makeRaw({ ts: "2000.000000", user: "U_OTHER" });
+      const selfDm = makeRaw({ ts: "3000.000000", user: USER_ID });
+
+      const result = deduplicateAndGroup(
+        [otherMention],
+        [],
+        [selfDm],
+        [selfSaved],
+        USER_ID
+      );
+
+      const saved = result.find((r) => r.type === "saved");
+      const mention = result.find((r) => r.type === "mention");
+      const dm = result.find((r) => r.type === "dm");
+
+      expect(saved?.isSelf).toBe(true);
+      expect(mention?.isSelf).toBe(false);
+      expect(dm?.isSelf).toBe(true);
+    });
+  });
+
   // ── DismissalId format ──────────────────────────────────────────────────
 
   describe("dismissalId contract", () => {

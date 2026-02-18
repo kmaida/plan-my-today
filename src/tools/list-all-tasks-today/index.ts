@@ -122,10 +122,8 @@ function buildFallbackTitle(
 
   if (files && files.length > 0) {
     const fileLabel = describeFile(files[0]);
-    if (files.length === 1) {
-      return fileLabel;
-    }
-    return `${fileLabel} (+${files.length - 1} more)`;
+    const suffix = files.length > 1 ? ` (+${files.length - 1} more)` : "";
+    return `${fileLabel}${suffix} - from ${userName}`;
   }
 
   return `${typeLabel} from ${userName}`;

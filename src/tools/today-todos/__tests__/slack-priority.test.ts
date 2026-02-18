@@ -100,7 +100,7 @@ describe("calculateSlackPriority", () => {
 
     it("should add 50 for action keywords (when no urgency or question)", () => {
       const _msg = makeMessage({ type: "saved", text: "please review the PR", timestamp: oldTs });
-      // "please" is a question keyword — so this actually matches question first
+      // "please review" is a question keyword phrase — so this matches question first
       // Use a message with only action keywords
       const actionOnly = makeMessage({ type: "saved", text: "review the PR", timestamp: oldTs });
       expect(calculateSlackPriority(actionOnly, NOW)).toBe(base + 50);

@@ -231,6 +231,7 @@ export function deduplicateAndGroup(
       channelName: msg.channel?.name,
       user: msg.user,
       userName: msg.username,
+      isSelf: msg.user === userId,
       permalink: msg.permalink,
       dismissalId: channelId && msg.ts ? `${channelId}:${msg.ts}` : undefined,
       threadTs: msg.thread_ts,
@@ -302,12 +303,15 @@ const QUESTION_KEYWORDS = [
   "can you",
   "could you",
   "would you",
-  "please",
-  "need",
-  "help",
+  "do you know",
   "quick question",
   "wondering if",
-  "do you know",
+  "need your",
+  "need you to",
+  "help with",
+  "help me",
+  "please review",
+  "please take a look",
 ] as const;
 
 const ACTION_KEYWORDS = [
@@ -493,8 +497,14 @@ async function resolveSlackNames(
   const userIdsToResolve = new Set<string>();
 
   for (const msg of messages) {
-    if (!msg.channelName && msg.channel) {
-      channelIdsToResolve.add(msg.channel);
+    if (msg.channel) {
+      const isDmChannel = msg.channel.startsWith("D");
+      const alreadyResolvedDm = msg.channelName?.startsWith("DM");
+      // Always re-resolve DM channels — the search API returns a truthy but
+      // unhelpful name (e.g., "kimmaida") that the UI can't use.
+      if (!msg.channelName || (isDmChannel && !alreadyResolvedDm)) {
+        channelIdsToResolve.add(msg.channel);
+      }
     }
     if (!msg.userName && msg.user) {
       userIdsToResolve.add(msg.user);
@@ -592,8 +602,9 @@ async function resolveSlackNames(
 
   return messages.map((msg) => {
     let updated = msg;
-    // Apply channel name
-    if (!updated.channelName && channelNameCache.has(updated.channel)) {
+    // Apply channel name — for DM channels, always overwrite because the
+    // search API returns an unhelpful name (e.g., the username string)
+    if (channelNameCache.has(updated.channel)) {
       updated = { ...updated, channelName: channelNameCache.get(updated.channel) };
     } else if (!updated.channelName && updated.channel.startsWith("D")) {
       updated = { ...updated, channelName: "DM" };

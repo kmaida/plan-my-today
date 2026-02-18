@@ -257,6 +257,7 @@ export interface SlackMessageDetail {
   channelName?: string; // Human-readable channel name
   user: string; // User who posted
   userName?: string; // Human-readable user name
+  isSelf?: boolean; // True if the authenticated user sent this message
   permalink?: string; // Slack permalink to message
   dismissalId?: string; // Stable completion identifier: "{channelId}:{ts}"
   threadTs?: string; // Thread identifier

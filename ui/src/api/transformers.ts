@@ -123,6 +123,7 @@ function transformSlack(msg: ServerSlackMessage): SlackTask {
     timestamp: msg.timestamp,
     channel: msg.channelName || msg.channel,
     user: msg.userName || msg.user,
+    isSelf: msg.isSelf,
     type: msg.type,
     link: msg.permalink,
     dismissalId: msg.dismissalId,

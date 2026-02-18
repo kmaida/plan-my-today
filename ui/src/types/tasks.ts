@@ -159,6 +159,7 @@ export interface SlackTask {
   timestamp: string;
   channel: string;
   user: string;
+  isSelf?: boolean; // True if the authenticated user sent this message
   type: "mention" | "thread" | "dm" | "saved";
   link?: string;
   dismissalId?: string; // Stable completion identifier: "{channelId}:{ts}"
@@ -334,6 +335,7 @@ export interface ServerSlackMessage {
   channelName?: string;
   user: string;
   userName?: string;
+  isSelf?: boolean;
   permalink?: string;
   dismissalId?: string; // Stable completion identifier: "{channelId}:{ts}"
   threadTs?: string;

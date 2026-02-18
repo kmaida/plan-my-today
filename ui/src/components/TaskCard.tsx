@@ -149,12 +149,16 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
     if (isSlackTask(task)) {
       const channel = task.channel
       const isRawId = channel && /^[A-Z0-9]+$/.test(channel)
+      const userLabel = task.isSelf ? 'me' : (task.user || '')
+      const userSuffix = userLabel ? `: ${userLabel}` : ''
       if (channel && channel.startsWith('DM:')) {
-        items.push(channel)
+        items.push(task.isSelf ? `${channel} (me)` : channel)
       } else if (channel && channel === 'DM') {
-        items.push(channel)
+        items.push(task.isSelf ? 'DM (me)' : 'DM')
       } else if (channel && !isRawId) {
-        items.push(`#${channel}`)
+        items.push(`#${channel}${userSuffix}`)
+      } else if (userLabel) {
+        items.push(userLabel)
       }
       if (task.type === 'saved') {
         items.push('Emoji')
