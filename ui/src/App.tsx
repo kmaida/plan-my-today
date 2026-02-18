@@ -256,6 +256,7 @@ function App() {
         setError(err instanceof Error ? err.message : 'Failed to refresh tasks')
       } finally {
         setRefreshing(false)
+        setLoading(false)
         inflightRefreshRef.current = null
       }
     }
@@ -312,8 +313,6 @@ function App() {
           // Task store read failed — dashboard stays empty, user can fetch manually
         })
         .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
     }
   }, [])
 
