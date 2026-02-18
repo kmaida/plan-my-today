@@ -115,7 +115,6 @@ function describeFile(file: SlackFileAttachment): string {
  */
 function buildFallbackTitle(
   type: string,
-  userName: string,
   files?: SlackFileAttachment[]
 ): string {
   const typeLabel = SLACK_TYPE_LABELS[type] || "Message";
@@ -123,10 +122,10 @@ function buildFallbackTitle(
   if (files && files.length > 0) {
     const fileLabel = describeFile(files[0]);
     const suffix = files.length > 1 ? ` (+${files.length - 1} more)` : "";
-    return `${fileLabel}${suffix} - from ${userName}`;
+    return `${fileLabel}${suffix}`;
   }
 
-  return `${typeLabel} from ${userName}`;
+  return typeLabel;
 }
 
 /**
@@ -139,11 +138,10 @@ function buildFallbackTitle(
 function summarizeSlackMessage(
   text: string,
   type: string,
-  userName: string,
   files?: SlackFileAttachment[]
 ): string {
   if (!text) {
-    return buildFallbackTitle(type, userName, files);
+    return buildFallbackTitle(type, files);
   }
 
   // Take first line only
@@ -166,7 +164,7 @@ function summarizeSlackMessage(
 
   // If first line is empty after stripping (e.g., emoji-only, /giphy), use fallback
   if (!title) {
-    return buildFallbackTitle(type, userName, files);
+    return buildFallbackTitle(type, files);
   }
 
   // Truncate based on visible text length (excluding link URL markup).
@@ -482,7 +480,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           ...msg,
           taskId: randomUUID(),
           stableId: computeStableId("slack", msg),
-          title: summarizeSlackMessage(msg.text, msg.type, msg.userName || msg.user || "Someone", msg.files),
+          title: summarizeSlackMessage(msg.text, msg.type, msg.files),
           timestamp: isoTimestamp,
           priorityMetadata,
         };
