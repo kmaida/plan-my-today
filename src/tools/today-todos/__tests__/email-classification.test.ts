@@ -51,6 +51,10 @@ describe("isFromIndividual", () => {
       expect(isFromIndividual("jane@company.com", "Welcome to Our Service")).toBe(false);
       expect(isFromIndividual("jane@company.com", "Your order has been shipped")).toBe(false);
     });
+
+    // Note: support@ and help@ are intentionally NOT in AUTOMATED_FROM_PATTERNS.
+    // Replies from support ticket systems (e.g., "Your ticket has been updated")
+    // are important — the user filed that ticket and needs to see the response.
   });
 
   describe("individual senders (should return true)", () => {
@@ -62,6 +66,38 @@ describe("isFromIndividual", () => {
     it("recognizes display name pattern", () => {
       expect(isFromIndividual("Jane Doe <jane@company.com>", "Quick question")).toBe(true);
       expect(isFromIndividual("Kim Maida <kim@keycard.ai>", "Meeting notes")).toBe(true);
+    });
+  });
+
+  describe("newsletter and team senders (should return false)", () => {
+    it("rejects display names with generic team/org words", () => {
+      // These match the "First Last" display name regex but are clearly not people
+      expect(isFromIndividual("Cursor Team <team@mail.cursor.com>", "Plugins and More")).toBe(
+        false
+      );
+      expect(isFromIndividual("Vercel Team <team@vercel.com>", "New features")).toBe(false);
+      expect(isFromIndividual("Product Updates <updates@company.com>", "Weekly digest")).toBe(
+        false
+      );
+      expect(isFromIndividual("Engineering Platform <eng@company.com>", "Infra news")).toBe(false);
+    });
+
+    it("rejects newsletter from-patterns even with display names", () => {
+      // team@, info@, hello@ are newsletter from-patterns — caught by isNewsletter gate
+      expect(isFromIndividual("Great Company <team@greatco.com>", "Our latest")).toBe(false);
+      expect(isFromIndividual("Cool Startup <info@startup.io>", "Check this out")).toBe(false);
+      expect(isFromIndividual("Nice People <hello@nice.com>", "Hey there")).toBe(false);
+    });
+
+    it("rejects first.last@ addresses when newsletter subject patterns match", () => {
+      // Even a first.last@ address is rejected when the subject screams newsletter
+      expect(isFromIndividual("news.weekly@company.com", "Weekly Digest: Top Stories")).toBe(false);
+      expect(isFromIndividual("team.news@company.com", "Your Monthly Newsletter")).toBe(false);
+    });
+
+    it("does not reject real people whose names happen to share org words", () => {
+      // Uncommon but real surnames should not collide with the conservative word list
+      expect(isFromIndividual("Sarah Cloud <sarah.cloud@company.com>", "Sync up")).toBe(true);
     });
   });
 

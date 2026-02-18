@@ -45,7 +45,6 @@ const AUTOMATED_FROM_PATTERNS = [
   /system@/i,
   /mailer-daemon/i,
   /postmaster@/i,
-  /support@/i,
   /billing@/i,
   /accounts?@/i,
   /security@/i,
@@ -147,6 +146,15 @@ const NEWSLETTER_FROM_PATTERNS = [
   /hi@/i,
 ];
 
+// Words that appear in organizational display names but not in real person names.
+// Kept deliberately short — only words that are unambiguously non-personal.
+// Note: words like "cloud", "security", "labs" are omitted because they can
+// plausibly be surnames (e.g., "Mike Cloud", "John Labs" is unlikely but "labs"
+// is short enough to collide). Prefer adding sender patterns to
+// AUTOMATED_FROM_PATTERNS or NEWSLETTER_FROM_PATTERNS over growing this list.
+const NON_PERSON_DISPLAY_WORDS =
+  /\b(team|newsletter|digest|updates?|announcements?|platform|community|inc|llc|ltd|corp)\b/i;
+
 /**
  * Checks if the from address is from a calendar notification
  */
@@ -197,6 +205,13 @@ export function isFromIndividual(from: string, subject: string): boolean {
     return false;
   }
 
+  // ── Newsletter / marketing gate ─────────────────────────────────────────────
+  // Check before positive signals: newsletters are never individuals, even when
+  // the display name looks like a person's name (e.g., "Cursor Team").
+  if (isNewsletter(from, subject)) {
+    return false;
+  }
+
   // ── Positive signal: looks like a person's name ───────────────────────────
   // Patterns like "first.last@", "first_last@", or display name with spaces
   const namePattern = /^[a-z]+[._][a-z]+@/i;
@@ -205,8 +220,13 @@ export function isFromIndividual(from: string, subject: string): boolean {
   }
 
   // Display name present (e.g., "Kim Maida <kim@example.com>")
+  // Exclude generic non-person names like "Cursor Team", "Product Updates", etc.
   const hasDisplayName = /^[A-Z][a-z]+ [A-Z][a-z]+/.test(from.trim());
   if (hasDisplayName) {
+    const displayName = from.split("<")[0];
+    if (NON_PERSON_DISPLAY_WORDS.test(displayName)) {
+      return false;
+    }
     return true;
   }
 
