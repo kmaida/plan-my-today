@@ -10,8 +10,6 @@ interface ServerConfig {
   host: string;
   baseUrl: string;
   keycardIssuerUrl: string;
-  issuerBaseDomain: string;
-  mcpBaseDomain: string;
   keycardClientId: string;
   keycardClientSecret: string;
   slackEmojiName: string;
@@ -53,8 +51,6 @@ function getConfig(): ServerConfig {
   // Base URL for the server (used in startup logs and metadata)
   const BASE_URL = `http://${HOST}:${PORT}`;
   const KEYCARD_STS_ISSUER_URL = process.env.KEYCARD_STS_ISSUER_URL;
-  const ISSUER_BASE_DOMAIN = process.env.ISSUER_BASE_DOMAIN;
-  const MCP_BASE_DOMAIN = process.env.MCP_BASE_DOMAIN;
 
   // Keycard client ID and secret are required for the MCP server to authenticate with Keycard
   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
@@ -88,18 +84,10 @@ function getConfig(): ServerConfig {
     console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
   }
 
-  // KEYCARD_STS_ISSUER_URL is required in single-tenant mode
-  // In multi-tenant mode, ISSUER_BASE_DOMAIN and MCP_BASE_DOMAIN are required
-  const isMultiTenant = ISSUER_BASE_DOMAIN && MCP_BASE_DOMAIN;
-
-  if (!isMultiTenant && !KEYCARD_STS_ISSUER_URL) {
+  if (!KEYCARD_STS_ISSUER_URL) {
     throw new Error(
-      "❌ FATAL: Either KEYCARD_STS_ISSUER_URL (single-tenant) or ISSUER_BASE_DOMAIN + MCP_BASE_DOMAIN (multi-tenant) must be defined.\n" +
-        "💡 Single-tenant example:\n" +
-        "   KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud\n" +
-        "💡 Multi-tenant example:\n" +
-        "   ISSUER_BASE_DOMAIN=keycard.cloud\n" +
-        "   MCP_BASE_DOMAIN=mcp.example.com"
+      "❌ FATAL: KEYCARD_STS_ISSUER_URL must be defined.\n" +
+        "💡 Example: KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud"
     );
   }
 
@@ -116,9 +104,7 @@ function getConfig(): ServerConfig {
     port: PORT,
     host: HOST,
     baseUrl: BASE_URL,
-    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL || "", // Fallback for multi-tenant mode
-    issuerBaseDomain: ISSUER_BASE_DOMAIN || "",
-    mcpBaseDomain: MCP_BASE_DOMAIN || "",
+    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL,
     keycardClientId: KEYCARD_CLIENT_ID || "",
     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",

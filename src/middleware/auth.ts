@@ -1,5 +1,8 @@
-import { createRequire } from "node:module";
-import type { AuthInfo, RequestHandler } from "../types/index";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
+import { JWTOAuthTokenVerifier } from "@keycardai/mcp/server/auth/verifiers/jwt";
+import { JWKSOAuthKeyring } from "@keycardai/oauth/keyring";
+import type { RequestHandler } from "../types/index";
 
 // Extend Express Request to include auth property
 declare module "express-serve-static-core" {
@@ -20,80 +23,92 @@ export interface AuthMiddlewareOptions {
   requiredScopes?: string[];
 }
 
-// --------------------------------------------------------------------------
-// Custom verifier wrapper that handles array `aud` claims.
-//
-// The upstream @keycardlabs/mcp-oauth JWTOAuthTokenVerifier does
-//   `resource: new URL(jsonPayload.aud)`
-// which silently mangles array audiences into a comma-joined URL string.
-// We wrap the default verifier so that when `aud` is an array, `resource`
-// is set to the first entry (the MCP resource URL).
-//
-// The comma-detection is a safe no-op once the library ships the fix —
-// a correct `resource` won't contain commas, so the wrapper becomes a
-// passthrough. Safe to remove this entire block after the fix lands in
-// @keycardlabs/mcp-oauth and we bump the dependency.
-// --------------------------------------------------------------------------
-
-interface TokenVerifier {
-  verifyAccessToken(token: string): Promise<{
-    token: string;
-    clientId: string;
-    resource: URL;
-    scopes: string[];
-    expiresAt: number;
-  }>;
-}
-
-function createArrayAudVerifier(): TokenVerifier {
-  // FRAGILE WORKAROUND: Reaches into @keycardlabs/mcp-oauth internals via
-  // relative path because JWKSOAuthKeyring isn't in the package's exports map.
-  // This WILL break if the library restructures its internal files.
-  // TODO: Remove once upstream exposes JWKSOAuthKeyring in its public API
-  //       or fixes the array `aud` mangling in JWTOAuthTokenVerifier.
-  const innerRequire = createRequire(
-    require.resolve("@keycardlabs/mcp-oauth/server/auth/verifiers/jwt")
-  );
-  const { JWKSOAuthKeyring } = innerRequire("../../../shared/keyring.js");
-  const { JWTOAuthTokenVerifier } = innerRequire("./jwt.js");
-
-  const inner: TokenVerifier = new JWTOAuthTokenVerifier(new JWKSOAuthKeyring());
-
-  return {
-    async verifyAccessToken(token: string) {
-      const result = await inner.verifyAccessToken(token);
-
-      // Detect the mangled comma-joined URL produced by `new URL([...])`.
-      // If the resource href contains a comma it was almost certainly an
-      // array audience — re-parse the first element instead.
-      if (result.resource?.href.includes(",")) {
-        const firstAud = result.resource.href.split(",")[0];
-        result.resource = new URL(firstAud);
-      }
-
-      return result;
-    },
-  };
+/**
+ * Decodes a JWT payload without verification (for reading claims only).
+ * Actual signature verification is handled by JWTOAuthTokenVerifier.
+ */
+function decodeJwtClaims(token: string): Record<string, unknown> {
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Invalid JWT format: expected 3 dot-separated parts");
+  }
+  try {
+    return JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString()
+    );
+  } catch (err) {
+    throw new Error(
+      `Failed to decode JWT claims: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 
 /**
- * Creates authentication middleware for protecting MCP endpoints
+ * Token verifier that wraps the Keycard SDK's JWTOAuthTokenVerifier to handle
+ * the case where Keycard issues `aud` as an array of audience URIs.
  *
- * @param requireBearerAuthImpl - The bearerAuth implementation (passed to avoid complex imports)
+ * Per RFC 7519 §4.1.3, `aud` can be a string or an array. The SDK's default
+ * verifier only handles the string case (`new URL(claims.aud)`), which produces
+ * a garbage URL when `aud` is an array. This wrapper normalizes array `aud` by
+ * picking the first audience that is a valid URL, which the bearer auth
+ * middleware then matches against the request URL.
+ *
+ * TODO: Remove once the Keycard SDK handles array `aud` natively.
+ */
+class ArrayAudTokenVerifier {
+  private inner: JWTOAuthTokenVerifier;
+
+  constructor() {
+    this.inner = new JWTOAuthTokenVerifier(new JWKSOAuthKeyring());
+  }
+
+  async verifyAccessToken(token: string): Promise<AuthInfo> {
+    const authInfo = await this.inner.verifyAccessToken(token);
+
+    // If aud is a single string, the SDK already parsed it correctly
+    const claims = decodeJwtClaims(token);
+    if (!Array.isArray(claims.aud)) {
+      return authInfo;
+    }
+
+    // aud is an array — pick the first entry that is a valid URL
+    for (const entry of claims.aud) {
+      try {
+        authInfo.resource = new URL(entry);
+        return authInfo;
+      } catch {
+        // Not a URL (e.g. a plain string audience) — skip
+      }
+    }
+
+    // No valid URL found — clear resource so the middleware skips the check
+    authInfo.resource = undefined;
+    return authInfo;
+  }
+}
+
+/**
+ * Creates authentication middleware for protecting MCP endpoints.
+ *
+ * Delegates to the Keycard SDK's requireBearerAuth with a custom token verifier
+ * that handles array `aud` claims (Keycard includes the userinfo endpoint
+ * alongside the resource URI in the audience).
+ *
+ * @param requireBearerAuthImpl - The bearerAuth implementation from @keycardai/mcp
  * @param options - Configuration options for the middleware
  * @returns Express middleware function
  */
 export function createAuthMiddleware(
   requireBearerAuthImpl: (config: {
-    verifier?: TokenVerifier;
-    requiredScopes: string[];
+    verifier?: OAuthTokenVerifier;
+    requiredScopes?: string[];
   }) => RequestHandler,
   options: AuthMiddlewareOptions = {}
 ): RequestHandler {
   const { requiredScopes = [] } = options;
 
   return requireBearerAuthImpl({
-    verifier: createArrayAudVerifier(),
+    verifier: new ArrayAudTokenVerifier(),
     requiredScopes,
   });
 }

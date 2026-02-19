@@ -20,14 +20,14 @@ export default defineConfig({
 
   // Keep these as external require() calls (not bundled):
   // - express: middleware chaining relies on module identity
-  // - @keycardlabs/mcp-oauth: local tgz with dual CJS/ESM exports
+  // - @keycardai/mcp + @keycardai/oauth: local tgz with dual CJS/ESM builds
   // - @modelcontextprotocol/sdk: deep path imports (/server/mcp.js etc.)
   // - dotenv: reads .env files at runtime relative to cwd
   // - zod: runtime schema builders, large but necessary
   external: [
     "express",
     "compression",
-    /^@keycardlabs\/.*/,
+    /^@keycardai\/.*/,
     /^@modelcontextprotocol\/.*/,
     "dotenv",
     "zod",

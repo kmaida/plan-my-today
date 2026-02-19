@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { requireBearerAuth } from "@keycardlabs/mcp-oauth/server/auth/middleware/bearerAuth";
-import {
-  type InferredAuthMetadataOptions,
-  mcpAuthMetadataRouter,
-} from "@keycardlabs/mcp-oauth/server/auth/router";
+import { requireBearerAuth } from "@keycardai/mcp/server/auth/middleware/bearerAuth";
+import { mcpAuthMetadataRouter } from "@keycardai/mcp/server/auth/router";
+import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -81,43 +79,23 @@ export function createApp(): express.Application {
     })
   );
 
-  // Check if we're in multi-tenant mode
-  const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
-
-  if (isMultiTenant) {
-    // Multi-tenant mode: dynamic issuer based on Host header
-    const multiTenantOptions: InferredAuthMetadataOptions = {
-      oauthMetadata: {
-        issuer: (req: express.Request) => {
-          // Extract zoneId from Host header (e.g., z123.dev.local -> z123)
-          const zoneId = req.headers.host?.split(".")[0] || "default";
-          // Use HTTP for local development, HTTPS for production
-          const protocol = config.issuerBaseDomain.includes("localdev") ? "http" : "https";
-          return `${protocol}://${zoneId}.${config.issuerBaseDomain}`;
-        },
-      },
+  // OAuth metadata routes (Keycard issuer discovery).
+  // The OAuthMetadata type requires authorization_endpoint/token_endpoint/etc.
+  // but Keycard manages those in the console — the router only reads `issuer`
+  // at runtime to build the .well-known responses.
+  app.use(
+    mcpAuthMetadataRouter({
+      oauthMetadata: { issuer: config.keycardIssuerUrl } as OAuthMetadata,
       scopesSupported: ["mcp:tools"],
       resourceName: "Plan My Today MCP",
-    };
-    app.use(mcpAuthMetadataRouter(multiTenantOptions));
-  } else {
-    // Single-tenant mode: static issuer (backward compatibility)
-    const singleTenantOptions: InferredAuthMetadataOptions = {
-      oauthMetadata: {
-        issuer: config.keycardIssuerUrl,
-      },
-      scopesSupported: ["mcp:tools"],
-      resourceName: "Plan My Today MCP",
-    };
-    app.use(mcpAuthMetadataRouter(singleTenantOptions));
-  }
+    })
+  );
 
   // Health check — no auth required, placed before logging to stay lightweight
   app.get("/health", (_req: express.Request, res: express.Response) => {
     res.json({
       status: "ok",
       version: "0.2.1",
-      mode: isMultiTenant ? "multi-tenant" : "single-tenant",
       authConfigured: !!config.keycardClientId,
       chatConfigured: !!config.anthropicApiKey,
     });
@@ -706,22 +684,12 @@ export function startServer(): void {
 
   app
     .listen(config.port, () => {
-      const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
-      const issuer = isMultiTenant
-        ? `https://{zoneId}.${config.issuerBaseDomain}`
-        : config.keycardIssuerUrl;
-
-      // Clean startup messages
       logger.info("🚀 To Do MCP Server started!");
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
-      logger.info(`🔐 Keycard Issuer: ${issuer}`);
+      logger.info(`🔐 Keycard Issuer: ${config.keycardIssuerUrl}`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
 
-      // Detailed debug info
       logger.debug("Server configuration details", {
-        mode: isMultiTenant ? "multi-tenant" : "single-tenant",
-        issuerBaseDomain: isMultiTenant ? config.issuerBaseDomain : undefined,
-        mcpBaseDomain: isMultiTenant ? config.mcpBaseDomain : undefined,
         architecture: "One MCP server instance per session (prevents race conditions)",
         observabilityEnabled: config.observability.enableOtel,
         environment: config.observability.environment,

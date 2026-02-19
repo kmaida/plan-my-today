@@ -31,7 +31,8 @@
     "oauth"
   ],
   "dependencies": {
-    "@keycardlabs/mcp-oauth": "file:./keycardlabs-mcp-oauth-0.0.0.tgz",
+    "@keycardai/mcp": "file:keycardai-mcp-0.1.0.tgz",
+    "@keycardai/oauth": "file:keycardai-oauth-0.1.0.tgz",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "compression": "^1.8.1",
     "dotenv": "^17.2.0",
