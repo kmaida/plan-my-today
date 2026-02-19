@@ -122,6 +122,34 @@ describe("Slack completion identifier consistency", () => {
   });
 });
 
+describe("GitHub completion identifier consistency", () => {
+  // UI sends: source="github", identifier=dismissalId ("{owner}/{repo}#{number}")
+  // Filter checks: githubCompleted.has(pr.dismissalId) — a simple Set lookup.
+  const REPO = "myorg/myrepo";
+  const PR_NUMBER = 42;
+  const DISMISSAL_ID = `${REPO}#${PR_NUMBER}`;
+
+  it("should find a completed GitHub PR by repo#number", async () => {
+    await markActionComplete("github", DISMISSAL_ID);
+    const completed = await isActionCompleted("github", DISMISSAL_ID);
+    expect(completed).toBe(true);
+  });
+
+  it("different PR numbers in same repo should have independent completions", async () => {
+    const otherId = `${REPO}#99`;
+    await markActionComplete("github", DISMISSAL_ID);
+    expect(await isActionCompleted("github", DISMISSAL_ID)).toBe(true);
+    expect(await isActionCompleted("github", otherId)).toBe(false);
+  });
+
+  it("same number in different repos should have independent completions", async () => {
+    const otherId = `otherorg/otherrepo#${PR_NUMBER}`;
+    await markActionComplete("github", DISMISSAL_ID);
+    expect(await isActionCompleted("github", DISMISSAL_ID)).toBe(true);
+    expect(await isActionCompleted("github", otherId)).toBe(false);
+  });
+});
+
 describe("Cross-source isolation", () => {
   // Completions for one source must never match another source.
   // The store key is "${source}:${identifier}", so "slack:foo" !== "meeting-note:foo".
@@ -133,6 +161,7 @@ describe("Cross-source isolation", () => {
     expect(await isActionCompleted("slack", IDENTIFIER)).toBe(true);
     expect(await isActionCompleted("meeting-note", IDENTIFIER)).toBe(false);
     expect(await isActionCompleted("adhoc", IDENTIFIER)).toBe(false);
+    expect(await isActionCompleted("github", IDENTIFIER)).toBe(false);
   });
 });
 
@@ -140,7 +169,7 @@ describe("ActionSource type coverage", () => {
   // Every source in the dismiss-task tool schema must be representable
   // in ActionSource. This test acts as a compile-time + runtime guard: if someone
   // adds a source to the tool but forgets ActionSource, this fails to compile.
-  const TOOL_SOURCES = ["meeting-note", "slack", "adhoc"] as const;
+  const TOOL_SOURCES = ["meeting-note", "slack", "adhoc", "github"] as const;
 
   it.each(TOOL_SOURCES)(
     "should accept '%s' as a valid ActionSource for storage and lookup",

@@ -430,8 +430,10 @@ function App() {
     setDismissingTaskIds(prev => new Set(prev).add(task.taskId))
     setDismissError(null)
     try {
-      // Meeting-notes, docs, slack — use no-auth REST endpoint (local completion store)
-      const source = task.source === 'meeting-notes' ? 'meeting-note' : task.source
+      // Normalize source before sending: meeting-notes → meeting-note, github-issue → github
+      const source = task.source === 'meeting-notes' ? 'meeting-note'
+        : task.source === 'github-issue' ? 'github'
+        : task.source
       const identifier = getTaskIdentifier(task)
       // Pass slackType for defense-in-depth: server rejects emoji-saved messages
       const slackType = isSlackTask(task) ? task.type : undefined

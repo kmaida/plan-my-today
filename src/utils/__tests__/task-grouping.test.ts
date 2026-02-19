@@ -93,7 +93,11 @@ function makeGitHub(overrides: Partial<GitHubTask> = {}): GitHubTask {
     title: "Add feature",
     url: "https://github.com/org/repo/pull/1",
     repo: "org/repo",
-    type: "review",
+    isAssigned: false,
+    isReviewRequested: true,
+    isAuthored: false,
+    isOwnedRepo: false,
+    dismissalId: "org/repo#1",
     priorityMetadata: makePriority("medium", 90),
     ...overrides,
   };

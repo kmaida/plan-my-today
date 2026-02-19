@@ -31,11 +31,12 @@ const mockedGetCompleted = getCompletedBySources as jest.MockedFunction<
  * Missing sources default to empty Sets.
  */
 function setCompletedIds(
-  overrides: Partial<Record<"slack" | "meeting-note", string[]>>
+  overrides: Partial<Record<"slack" | "meeting-note" | "github", string[]>>
 ): void {
   const result = new Map<ActionSource, Set<string>>([
     ["slack", new Set(overrides.slack ?? [])],
     ["meeting-note", new Set(overrides["meeting-note"] ?? [])],
+    ["github", new Set(overrides.github ?? [])],
   ]);
   mockedGetCompleted.mockResolvedValue(result);
 }
@@ -94,8 +95,10 @@ describe("Slack filtering", () => {
     expect(data.slack).toHaveLength(0);
   });
 
-  it("should check dismissalId before permalink (dismissalId wins)", async () => {
-    // Both fields present, but only permalink is in completed set
+  it("should still check permalink when dismissalId is present but not completed", async () => {
+    // dismissalId is present but not in the completed set;
+    // the permalink IS in the set — verifies the permalink fallback fires even
+    // when a dismissalId field exists (it's only skipped when dismissalId matches).
     const data = {
       slack: [
         {
@@ -111,11 +114,6 @@ describe("Slack filtering", () => {
 
     await filterCompletedTasks(data);
 
-    // dismissalId is checked first and NOT in the set, so the message stays
-    // even though the permalink IS in the set — but the code checks both
-    // Actually re-reading the code: it checks dismissalId first, if that
-    // matches → remove. If not, then checks permalink. So the msg IS removed.
-    // The permalink fallback fires when dismissalId doesn't match.
     expect(data.slack).toHaveLength(0);
   });
 
@@ -202,6 +200,87 @@ describe("Meeting notes filtering", () => {
   });
 });
 
+// ── GitHub filtering ─────────────────────────────────────────────────────────
+
+describe("GitHub filtering", () => {
+  it("should remove a dismissed PR by dismissalId", async () => {
+    const data = {
+      github: {
+        prs: [{ dismissalId: "org/repo#42" }, { dismissalId: "org/repo#43" }],
+        issues: [],
+      },
+    };
+    setCompletedIds({ github: ["org/repo#42"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(1);
+    expect(data.github.prs[0].dismissalId).toBe("org/repo#43");
+  });
+
+  it("should remove a dismissed issue by dismissalId", async () => {
+    const data = {
+      github: {
+        prs: [],
+        issues: [{ dismissalId: "org/repo#10" }, { dismissalId: "org/repo#11" }],
+      },
+    };
+    setCompletedIds({ github: ["org/repo#10"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.issues).toHaveLength(1);
+    expect(data.github.issues[0].dismissalId).toBe("org/repo#11");
+  });
+
+  it("should keep items with no dismissalId (not dismissable, never hidden)", async () => {
+    const data = {
+      github: {
+        prs: [{ dismissalId: null }, { dismissalId: undefined }],
+        issues: [{ dismissalId: null }],
+      },
+    };
+    setCompletedIds({ github: ["anything"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(2);
+    expect(data.github.issues).toHaveLength(1);
+  });
+
+  it("dismissing a PR should not remove issues, and vice versa", async () => {
+    const data = {
+      github: {
+        prs: [{ dismissalId: "org/repo#1" }],
+        issues: [{ dismissalId: "org/repo#2" }],
+      },
+    };
+    // Only PR #1 is dismissed — issue #2 must survive
+    setCompletedIds({ github: ["org/repo#1"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(0);
+    expect(data.github.issues).toHaveLength(1);
+    expect(data.github.issues[0].dismissalId).toBe("org/repo#2");
+  });
+
+  it("same number in different repos are independent", async () => {
+    const data = {
+      github: {
+        prs: [{ dismissalId: "org/repo-a#42" }, { dismissalId: "org/repo-b#42" }],
+        issues: [],
+      },
+    };
+    setCompletedIds({ github: ["org/repo-a#42"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(1);
+    expect(data.github.prs[0].dismissalId).toBe("org/repo-b#42");
+  });
+});
+
 // ── Edge cases ───────────────────────────────────────────────────────────────
 
 describe("Edge cases", () => {
@@ -220,6 +299,24 @@ describe("Edge cases", () => {
   it("should not crash when all arrays are undefined", async () => {
     const data = {};
     await expect(filterCompletedTasks(data)).resolves.not.toThrow();
+  });
+
+  it("should not crash when data.github.prs is undefined", async () => {
+    const data = { github: { issues: [{ dismissalId: "org/repo#1" }] } };
+    setCompletedIds({ github: ["org/repo#1"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.issues).toHaveLength(0);
+  });
+
+  it("should not crash when data.github.issues is undefined", async () => {
+    const data = { github: { prs: [{ dismissalId: "org/repo#1" }] } };
+    setCompletedIds({ github: ["org/repo#1"] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(0);
   });
 
   it("should leave non-filterable sources untouched", async () => {
@@ -246,6 +343,22 @@ describe("Edge cases", () => {
 // ── Cross-source isolation ───────────────────────────────────────────────────
 
 describe("Cross-source isolation", () => {
+  it("dismissing a GitHub item should not affect Slack or meeting notes", async () => {
+    const sharedId = "org/repo#1";
+    const data = {
+      slack: [{ type: "mention", dismissalId: sharedId }],
+      meetingNotes: [{ documentId: sharedId, actionItem: "Action" }],
+      github: { prs: [{ dismissalId: sharedId }], issues: [] },
+    };
+    setCompletedIds({ github: [sharedId] });
+
+    await filterCompletedTasks(data);
+
+    expect(data.github.prs).toHaveLength(0); // dismissed
+    expect(data.slack).toHaveLength(1); // untouched
+    expect(data.meetingNotes).toHaveLength(1); // untouched
+  });
+
   it("dismissing a Slack message should not affect meeting notes", async () => {
     const sharedId = "shared-identifier";
     const data = {

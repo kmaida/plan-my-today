@@ -84,7 +84,8 @@ export function getTaskUrl(task: Task): string | undefined {
 export function getTaskIdentifier(task: Task): string {
   if (isSlackTask(task)) return task.dismissalId || task.link || "";
   if (isMeetingNotesTask(task)) return task.documentId;
-  // Gmail, Drive, Linear, GitHub, Calendar are not locally dismissable
+  if (isGitHubTask(task)) return task.dismissalId;
+  // Gmail, Drive, Linear, Calendar are not locally dismissable
   return "";
 }
 

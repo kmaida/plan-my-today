@@ -38,8 +38,8 @@ function formatTimeAgo(dateStr: string): string {
  */
 function formatPRDetail(pr: GitHubPRDetail): string {
   const draft = pr.isDraft ? "📝 [DRAFT] " : "";
-  const emoji = pr.type === "review" ? "👀" : "🔀";
-  const label = pr.type === "review" ? "Review requested" : "Assigned";
+  const emoji = pr.isReviewRequested ? "👀" : "🔀";
+  const label = pr.isReviewRequested ? "Review requested" : "Assigned";
 
   return (
     `• ${emoji} **${draft}[${pr.repo}#${pr.number}](${pr.url})**: ${pr.title}\n` +
@@ -105,9 +105,9 @@ export function registerGithubTool(mcpServer: McpServer): void {
 
         // Fetch PRs
         if (includePRs) {
-          // Separate PRs by type
-          const reviewRequested = limitedPRs.filter((pr) => pr.type === "review");
-          const assigned = limitedPRs.filter((pr) => pr.type === "assigned");
+          // Separate PRs by relationship flag
+          const reviewRequested = limitedPRs.filter((pr) => pr.isReviewRequested);
+          const assigned = limitedPRs.filter((pr) => !pr.isReviewRequested && pr.isAssigned);
 
           // Show review-requested PRs first (usually more urgent)
           if (reviewRequested.length > 0) {

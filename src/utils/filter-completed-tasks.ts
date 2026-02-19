@@ -17,11 +17,15 @@ export interface TaskStoreData {
     documentId?: string | null;
     actionItem?: string | null;
   }>;
+  github?: {
+    prs?: Array<{ dismissalId?: string | null }>;
+    issues?: Array<{ dismissalId?: string | null }>;
+  };
 }
 
 /**
  * Filter completed/dismissed items from cached task data.
- * Checks dismissable sources (slack, meeting-notes) against the
+ * Checks dismissable sources (slack, meeting-notes, github) against the
  * completion store. Mutates the data object in place for efficiency.
  *
  * Drive items are not dismissable — they auto-clear when resolved
@@ -31,9 +35,10 @@ export interface TaskStoreData {
  * dismissable source completions at once.
  */
 export async function filterCompletedTasks(data: TaskStoreData): Promise<void> {
-  const completed = await getCompletedBySources(["slack", "meeting-note"] as const);
+  const completed = await getCompletedBySources(["slack", "meeting-note", "github"] as const);
   const slackCompleted = completed.get("slack")!;
   const meetingNoteCompleted = completed.get("meeting-note")!;
+  const githubCompleted = completed.get("github")!;
 
   // Filter Slack: remove non-saved messages that have been dismissed
   if (Array.isArray(data.slack)) {
@@ -59,5 +64,19 @@ export async function filterCompletedTasks(data: TaskStoreData): Promise<void> {
       }
       return true;
     });
+  }
+
+  // Filter GitHub PRs and issues: check by dismissalId ("{repo}#{number}")
+  if (data.github) {
+    if (Array.isArray(data.github.prs)) {
+      data.github.prs = data.github.prs.filter(
+        (pr) => !pr.dismissalId || !githubCompleted.has(pr.dismissalId)
+      );
+    }
+    if (Array.isArray(data.github.issues)) {
+      data.github.issues = data.github.issues.filter(
+        (issue) => !issue.dismissalId || !githubCompleted.has(issue.dismissalId)
+      );
+    }
   }
 }

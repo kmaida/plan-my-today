@@ -117,7 +117,11 @@ function makeGitHub(overrides: Partial<GitHubTask> = {}): GitHubTask {
     title: "Add retry logic to API client",
     url: "https://github.com/org/repo/pull/42",
     repo: "org/repo",
-    type: "review",
+    isAssigned: false,
+    isReviewRequested: true,
+    isAuthored: false,
+    isOwnedRepo: false,
+    dismissalId: "org/repo#42",
     priorityMetadata: DEFAULT_PRIORITY,
     ...overrides,
   };
@@ -189,8 +193,8 @@ describe("getTaskIdentifier", () => {
     expect(getTaskIdentifier(makeLinear())).toBe("");
   });
 
-  it("GitHub: returns empty string (not dismissable via this path)", () => {
-    expect(getTaskIdentifier(makeGitHub())).toBe("");
+  it("GitHub: returns dismissalId", () => {
+    expect(getTaskIdentifier(makeGitHub())).toBe("org/repo#42");
   });
 
   it("Calendar: returns empty string (not dismissable via this path)", () => {

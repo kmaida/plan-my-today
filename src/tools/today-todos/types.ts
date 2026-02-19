@@ -227,7 +227,18 @@ export interface GitHubPRDetail {
   title: string;
   url: string;
   repo: string;
-  type: "assigned" | "review";
+  /** True if the authenticated user is assigned to this PR */
+  isAssigned: boolean;
+  /** True if the authenticated user has been requested to review this PR */
+  isReviewRequested: boolean;
+  /** True if the authenticated user authored this PR */
+  isAuthored: boolean;
+  /** True if this PR is on a repo owned by the user or listed in ORG_GITHUB_REPOS */
+  isOwnedRepo: boolean;
+  /** True if this PR was authored by a known dependency/security bot (dependabot, renovate, snyk) */
+  isBot: boolean;
+  /** Stable dismissal identifier: "{repo}#{number}" */
+  dismissalId: string;
   updatedAt: string;
   isDraft: boolean;
   priorityMetadata?: PriorityMetadata;
@@ -243,6 +254,16 @@ export interface GitHubIssueDetail {
   title: string;
   url: string;
   repo: string;
+  /** True if the authenticated user is assigned to this issue */
+  isAssigned: boolean;
+  /** True if the authenticated user authored this issue */
+  isAuthored: boolean;
+  /** True if this issue is on a repo owned by the user or listed in ORG_GITHUB_REPOS */
+  isOwnedRepo: boolean;
+  /** True if this issue was authored by a known dependency/security bot (dependabot, renovate, snyk) */
+  isBot: boolean;
+  /** Stable dismissal identifier: "{repo}#{number}" */
+  dismissalId: string;
   updatedAt: string;
   labels?: string[];
   priorityMetadata?: PriorityMetadata;

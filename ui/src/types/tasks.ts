@@ -141,9 +141,14 @@ export interface GitHubTask {
   title: string;
   url: string;
   repo: string;
-  type: "assigned" | "review";
+  isAssigned: boolean;
+  isReviewRequested?: boolean; // PRs only
+  isAuthored: boolean;
+  isOwnedRepo: boolean;
   isDraft?: boolean;
   labels?: string[];
+  dismissalId: string; // "{repo}#{number}"
+  isBot?: boolean; // True if authored by a known dependency/security bot
 
   // Enrichment
   priorityMetadata: PriorityMetadata;
@@ -305,9 +310,14 @@ export interface ServerGitHubPR {
   title: string;
   url: string;
   repo: string;
-  type: "assigned" | "review";
+  isAssigned: boolean;
+  isReviewRequested: boolean;
+  isAuthored: boolean;
+  isOwnedRepo: boolean;
+  dismissalId: string;
   updatedAt: string;
   isDraft: boolean;
+  isBot?: boolean;
   priorityMetadata?: ServerPriorityMetadata;
   crossReferenceMetadata?: CrossReferenceMetadata;
 }
@@ -320,8 +330,13 @@ export interface ServerGitHubIssue {
   title: string;
   url: string;
   repo: string;
+  isAssigned: boolean;
+  isAuthored: boolean;
+  isOwnedRepo: boolean;
+  dismissalId: string;
   updatedAt: string;
   labels?: string[];
+  isBot?: boolean;
   priorityMetadata?: ServerPriorityMetadata;
   crossReferenceMetadata?: CrossReferenceMetadata;
 }

@@ -332,7 +332,6 @@ export function createApp(): express.Application {
   });
 
   // Dismiss a task (no auth — writes to local completion store).
-  // Supports meeting-note, slack, drive, and adhoc sources.
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Express route handler — dismissal with validation
   app.post("/api/dismiss-task", async (req: express.Request, res: express.Response) => {
     try {
@@ -342,7 +341,7 @@ export function createApp(): express.Application {
         return res.status(400).json({ error: "Missing required fields: source, identifier" });
       }
 
-      const validSources = ["meeting-note", "slack", "drive", "adhoc"];
+      const validSources = ["meeting-note", "slack", "adhoc", "github"];
       if (!validSources.includes(source)) {
         return res
           .status(400)
@@ -386,7 +385,7 @@ export function createApp(): express.Application {
         return res.status(400).json({ error: "Missing required fields: source, identifier" });
       }
 
-      const validSources = ["meeting-note", "slack", "drive", "adhoc"];
+      const validSources = ["meeting-note", "slack", "adhoc", "github"];
       if (!validSources.includes(source)) {
         return res
           .status(400)

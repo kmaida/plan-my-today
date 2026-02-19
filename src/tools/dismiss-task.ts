@@ -8,9 +8,9 @@ import type { ActionSource } from "../utils/action-identifiers";
  */
 const dismissTaskInputSchema = {
   source: z
-    .enum(["meeting-note", "slack", "adhoc"])
+    .enum(["meeting-note", "slack", "adhoc", "github"])
     .describe(
-      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), or 'adhoc' for custom tasks"
+      "The source type of the action item: 'meeting-note' for meeting notes from Google Docs, 'slack' for Slack messages (mentions, DMs, threads only - not emoji-saved), 'adhoc' for custom tasks, or 'github' for GitHub PRs and issues"
     ),
   identifier: z
     .string()
@@ -18,6 +18,7 @@ const dismissTaskInputSchema = {
       "The unique identifier for this action. Format varies by source: " +
         "meeting-note uses '{docId}' or '{docId}:{hash}', " +
         "slack uses '{channelId}:{messageTs}' (e.g., 'C0123ABCDEF:1234567890.123456'), " +
+        "github uses '{owner}/{repo}#{number}' (e.g., 'myorg/myrepo#42'), " +
         "adhoc uses any custom ID"
     ),
   slackType: z
@@ -48,7 +49,7 @@ export function registerDismissTaskTool(mcpServer: McpServer): void {
     {
       title: "Dismiss Task",
       description:
-        "Dismiss an action item from the dashboard. This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), and ad-hoc tasks that don't have native completion tracking. Google Drive items are not dismissable — they auto-clear when resolved in the source document. Dismissed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores dismissal state locally.",
+        "Dismiss an action item from the dashboard. This works for meeting notes from Google Docs, Slack messages (mentions, DMs, threads; requires slackType field; rejects emoji-saved), GitHub PRs and issues, and ad-hoc tasks that don't have native completion tracking. Google Drive items are not dismissable — they auto-clear when resolved in the source document. Dismissed items are filtered from your todo lists and auto-pruned after 30 days. No authentication required - stores dismissal state locally.",
       inputSchema: dismissTaskInputSchema,
     },
     (async (args, _extra) => {

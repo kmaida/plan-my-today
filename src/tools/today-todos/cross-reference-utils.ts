@@ -1,6 +1,8 @@
 import type {
   CalendarEventDetail,
   CrossReferenceMetadata,
+  GitHubIssueDetail,
+  GitHubPRDetail,
   GmailMessageDetail,
   LinearIssueDetail,
   MeetingNoteActionDetail,
@@ -121,7 +123,8 @@ export function detectLinearMentions(
 
 /**
  * Detects mentions of a GitHub PR/issue across email, Slack, meeting notes,
- * and meeting summaries by searching for PR/issue number patterns and URLs.
+ * meeting summaries, and calendar events by searching for PR/issue number
+ * patterns and URLs.
  *
  * @param repo - Repository name (e.g., "owner/repo")
  * @param number - PR/issue number
@@ -129,28 +132,36 @@ export function detectLinearMentions(
  * @param slack - Array of Slack messages to search
  * @param meetingNotes - Optional array of meeting note actions to search
  * @param meetingSummaries - Optional array of meeting summaries to search
+ * @param calendarEvents - Optional array of calendar events to search
  * @returns Cross-reference metadata with mentions
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-source search — each branch is a separate text corpus
 export function detectGitHubMentions(
   repo: string,
   number: number,
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[],
   meetingNotes?: MeetingNoteActionDetail[],
-  meetingSummaries?: MeetingSummaryDetail[]
+  meetingSummaries?: MeetingSummaryDetail[],
+  calendarEvents?: CalendarEventDetail[]
 ): CrossReferenceMetadata {
   const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string; url?: string }> = [];
 
-  // Patterns to search: "owner/repo#123" and github.com URLs.
+  // Patterns to search: "owner/repo#123" and exact github.com PR/issue URLs.
   // Bare "#123" is intentionally omitted — it's too ambiguous (every
   // system uses #number for IDs, causing false positives like #1 matching #196).
+  // URL patterns are specific to this item's number to avoid matching other
+  // PRs/issues or repo file URLs (e.g., github.com/owner/repo/blob/...).
   const repoNumberPattern = `${repo}#${number}`;
-  const githubUrlPattern = `github.com/${repo}/`;
+  const pullUrl = `github.com/${repo}/pull/${number}`;
+  const issueUrl = `github.com/${repo}/issues/${number}`;
 
-  /** Check if text contains any GitHub reference pattern */
+  /** Check if text contains any GitHub reference pattern for this specific item */
   const hasGitHubRef = (text: string) =>
-    containsExactToken(text, repoNumberPattern) || text.includes(githubUrlPattern);
+    containsExactToken(text, repoNumberPattern) ||
+    text.includes(pullUrl) ||
+    text.includes(issueUrl);
 
   // Search emails (subject + body snippet)
   for (const email of gmail) {
@@ -206,6 +217,22 @@ export function detectGitHubMentions(
     }
   }
 
+  // Search calendar event descriptions for GitHub references.
+  // Uses text matching (containsExactToken + URL includes), which fires on
+  // prose mentions AND within URLs. Symmetric with detectLinearMentions behavior.
+  for (const event of calendarEvents ?? []) {
+    if (!event.description) continue;
+    if (hasGitHubRef(event.description)) {
+      mentionedIn.add("calendar");
+      relatedItems.push({
+        source: "calendar",
+        id: event.id ?? event.htmlLink ?? event.summary ?? "",
+        snippet: (event.summary ?? "").substring(0, 100),
+        url: event.htmlLink,
+      });
+    }
+  }
+
   return {
     mentionedIn: Array.from(mentionedIn),
     relatedItems,
@@ -247,7 +274,6 @@ function appendCrossRef(
  * @param calendarEvents - Calendar events to inspect (mutated in place)
  * @param linearIssues - Linear issues in scope, used for title/url lookup
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: URL extraction + cross-ref population
 export function buildCalendarCrossRefs(
   calendarEvents: CalendarEventDetail[],
   linearIssues: LinearIssueDetail[]
@@ -258,19 +284,15 @@ export function buildCalendarCrossRefs(
   const pattern = /https:\/\/linear\.app\/[^/\s]+\/issue\/([A-Z]+-\d+)/gi;
   for (const event of calendarEvents) {
     if (!event.description) continue;
-    // identifier → URL up to identifier (for fallback; slug after identifier not captured by regex)
-    const seen = new Map<string, string>();
     for (const match of event.description.matchAll(pattern)) {
       const identifier = match[1].toUpperCase();
-      if (!seen.has(identifier)) seen.set(identifier, match[0]);
-    }
-    for (const [identifier, url] of seen) {
       const issue = issueByIdentifier.get(identifier);
+      // appendCrossRef deduplicates by id, so repeated identifiers are safe
       appendCrossRef(event, {
         source: "linear",
         id: identifier,
         snippet: issue ? issue.title.substring(0, 100) : identifier,
-        url: issue ? issue.url : url, // fallback to captured URL when issue not in today's list
+        url: issue ? issue.url : match[0], // fallback to captured URL when issue not in today's list
       });
     }
   }
@@ -321,6 +343,100 @@ export function buildSourceLinearCrossRefs(
     for (const note of meetingNotes) {
       if (containsExactToken(note.actionItem, issue.identifier)) {
         appendCrossRef(note, issueRef);
+      }
+    }
+  }
+}
+
+/**
+ * Builds crossReferenceMetadata for Calendar events that link to GitHub
+ * PRs or issues via github.com URLs in their description. Mutates events in place.
+ *
+ * Uses URL-based extraction for precision — avoids false positives from prose
+ * that happens to contain number-like tokens (e.g., "step #42").
+ * Symmetric with buildCalendarCrossRefs (which does the same for Linear).
+ *
+ * @param calendarEvents - Calendar events to inspect (mutated in place)
+ * @param githubPRs - GitHub PRs in scope, used for title lookup
+ * @param githubIssues - GitHub issues in scope, used for title lookup
+ */
+export function buildCalendarGitHubCrossRefs(
+  calendarEvents: CalendarEventDetail[],
+  githubPRs: GitHubPRDetail[],
+  githubIssues: GitHubIssueDetail[]
+): void {
+  const prByKey = new Map(githubPRs.map((pr) => [`${pr.repo}#${pr.number}`, pr]));
+  const issueByKey = new Map(githubIssues.map((i) => [`${i.repo}#${i.number}`, i]));
+
+  // Match github.com/{owner}/{repo}/pull/{number} or .../issues/{number}
+  const pattern = /https?:\/\/github\.com\/([^/\s]+\/[^/\s]+)\/(pull|issues)\/(\d+)/gi;
+
+  for (const event of calendarEvents) {
+    if (!event.description) continue;
+    for (const match of event.description.matchAll(pattern)) {
+      const key = `${match[1]}#${match[3]}`;
+      const item = prByKey.get(key) ?? issueByKey.get(key);
+      appendCrossRef(event, {
+        source: "github",
+        id: key,
+        snippet: item ? item.title.substring(0, 100) : key,
+        url: match[0], // use the captured URL (always available; not falling back to item.url)
+      });
+    }
+  }
+}
+
+/**
+ * Builds crossReferenceMetadata for Gmail messages, Slack messages, and meeting
+ * note action items that reference GitHub PRs or issues. Mutates source items in place.
+ *
+ * Mirrors the exact text fields searched by detectGitHubMentions (Direction 1).
+ * Meeting summaries are skipped — they are not standalone task cards in the UI.
+ *
+ * @param githubPRs - GitHub PRs to search for
+ * @param githubIssues - GitHub issues to search for
+ * @param gmail - Gmail messages to populate (mutated in place)
+ * @param slack - Slack messages to populate (mutated in place)
+ * @param meetingNotes - Meeting note action items to populate (mutated in place)
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: multi-source forward scan — each loop is an independent corpus
+export function buildSourceGitHubCrossRefs(
+  githubPRs: GitHubPRDetail[],
+  githubIssues: GitHubIssueDetail[],
+  gmail: GmailMessageDetail[],
+  slack: SlackMessageDetail[],
+  meetingNotes: MeetingNoteActionDetail[]
+): void {
+  for (const item of [...githubPRs, ...githubIssues]) {
+    const repoNumberPattern = `${item.repo}#${item.number}`;
+    const pullUrl = `github.com/${item.repo}/pull/${item.number}`;
+    const issueUrl = `github.com/${item.repo}/issues/${item.number}`;
+
+    const hasRef = (text: string) =>
+      containsExactToken(text, repoNumberPattern) ||
+      text.includes(pullUrl) ||
+      text.includes(issueUrl);
+
+    const itemRef = {
+      source: "github" as const,
+      id: `${item.repo}#${item.number}`,
+      snippet: item.title.substring(0, 100),
+      url: item.url,
+    };
+
+    for (const email of gmail) {
+      if (hasRef(`${email.subject} ${email.snippet || ""}`)) {
+        appendCrossRef(email, itemRef);
+      }
+    }
+    for (const msg of slack) {
+      if (hasRef(msg.text)) {
+        appendCrossRef(msg, itemRef);
+      }
+    }
+    for (const note of meetingNotes) {
+      if (hasRef(note.actionItem)) {
+        appendCrossRef(note, itemRef);
       }
     }
   }

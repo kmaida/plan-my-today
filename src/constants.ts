@@ -30,7 +30,7 @@ export const PRIORITY_THRESHOLDS = {
 /** Time windows for data fetching (in days) */
 export const TIME_WINDOWS = {
   /** GitHub PRs and issues lookback window */
-  GITHUB_DAYS: 30,
+  GITHUB_DAYS: 7,
   /** Default days back for Gmail and Docs */
   DEFAULT_DAYS_BACK: 14,
   /** Slack messages lookback window */

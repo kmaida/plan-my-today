@@ -10,6 +10,8 @@
 
 import {
   buildCalendarCrossRefs,
+  buildCalendarGitHubCrossRefs,
+  buildSourceGitHubCrossRefs,
   buildSourceLinearCrossRefs,
   containsExactToken,
   detectGitHubMentions,
@@ -18,6 +20,8 @@ import {
 } from "../cross-reference-utils";
 import type {
   CalendarEventDetail,
+  GitHubIssueDetail,
+  GitHubPRDetail,
   GmailMessageDetail,
   LinearIssueDetail,
   MeetingNoteActionDetail,
@@ -93,6 +97,42 @@ function makeLinearIssue(overrides: Partial<LinearIssueDetail> = {}): LinearIssu
     dueDate: null,
     estimate: null,
     project: null,
+    ...overrides,
+  };
+}
+
+function makeGitHubPR(overrides: Partial<GitHubPRDetail> = {}): GitHubPRDetail {
+  return {
+    id: 1,
+    number: 1,
+    title: "Test PR",
+    url: "https://github.com/org/repo/pull/1",
+    repo: "org/repo",
+    isAssigned: false,
+    isReviewRequested: false,
+    isAuthored: false,
+    isOwnedRepo: false,
+    isBot: false,
+    dismissalId: "org/repo#1",
+    updatedAt: new Date().toISOString(),
+    isDraft: false,
+    ...overrides,
+  };
+}
+
+function makeGitHubIssue(overrides: Partial<GitHubIssueDetail> = {}): GitHubIssueDetail {
+  return {
+    id: 1,
+    number: 1,
+    title: "Test Issue",
+    url: "https://github.com/org/repo/issues/1",
+    repo: "org/repo",
+    isAssigned: false,
+    isAuthored: false,
+    isOwnedRepo: false,
+    isBot: false,
+    dismissalId: "org/repo#1",
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -425,6 +465,80 @@ describe("detectGitHubMentions", () => {
       []
     );
     expect(result.totalMentions).toBe(0);
+  });
+
+  describe("URL specificity (fix: only match pull/{n} or issues/{n}, not any repo path)", () => {
+    it("should match github.com pull URL for a PR", () => {
+      const result = detectGitHubMentions(
+        "org/repo",
+        42,
+        [],
+        [makeSlackMsg({ text: "https://github.com/org/repo/pull/42 looks good" })]
+      );
+      expect(result.totalMentions).toBe(1);
+    });
+
+    it("should match github.com issues URL for an issue", () => {
+      const result = detectGitHubMentions(
+        "org/repo",
+        42,
+        [],
+        [makeSlackMsg({ text: "https://github.com/org/repo/issues/42" })]
+      );
+      expect(result.totalMentions).toBe(1);
+    });
+
+    it("should NOT match a blob/file URL in the same repo", () => {
+      // Pre-fix, github.com/org/repo/ matched ANY URL in the repo including file links
+      const result = detectGitHubMentions(
+        "org/repo",
+        42,
+        [],
+        [makeSlackMsg({ text: "https://github.com/org/repo/blob/main/README.md" })]
+      );
+      expect(result.totalMentions).toBe(0);
+    });
+
+    it("should NOT match a commits URL in the same repo", () => {
+      const result = detectGitHubMentions(
+        "org/repo",
+        42,
+        [makeEmail({ subject: "Commit pushed", snippet: "https://github.com/org/repo/commit/abc123" })],
+        []
+      );
+      expect(result.totalMentions).toBe(0);
+    });
+  });
+
+  describe("with calendar events", () => {
+    it("should find repo#number in calendar event description", () => {
+      const event = makeCalEvent({
+        id: "evt-1",
+        summary: "PR Review",
+        htmlLink: "https://calendar.google.com/event/1",
+        description: "Review org/repo#42 before merging",
+      });
+      const result = detectGitHubMentions("org/repo", 42, [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(1);
+      expect(result.mentionedIn).toContain("calendar");
+      expect(result.relatedItems[0].source).toBe("calendar");
+      expect(result.relatedItems[0].id).toBe("evt-1");
+    });
+
+    it("should find GitHub PR URL in calendar event description", () => {
+      const event = makeCalEvent({
+        description: "https://github.com/org/repo/pull/42",
+      });
+      const result = detectGitHubMentions("org/repo", 42, [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(1);
+      expect(result.mentionedIn).toContain("calendar");
+    });
+
+    it("should not match when calendar event has no description", () => {
+      const event = makeCalEvent({ summary: "org/repo#42 review" }); // no description
+      const result = detectGitHubMentions("org/repo", 42, [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(0);
+    });
   });
 });
 
@@ -807,6 +921,212 @@ describe("buildSourceLinearCrossRefs", () => {
       buildSourceLinearCrossRefs([issue], [email], [], []);
 
       // appendCrossRef's guard should block the duplicate — counts stay at 1
+      expect(email.crossReferenceMetadata.relatedItems).toHaveLength(1);
+      expect(email.crossReferenceMetadata.totalMentions).toBe(1);
+    });
+  });
+});
+
+// ── buildCalendarGitHubCrossRefs ─────────────────────────────────────────────
+
+describe("buildCalendarGitHubCrossRefs", () => {
+  it("should set crossReferenceMetadata on event that links a PR via pull URL", () => {
+    const pr = makeGitHubPR({
+      number: 42,
+      repo: "org/repo",
+      title: "Auth refactor",
+      url: "https://github.com/org/repo/pull/42",
+    });
+    const event = makeCalEvent({
+      description: "Review https://github.com/org/repo/pull/42 before tomorrow",
+    });
+
+    buildCalendarGitHubCrossRefs([event], [pr], []);
+
+    expect(event.crossReferenceMetadata).toBeDefined();
+    const { relatedItems, mentionedIn, totalMentions } = event.crossReferenceMetadata!;
+    expect(relatedItems).toHaveLength(1);
+    expect(relatedItems[0].source).toBe("github");
+    expect(relatedItems[0].id).toBe("org/repo#42");
+    expect(relatedItems[0].snippet).toBe("Auth refactor");
+    expect(mentionedIn).toContain("github");
+    expect(totalMentions).toBe(1);
+  });
+
+  it("should set crossReferenceMetadata on event that links an issue via issues URL", () => {
+    const issue = makeGitHubIssue({
+      number: 7,
+      repo: "org/repo",
+      title: "Bug report",
+    });
+    const event = makeCalEvent({
+      description: "Discuss https://github.com/org/repo/issues/7 with team",
+    });
+
+    buildCalendarGitHubCrossRefs([event], [], [issue]);
+
+    expect(event.crossReferenceMetadata).toBeDefined();
+    expect(event.crossReferenceMetadata!.relatedItems[0].id).toBe("org/repo#7");
+    expect(event.crossReferenceMetadata!.relatedItems[0].snippet).toBe("Bug report");
+  });
+
+  it("should deduplicate when the same GitHub URL appears twice in description", () => {
+    const pr = makeGitHubPR({ number: 42, repo: "org/repo" });
+    const url = "https://github.com/org/repo/pull/42";
+    const event = makeCalEvent({ description: `${url} and ${url}` });
+
+    buildCalendarGitHubCrossRefs([event], [pr], []);
+
+    expect(event.crossReferenceMetadata!.relatedItems).toHaveLength(1);
+    expect(event.crossReferenceMetadata!.totalMentions).toBe(1);
+  });
+
+  it("should fall back to captured URL when item is not in scope", () => {
+    const event = makeCalEvent({
+      description: "https://github.com/org/repo/pull/99",
+    });
+
+    buildCalendarGitHubCrossRefs([event], [], []); // empty PR/issue lists
+
+    expect(event.crossReferenceMetadata).toBeDefined();
+    expect(event.crossReferenceMetadata!.relatedItems[0].id).toBe("org/repo#99");
+    expect(event.crossReferenceMetadata!.relatedItems[0].url).toBe(
+      "https://github.com/org/repo/pull/99"
+    );
+    // Snippet falls back to id when item title is unavailable
+    expect(event.crossReferenceMetadata!.relatedItems[0].snippet).toBe("org/repo#99");
+  });
+
+  it("should not mutate event when no description is present", () => {
+    const pr = makeGitHubPR({ number: 42 });
+    const event = makeCalEvent(); // no description
+
+    buildCalendarGitHubCrossRefs([event], [pr], []);
+
+    expect(event.crossReferenceMetadata).toBeUndefined();
+  });
+
+  it("should not mutate event when description has no GitHub URLs", () => {
+    const pr = makeGitHubPR({ number: 42 });
+    const event = makeCalEvent({
+      description: "org/repo#42 and https://linear.app/team/issue/TEAM-4",
+    });
+
+    buildCalendarGitHubCrossRefs([event], [pr], []);
+
+    // prose "org/repo#42" is not a github.com URL — URL extraction is URL-only
+    expect(event.crossReferenceMetadata).toBeUndefined();
+  });
+});
+
+// ── buildSourceGitHubCrossRefs ────────────────────────────────────────────────
+
+describe("buildSourceGitHubCrossRefs", () => {
+  describe("Gmail", () => {
+    it("should populate crossReferenceMetadata when email subject contains repo#number", () => {
+      const pr = makeGitHubPR({ number: 42, repo: "org/repo", title: "Auth refactor", url: "https://github.com/org/repo/pull/42" });
+      const email = makeEmail({ subject: "Please review org/repo#42" });
+
+      buildSourceGitHubCrossRefs([pr], [], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeDefined();
+      expect(email.crossReferenceMetadata!.relatedItems[0].source).toBe("github");
+      expect(email.crossReferenceMetadata!.relatedItems[0].id).toBe("org/repo#42");
+      expect(email.crossReferenceMetadata!.relatedItems[0].url).toBe(
+        "https://github.com/org/repo/pull/42"
+      );
+    });
+
+    it("should populate when email snippet contains a GitHub PR URL", () => {
+      const pr = makeGitHubPR({ number: 5, repo: "org/repo" });
+      const email = makeEmail({
+        subject: "Update",
+        snippet: "See https://github.com/org/repo/pull/5 for details",
+      });
+
+      buildSourceGitHubCrossRefs([pr], [], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeDefined();
+    });
+
+    it("should not mutate email when neither subject nor snippet mentions the item", () => {
+      const pr = makeGitHubPR({ number: 42 });
+      const email = makeEmail({ subject: "Unrelated email" });
+
+      buildSourceGitHubCrossRefs([pr], [], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("Slack", () => {
+    it("should populate crossReferenceMetadata when message text contains repo#number", () => {
+      const pr = makeGitHubPR({ number: 42, repo: "org/repo" });
+      const msg = makeSlackMsg({ text: "Just merged org/repo#42!" });
+
+      buildSourceGitHubCrossRefs([pr], [], [], [msg], []);
+
+      expect(msg.crossReferenceMetadata).toBeDefined();
+      expect(msg.crossReferenceMetadata!.relatedItems[0].id).toBe("org/repo#42");
+    });
+
+    it("should not mutate message when text does not mention any item", () => {
+      const pr = makeGitHubPR({ number: 42 });
+      const msg = makeSlackMsg({ text: "Lunch at noon" });
+
+      buildSourceGitHubCrossRefs([pr], [], [], [msg], []);
+
+      expect(msg.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("Meeting notes", () => {
+    it("should populate crossReferenceMetadata when actionItem contains repo#number", () => {
+      const issue = makeGitHubIssue({ number: 7, repo: "org/repo", title: "Auth bug" });
+      const note = makeMeetingNote({ actionItem: "Fix org/repo#7 before launch" });
+
+      buildSourceGitHubCrossRefs([], [issue], [], [], [note]);
+
+      expect(note.crossReferenceMetadata).toBeDefined();
+      expect(note.crossReferenceMetadata!.relatedItems[0].id).toBe("org/repo#7");
+    });
+
+    it("should not mutate note when actionItem does not mention any item", () => {
+      const pr = makeGitHubPR({ number: 42 });
+      const note = makeMeetingNote({ actionItem: "Follow up with design team" });
+
+      buildSourceGitHubCrossRefs([pr], [], [], [], [note]);
+
+      expect(note.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("deduplication", () => {
+    it("should accumulate refs from multiple GitHub items on one source item", () => {
+      const pr = makeGitHubPR({ number: 42, repo: "org/repo", title: "PR A" });
+      const issue = makeGitHubIssue({ number: 7, repo: "org/repo", title: "Issue B" });
+      const email = makeEmail({ subject: "org/repo#42 and org/repo#7 updates" });
+
+      buildSourceGitHubCrossRefs([pr], [issue], [email], [], []);
+
+      expect(email.crossReferenceMetadata!.relatedItems).toHaveLength(2);
+      const ids = email.crossReferenceMetadata!.relatedItems.map((r) => r.id);
+      expect(ids).toContain("org/repo#42");
+      expect(ids).toContain("org/repo#7");
+    });
+
+    it("appendCrossRef dedup guard: should not add duplicate ref", () => {
+      const pr = makeGitHubPR({ number: 42, repo: "org/repo" });
+      const email = makeEmail({ subject: "org/repo#42 PR" });
+      // Pre-populate with the same id
+      email.crossReferenceMetadata = {
+        mentionedIn: ["github"],
+        relatedItems: [{ source: "github", id: "org/repo#42", snippet: "Existing", url: "https://github.com/org/repo/pull/42" }],
+        totalMentions: 1,
+      };
+
+      buildSourceGitHubCrossRefs([pr], [], [email], [], []);
+
       expect(email.crossReferenceMetadata.relatedItems).toHaveLength(1);
       expect(email.crossReferenceMetadata.totalMentions).toBe(1);
     });

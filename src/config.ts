@@ -15,6 +15,7 @@ interface ServerConfig {
   slackEmojiName: string;
   calendarPrepPrefix: string;
   userDisplayNames: string[];
+  orgGithubRepos: string[];
   anthropicApiKey: string;
   anthropicModel: string;
   observability: {
@@ -66,9 +67,13 @@ function getConfig(): ServerConfig {
   // Comma-separated name variants, e.g. "Kim,Kim Maida,kimmaida"
   const USER_DISPLAY_NAME = process.env.USER_DISPLAY_NAME || "";
 
+  // GitHub org repos to watch for incoming PRs/issues (optional)
+  // Comma-separated owner/repo pairs, e.g. "myorg/backend,myorg/frontend"
+  const ORG_GITHUB_REPOS = process.env.ORG_GITHUB_REPOS || "";
+
   // Anthropic API for chatbot (optional — only needed if the UI chatbot is used)
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929";
+  const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -113,6 +118,9 @@ function getConfig(): ServerConfig {
     anthropicModel: ANTHROPIC_MODEL,
     userDisplayNames: USER_DISPLAY_NAME
       ? USER_DISPLAY_NAME.split(",").map((n) => n.trim().toLowerCase())
+      : [],
+    orgGithubRepos: ORG_GITHUB_REPOS
+      ? ORG_GITHUB_REPOS.split(",").map((r) => r.trim()).filter(Boolean)
       : [],
     observability: {
       serviceName: SERVICE_NAME,

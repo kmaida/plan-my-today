@@ -13,15 +13,17 @@ import { computeStableId } from "../../utils/stable-task-keys";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
   buildCalendarCrossRefs,
+  buildCalendarGitHubCrossRefs,
+  buildSourceGitHubCrossRefs,
   buildSourceLinearCrossRefs,
   detectGitHubMentions,
   detectLinearMentions,
   linkMeetingAssets,
 } from "../today-todos/cross-reference-utils";
 import { parseDependencies } from "../today-todos/dependency-utils";
-import { calculateDrivePriority, fetchAssignedActions } from "../today-todos/drive-utils";
 import type { DocCommentEmail } from "../today-todos/drive-comments-utils";
 import { verifyAndEnrichDocComments } from "../today-todos/drive-comments-utils";
+import { calculateDrivePriority, fetchAssignedActions } from "../today-todos/drive-utils";
 import {
   calculateEmailPriority,
   calculateMeetingSummaryPriority,
@@ -115,10 +117,7 @@ function describeFile(file: SlackFileAttachment): string {
  * Build a fallback title for messages with no extractable text content.
  * Used for image-only, emoji-only, /giphy, and similar non-text messages.
  */
-function buildFallbackTitle(
-  type: string,
-  files?: SlackFileAttachment[]
-): string {
+function buildFallbackTitle(type: string, files?: SlackFileAttachment[]): string {
   const typeLabel = SLACK_TYPE_LABELS[type] || "Message";
 
   if (files && files.length > 0) {
@@ -137,11 +136,7 @@ function buildFallbackTitle(
  * so the UI can render them as clickable hyperlinks.
  * Falls back to file metadata for image-only/emoji-only messages.
  */
-function summarizeSlackMessage(
-  text: string,
-  type: string,
-  files?: SlackFileAttachment[]
-): string {
+function summarizeSlackMessage(text: string, type: string, files?: SlackFileAttachment[]): string {
   if (!text) {
     return buildFallbackTitle(type, files);
   }
@@ -662,7 +657,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries
+          meetingSummaries,
+          calendarEvents
         );
       }
 
@@ -673,7 +669,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries
+          meetingSummaries,
+          calendarEvents
         );
       }
 
@@ -685,6 +682,18 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // 2.7. Source cross-refs: Populate Gmail, Slack, Meeting Notes with referenced Linear issues
       buildSourceLinearCrossRefs(linearIssues, gmailTodos, slackMessages, meetingNoteActions);
+
+      // 2.8. Calendar GitHub cross-refs: Link calendar events that reference GitHub PRs/issues (URL-based)
+      buildCalendarGitHubCrossRefs(calendarEvents, githubPRs, githubIssues);
+
+      // 2.9. Source GitHub cross-refs: Populate Gmail, Slack, Meeting Notes with referenced GitHub items
+      buildSourceGitHubCrossRefs(
+        githubPRs,
+        githubIssues,
+        gmailTodos,
+        slackMessages,
+        meetingNoteActions
+      );
 
       // 3. Meeting prep: Generate context for calendar events (skip non-meeting types)
       for (const meeting of calendarEvents) {

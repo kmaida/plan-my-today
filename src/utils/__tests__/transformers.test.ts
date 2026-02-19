@@ -242,7 +242,11 @@ describe("transformServerResponse", () => {
           title: "PR",
           url: "url",
           repo: "org/repo",
-          type: "review",
+          isReviewRequested: true,
+          isAssigned: false,
+          isAuthored: false,
+          isOwnedRepo: false,
+          dismissalId: "org/repo#10",
           updatedAt: "2026-01-01T00:00:00Z",
           isDraft: false,
           priorityMetadata: makeServerPriority(90),
@@ -255,6 +259,10 @@ describe("transformServerResponse", () => {
           title: "Issue",
           url: "url",
           repo: "org/repo",
+          isAssigned: true,
+          isAuthored: false,
+          isOwnedRepo: false,
+          dismissalId: "org/repo#20",
           updatedAt: "2026-01-01T00:00:00Z",
           priorityMetadata: makeServerPriority(70),
         },
@@ -397,7 +405,7 @@ describe("Per-source transforms", () => {
     expect(task.end).toBe("2026-02-12");
   });
 
-  it("GitHub PR: preserves type field from server", () => {
+  it("GitHub PR: maps boolean flags and dismissalId from server", () => {
     const data = emptyResponse();
     data.github = {
       prs: [
@@ -407,7 +415,11 @@ describe("Per-source transforms", () => {
           title: "PR",
           url: "url",
           repo: "org/repo",
-          type: "review",
+          isReviewRequested: true,
+          isAssigned: false,
+          isAuthored: false,
+          isOwnedRepo: false,
+          dismissalId: "org/repo#10",
           updatedAt: "2026-01-01T00:00:00Z",
           isDraft: true,
         },
@@ -419,11 +431,13 @@ describe("Per-source transforms", () => {
     const task = tasks[0] as GitHubTask;
 
     expect(task.source).toBe("github");
-    expect(task.type).toBe("review");
+    expect(task.isReviewRequested).toBe(true);
+    expect(task.isAssigned).toBe(false);
+    expect(task.dismissalId).toBe("org/repo#10");
     expect(task.isDraft).toBe(true);
   });
 
-  it("GitHub Issue: uses source 'github-issue' and type 'assigned'", () => {
+  it("GitHub Issue: uses source 'github-issue' and boolean flags", () => {
     const data = emptyResponse();
     data.github = {
       prs: [],
@@ -434,6 +448,10 @@ describe("Per-source transforms", () => {
           title: "Issue",
           url: "url",
           repo: "org/repo",
+          isAssigned: true,
+          isAuthored: false,
+          isOwnedRepo: false,
+          dismissalId: "org/repo#20",
           updatedAt: "2026-01-01T00:00:00Z",
           labels: ["bug", "p1"],
         },
@@ -444,7 +462,8 @@ describe("Per-source transforms", () => {
     const task = tasks[0] as GitHubTask;
 
     expect(task.source).toBe("github-issue");
-    expect(task.type).toBe("assigned");
+    expect(task.isAssigned).toBe(true);
+    expect(task.dismissalId).toBe("org/repo#20");
     expect(task.labels).toEqual(["bug", "p1"]);
   });
 

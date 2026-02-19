@@ -8,8 +8,8 @@ import type { ActionSource } from "../utils/action-identifiers";
  */
 const restoreDismissedTaskInputSchema = {
   source: z
-    .enum(["meeting-note", "slack", "adhoc"])
-    .describe("The source type of the action item: 'meeting-note', 'slack', or 'adhoc'"),
+    .enum(["meeting-note", "slack", "adhoc", "github"])
+    .describe("The source type of the action item: 'meeting-note', 'slack', 'adhoc', or 'github'"),
   identifier: z
     .string()
     .describe("The unique identifier for this action (same identifier used when dismissing)"),

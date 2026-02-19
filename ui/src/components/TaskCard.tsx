@@ -13,9 +13,9 @@ import '../styles/hint-tooltip.css'
 import './TaskCard.css'
 
 // Sources that support local dismissal via the completion store.
-// Meeting-notes and slack (non-saved messages only) can be dismissed here.
+// Meeting-notes, slack (non-saved messages only), and github PRs/issues can be dismissed here.
 // Drive items auto-clear when resolved in the source document.
-const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'slack']
+const DISMISSABLE_SOURCES: TaskSource[] = ['meeting-notes', 'slack', 'github', 'github-issue']
 
 /** Labels for non-default Google Calendar event types shown in card metadata */
 const CALENDAR_EVENT_TYPE_LABELS: Record<string, string> = {
@@ -148,7 +148,8 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
 
     if (isGitHubTask(task)) {
       items.push(`${task.repo}`)
-      items.push(`#${task.number}`)
+      items.push(`${task.source === 'github-issue' ? 'Issue' : 'PR'} #${task.number}`)
+      if (task.isBot) items.push('Automated')
     }
 
     if (isSlackTask(task)) {
