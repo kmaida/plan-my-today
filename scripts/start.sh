@@ -11,11 +11,8 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/versions/node/$(ls "$HO
 # Load port from .env
 PORT=$(grep -m1 '^PORT=' .env 2>/dev/null | cut -d= -f2 || echo 9005)
 
-# Build if dist/ or ui/dist/ are missing
-if [ ! -d dist ] || [ ! -d ui/dist ]; then
-  echo "Building..."
-  npm run build:all
-fi
+echo "Building..."
+npm run build:all
 
 # Start the server
 echo "Starting server on port $PORT..."
