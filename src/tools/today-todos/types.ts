@@ -129,8 +129,10 @@ export interface CalendarEventDetail {
     displayName?: string;
     self?: boolean;
   }>;
+  description?: string; // Calendar event description (may contain Linear issue URLs)
   priorityMetadata?: PriorityMetadata;
   meetingContextMetadata?: MeetingContextMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
@@ -173,6 +175,7 @@ export interface GmailMessageDetail {
   threadMessageCount?: number; // Number of messages collapsed from this thread
   threadParticipants?: string[]; // Deduplicated sender names from all messages in the thread
   priorityMetadata?: PriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
@@ -265,6 +268,7 @@ export interface SlackMessageDetail {
   replyCount?: number; // For threads
   files?: SlackFileAttachment[];
   priorityMetadata?: PriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 /**
@@ -280,6 +284,7 @@ export interface MeetingNoteActionDetail {
   timestamp: number; // Document modified time (Unix timestamp in ms)
   meetingDate?: Date; // Parsed meeting date from filename
   priorityMetadata?: PriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 // ── Enriched types (after taskId + priority assignment in list-all-tasks-today) ──
@@ -313,4 +318,3 @@ export interface ListAllTasksResponse {
   meetingNotes: EnrichedMeetingNote[];
   metadata: { fetched_at: string; date: string; errors?: string[]; failedSources?: string[] };
 }
-

@@ -2,6 +2,7 @@ import type {
   CalendarEventDetail,
   CrossReferenceMetadata,
   GmailMessageDetail,
+  LinearIssueDetail,
   MeetingNoteActionDetail,
   MeetingSummaryDetail,
   SlackMessageDetail,
@@ -34,7 +35,8 @@ export function detectLinearMentions(
   gmail: GmailMessageDetail[],
   slack: SlackMessageDetail[],
   meetingNotes?: MeetingNoteActionDetail[],
-  meetingSummaries?: MeetingSummaryDetail[]
+  meetingSummaries?: MeetingSummaryDetail[],
+  calendarEvents?: CalendarEventDetail[]
 ): CrossReferenceMetadata {
   const mentionedIn = new Set<string>();
   const relatedItems: Array<{ source: string; id: string; snippet: string; url?: string }> = [];
@@ -93,6 +95,23 @@ export function detectLinearMentions(
     }
   }
 
+  // Search calendar event descriptions for issue ID.
+  // Uses text matching (containsExactToken), which fires on prose mentions AND within URLs.
+  // Intentional asymmetry with buildCalendarCrossRefs (Direction 2), which is URL-only:
+  // a prose mention like "Working on KIM-123" populates the Linear card but NOT the calendar card.
+  for (const event of calendarEvents ?? []) {
+    if (!event.description) continue;
+    if (containsExactToken(event.description, issueId)) {
+      mentionedIn.add("calendar");
+      relatedItems.push({
+        source: "calendar",
+        id: event.id ?? event.htmlLink ?? event.summary ?? "",
+        snippet: (event.summary ?? "").substring(0, 100),
+        url: event.htmlLink,
+      });
+    }
+  }
+
   return {
     mentionedIn: Array.from(mentionedIn),
     relatedItems,
@@ -112,7 +131,6 @@ export function detectLinearMentions(
  * @param meetingSummaries - Optional array of meeting summaries to search
  * @returns Cross-reference metadata with mentions
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: cross-source mention matching
 export function detectGitHubMentions(
   repo: string,
   number: number,
@@ -193,6 +211,119 @@ export function detectGitHubMentions(
     relatedItems,
     totalMentions: relatedItems.length,
   };
+}
+
+/**
+ * Appends a relatedItem to an item's crossReferenceMetadata, deduplicating by id.
+ * Shared by buildCalendarCrossRefs and buildSourceLinearCrossRefs.
+ */
+function appendCrossRef(
+  item: { crossReferenceMetadata?: CrossReferenceMetadata },
+  ref: CrossReferenceMetadata["relatedItems"][number]
+): void {
+  if (!item.crossReferenceMetadata) {
+    item.crossReferenceMetadata = { mentionedIn: [], relatedItems: [], totalMentions: 0 };
+  }
+  if (item.crossReferenceMetadata.relatedItems.some((r) => r.id === ref.id)) return;
+  item.crossReferenceMetadata.relatedItems.push(ref);
+  item.crossReferenceMetadata.totalMentions++;
+  if (!item.crossReferenceMetadata.mentionedIn.includes(ref.source)) {
+    item.crossReferenceMetadata.mentionedIn.push(ref.source);
+  }
+}
+
+/**
+ * Builds crossReferenceMetadata for Calendar events that explicitly link to
+ * Linear issues via linear.app URLs in their description. Mutates events in place.
+ *
+ * Uses URL-based extraction (not text matching) for precision — avoids false positives
+ * from prose that happens to contain issue-like tokens (e.g., "version KP-1.0").
+ * Works for any event type including focusTime.
+ *
+ * Intentional asymmetry with detectLinearMentions (Direction 1), which uses text matching:
+ * a prose mention like "Working on KIM-123" populates the Linear card (Direction 1)
+ * but NOT the calendar card (Direction 2, URL-only).
+ *
+ * @param calendarEvents - Calendar events to inspect (mutated in place)
+ * @param linearIssues - Linear issues in scope, used for title/url lookup
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: URL extraction + cross-ref population
+export function buildCalendarCrossRefs(
+  calendarEvents: CalendarEventDetail[],
+  linearIssues: LinearIssueDetail[]
+): void {
+  const issueByIdentifier = new Map(linearIssues.map((i) => [i.identifier, i]));
+  // matchAll clones the regex internally and resets lastIndex on each call, so a single
+  // regex object shared across all events is safe — no /g flag lastIndex accumulation.
+  const pattern = /https:\/\/linear\.app\/[^/\s]+\/issue\/([A-Z]+-\d+)/gi;
+  for (const event of calendarEvents) {
+    if (!event.description) continue;
+    // identifier → URL up to identifier (for fallback; slug after identifier not captured by regex)
+    const seen = new Map<string, string>();
+    for (const match of event.description.matchAll(pattern)) {
+      const identifier = match[1].toUpperCase();
+      if (!seen.has(identifier)) seen.set(identifier, match[0]);
+    }
+    for (const [identifier, url] of seen) {
+      const issue = issueByIdentifier.get(identifier);
+      appendCrossRef(event, {
+        source: "linear",
+        id: identifier,
+        snippet: issue ? issue.title.substring(0, 100) : identifier,
+        url: issue ? issue.url : url, // fallback to captured URL when issue not in today's list
+      });
+    }
+  }
+}
+
+/**
+ * Builds crossReferenceMetadata for Gmail messages, Slack messages, and meeting
+ * note action items that reference Linear issues. Mutates source items in place.
+ *
+ * Uses a forward scan (one pass per issue over all sources) rather than
+ * reverse-mapping from already-computed cross-refs. The reverse-mapping approach
+ * has a false-positive bug: detectLinearMentions uses note.documentId as the
+ * relatedItem id, so a reverse map would populate ALL notes from a document even
+ * when only one specific action item mentions the issue.
+ *
+ * Mirrors the exact text fields already searched by detectLinearMentions.
+ * Meeting summaries are skipped — they are not standalone task cards in the UI.
+ *
+ * @param linearIssues - Linear issues to search for
+ * @param gmail - Gmail messages to populate (mutated in place)
+ * @param slack - Slack messages to populate (mutated in place)
+ * @param meetingNotes - Meeting note action items to populate (mutated in place)
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: forward cross-ref scan across sources
+export function buildSourceLinearCrossRefs(
+  linearIssues: LinearIssueDetail[],
+  gmail: GmailMessageDetail[],
+  slack: SlackMessageDetail[],
+  meetingNotes: MeetingNoteActionDetail[]
+): void {
+  for (const issue of linearIssues) {
+    const issueRef = {
+      source: "linear" as const,
+      id: issue.identifier,
+      snippet: issue.title.substring(0, 100),
+      url: issue.url,
+    };
+    for (const email of gmail) {
+      if (containsExactToken(`${email.subject} ${email.snippet || ""}`, issue.identifier)) {
+        appendCrossRef(email, issueRef);
+      }
+    }
+    for (const msg of slack) {
+      if (containsExactToken(msg.text, issue.identifier)) {
+        appendCrossRef(msg, issueRef);
+      }
+    }
+    for (const note of meetingNotes) {
+      if (containsExactToken(note.actionItem, issue.identifier)) {
+        appendCrossRef(note, issueRef);
+      }
+    }
+  }
 }
 
 /**

@@ -324,7 +324,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
               >
                 <Chevron direction={isExpanded ? 'down' : 'right'} size={12} className="task-card__expand-icon" />
                 <span className="task-card__cross-refs-label">
-                  Referenced in:{labelSources.length > 0 ? ` ${labelSources.join(', ')}` : ''}
+                  Related to:{labelSources.length > 0 ? ` ${labelSources.join(', ')}` : ''}
                 </span>
               </div>
 

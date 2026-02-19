@@ -78,6 +78,7 @@ function transformGmail(msg: ServerGmailMessage): GmailTask {
     threadMessageCount: msg.threadMessageCount,
     threadParticipants: msg.threadParticipants,
     priorityMetadata: transformPriority(msg.priorityMetadata),
+    crossReferences: msg.crossReferenceMetadata,
   };
 }
 
@@ -128,6 +129,7 @@ function transformSlack(msg: ServerSlackMessage): SlackTask {
     link: msg.permalink,
     dismissalId: msg.dismissalId,
     priorityMetadata: transformPriority(msg.priorityMetadata),
+    crossReferences: msg.crossReferenceMetadata,
   };
 }
 
@@ -148,6 +150,7 @@ function transformCalendar(event: ServerCalendarEvent): CalendarTask {
     htmlLink: event.htmlLink || "",
     priorityMetadata: transformPriority(event.priorityMetadata),
     meetingContext: event.meetingContextMetadata,
+    crossReferences: event.crossReferenceMetadata,
   };
 }
 
@@ -181,6 +184,7 @@ function transformMeetingNote(note: ServerMeetingNote): MeetingNotesTask {
     documentTitle: note.documentTitle,
     documentLink: note.documentLink,
     priorityMetadata: transformPriority(note.priorityMetadata),
+    crossReferences: note.crossReferenceMetadata,
   };
 }
 

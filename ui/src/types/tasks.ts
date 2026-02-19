@@ -294,6 +294,7 @@ export interface ServerGmailMessage {
   threadMessageCount?: number;
   threadParticipants?: string[];
   priorityMetadata?: ServerPriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 export interface ServerGitHubPR {
@@ -342,6 +343,7 @@ export interface ServerSlackMessage {
   type: "mention" | "thread" | "dm" | "saved";
   replyCount?: number;
   priorityMetadata?: ServerPriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 export interface ServerCalendarEvent {
@@ -358,6 +360,7 @@ export interface ServerCalendarEvent {
   attendees?: Array<{ email?: string; displayName?: string; self?: boolean }>;
   priorityMetadata?: ServerPriorityMetadata;
   meetingContextMetadata?: MeetingContextMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 export interface ServerDriveAction {
@@ -385,6 +388,7 @@ export interface ServerMeetingNote {
   timestamp: number;
   meetingDate?: string;
   priorityMetadata?: ServerPriorityMetadata;
+  crossReferenceMetadata?: CrossReferenceMetadata;
 }
 
 // ===== API Response Types =====

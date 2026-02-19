@@ -9,6 +9,8 @@
  */
 
 import {
+  buildCalendarCrossRefs,
+  buildSourceLinearCrossRefs,
   containsExactToken,
   detectGitHubMentions,
   detectLinearMentions,
@@ -17,6 +19,7 @@ import {
 import type {
   CalendarEventDetail,
   GmailMessageDetail,
+  LinearIssueDetail,
   MeetingNoteActionDetail,
   MeetingSummaryDetail,
   SlackMessageDetail,
@@ -77,6 +80,21 @@ function makeCalEvent(overrides: Partial<CalendarEventDetail> = {}): CalendarEve
     end: { dateTime: "2026-02-11T10:30:00Z" },
     ...overrides,
   } as CalendarEventDetail;
+}
+
+function makeLinearIssue(overrides: Partial<LinearIssueDetail> = {}): LinearIssueDetail {
+  return {
+    identifier: "TEAM-1",
+    title: "Test issue",
+    priority: 0,
+    priorityLabel: "No priority",
+    url: "https://linear.app/team/issue/TEAM-1",
+    state: null,
+    dueDate: null,
+    estimate: null,
+    project: null,
+    ...overrides,
+  };
 }
 
 // ── detectLinearMentions ─────────────────────────────────────────────────────
@@ -211,6 +229,46 @@ describe("detectLinearMentions", () => {
     expect(result.relatedItems[0].url).toBe("https://slack.com/archives/C123/p123");
   });
 
+  describe("with calendar events", () => {
+    it("should find issue ID in calendar event description", () => {
+      const event = makeCalEvent({
+        id: "evt-1",
+        summary: "Focus: TEAM-4",
+        htmlLink: "https://calendar.google.com/event/1",
+        description: "Working on https://linear.app/team/issue/TEAM-4/some-title",
+      });
+      const result = detectLinearMentions("TEAM-4", [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(1);
+      expect(result.mentionedIn).toContain("calendar");
+      expect(result.relatedItems[0].source).toBe("calendar");
+      expect(result.relatedItems[0].id).toBe("evt-1");
+      expect(result.relatedItems[0].url).toBe("https://calendar.google.com/event/1");
+    });
+
+    it("should not match when calendar event has no description", () => {
+      const event = makeCalEvent({ summary: "TEAM-4 Focus Block" }); // no description field
+      const result = detectLinearMentions("TEAM-4", [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(0);
+    });
+
+    it("should not match TEAM-4 when only TEAM-42 appears in description (word boundary)", () => {
+      const event = makeCalEvent({
+        description: "Working on TEAM-42 today",
+      });
+      const result = detectLinearMentions("TEAM-4", [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(0);
+    });
+
+    it("should match bare text mention even without a Linear URL (Direction 1 asymmetry)", () => {
+      // Direction 1 uses text matching — prose mentions populate the Linear card.
+      // Direction 2 (buildCalendarCrossRefs) is URL-only, so this same calendar event
+      // would NOT get a cross-ref on the calendar card side.
+      const event = makeCalEvent({ description: "Working on TEAM-4 today" });
+      const result = detectLinearMentions("TEAM-4", [], [], [], [], [event]);
+      expect(result.totalMentions).toBe(1);
+      expect(result.mentionedIn).toContain("calendar");
+    });
+  });
 });
 
 // ── containsExactToken ─────────────────────────────────────────────────────
@@ -368,7 +426,6 @@ describe("detectGitHubMentions", () => {
     );
     expect(result.totalMentions).toBe(0);
   });
-
 });
 
 // ── linkMeetingAssets ────────────────────────────────────────────────────────
@@ -496,5 +553,262 @@ describe("linkMeetingAssets", () => {
     // After: mutated in place
     expect(summaries[0].relatedMeetingNotes).toBeDefined();
     expect(summaries[0].relatedCalendarEvent).toBeDefined();
+  });
+});
+
+// ── buildCalendarCrossRefs ───────────────────────────────────────────────────
+
+describe("buildCalendarCrossRefs", () => {
+  it("should set crossReferenceMetadata on event that links a Linear issue via URL", () => {
+    const issue = makeLinearIssue({
+      identifier: "TEAM-4",
+      title: "Auth refactor",
+      url: "https://linear.app/team/issue/TEAM-4",
+    });
+    const event = makeCalEvent({
+      description: "Focus block for https://linear.app/team/issue/TEAM-4/auth-refactor",
+    });
+
+    buildCalendarCrossRefs([event], [issue]);
+
+    expect(event.crossReferenceMetadata).toBeDefined();
+    const { relatedItems, mentionedIn, totalMentions } = event.crossReferenceMetadata!;
+    expect(relatedItems).toHaveLength(1);
+    expect(relatedItems[0].source).toBe("linear");
+    expect(relatedItems[0].id).toBe("TEAM-4");
+    expect(relatedItems[0].url).toBe("https://linear.app/team/issue/TEAM-4");
+    expect(relatedItems[0].snippet).toBe("Auth refactor");
+    expect(mentionedIn).toContain("linear");
+    expect(totalMentions).toBe(1);
+  });
+
+  it("should not mutate event when no description is present", () => {
+    const issue = makeLinearIssue({ identifier: "TEAM-4" });
+    const event = makeCalEvent(); // no description
+
+    buildCalendarCrossRefs([event], [issue]);
+
+    expect(event.crossReferenceMetadata).toBeUndefined();
+  });
+
+  it("should deduplicate when the same Linear URL appears twice in description", () => {
+    const issue = makeLinearIssue({ identifier: "TEAM-4" });
+    const url = "https://linear.app/team/issue/TEAM-4/title";
+    const event = makeCalEvent({ description: `${url} and also ${url}` });
+
+    buildCalendarCrossRefs([event], [issue]);
+
+    expect(event.crossReferenceMetadata!.relatedItems).toHaveLength(1);
+    expect(event.crossReferenceMetadata!.totalMentions).toBe(1);
+  });
+
+  it("should populate multiple distinct issues from one description", () => {
+    const issueA = makeLinearIssue({
+      identifier: "TEAM-4",
+      title: "Issue A",
+      url: "https://linear.app/team/issue/TEAM-4",
+    });
+    const issueB = makeLinearIssue({
+      identifier: "TEAM-5",
+      title: "Issue B",
+      url: "https://linear.app/team/issue/TEAM-5",
+    });
+    const event = makeCalEvent({
+      description:
+        "https://linear.app/team/issue/TEAM-4/a and https://linear.app/team/issue/TEAM-5/b",
+    });
+
+    buildCalendarCrossRefs([event], [issueA, issueB]);
+
+    const ids = event.crossReferenceMetadata!.relatedItems.map((r) => r.id);
+    expect(ids).toContain("TEAM-4");
+    expect(ids).toContain("TEAM-5");
+    expect(event.crossReferenceMetadata!.relatedItems).toHaveLength(2);
+  });
+
+  it("should fall back to URL from description when issue is not in linearIssues", () => {
+    const event = makeCalEvent({
+      description: "https://linear.app/team/issue/TEAM-99/unknown-issue",
+    });
+
+    buildCalendarCrossRefs([event], []); // empty issues list — issue not fetched today
+
+    expect(event.crossReferenceMetadata).toBeDefined();
+    expect(event.crossReferenceMetadata!.relatedItems[0].id).toBe("TEAM-99");
+    // The regex captures up to the identifier only (match[0] = "https://linear.app/team/issue/TEAM-99")
+    // The slug (/unknown-issue) is not included — but the URL is still a valid Linear link
+    expect(event.crossReferenceMetadata!.relatedItems[0].url).toBe(
+      "https://linear.app/team/issue/TEAM-99"
+    );
+    // Snippet falls back to identifier when issue title is unavailable
+    expect(event.crossReferenceMetadata!.relatedItems[0].snippet).toBe("TEAM-99");
+  });
+
+  it("should not mutate event when description contains no Linear URLs", () => {
+    // Prose mentioning an identifier (not a URL) must NOT trigger URL-based extraction
+    const event = makeCalEvent({
+      description: "Working on TEAM-4 today (no URL link present)",
+    });
+    const issue = makeLinearIssue({ identifier: "TEAM-4" });
+
+    buildCalendarCrossRefs([event], [issue]);
+
+    expect(event.crossReferenceMetadata).toBeUndefined();
+  });
+});
+
+// ── buildSourceLinearCrossRefs ───────────────────────────────────────────────
+
+describe("buildSourceLinearCrossRefs", () => {
+  describe("Gmail", () => {
+    it("should populate crossReferenceMetadata when email subject contains issue identifier", () => {
+      const issue = makeLinearIssue({
+        identifier: "TEAM-4",
+        title: "Auth refactor",
+        url: "https://linear.app/team/issue/TEAM-4",
+      });
+      const email = makeEmail({ subject: "Re: TEAM-4 is blocked" });
+
+      buildSourceLinearCrossRefs([issue], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeDefined();
+      expect(email.crossReferenceMetadata!.relatedItems[0].source).toBe("linear");
+      expect(email.crossReferenceMetadata!.relatedItems[0].id).toBe("TEAM-4");
+      expect(email.crossReferenceMetadata!.relatedItems[0].url).toBe(
+        "https://linear.app/team/issue/TEAM-4"
+      );
+    });
+
+    it("should populate crossReferenceMetadata when issue identifier is in email snippet", () => {
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const email = makeEmail({ subject: "Quick update", snippet: "See TEAM-4 for details" });
+
+      buildSourceLinearCrossRefs([issue], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeDefined();
+    });
+
+    it("should not mutate email when subject and snippet do not mention any issue", () => {
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const email = makeEmail({ subject: "Unrelated email" });
+
+      buildSourceLinearCrossRefs([issue], [email], [], []);
+
+      expect(email.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("Slack", () => {
+    it("should populate crossReferenceMetadata when message text contains issue identifier", () => {
+      const issue = makeLinearIssue({
+        identifier: "TEAM-4",
+        title: "Auth refactor",
+        url: "https://linear.app/team/issue/TEAM-4",
+      });
+      const msg = makeSlackMsg({ text: "Just submitted TEAM-4 for review" });
+
+      buildSourceLinearCrossRefs([issue], [], [msg], []);
+
+      expect(msg.crossReferenceMetadata).toBeDefined();
+      expect(msg.crossReferenceMetadata!.relatedItems[0].id).toBe("TEAM-4");
+    });
+
+    it("should not mutate message when text does not mention any issue", () => {
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const msg = makeSlackMsg({ text: "Lunch at noon" });
+
+      buildSourceLinearCrossRefs([issue], [], [msg], []);
+
+      expect(msg.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("Meeting notes — forward scan regression", () => {
+    it("should only populate the specific note whose actionItem mentions the issue", () => {
+      // Regression guard: reverse-mapping would populate ALL notes from a document because
+      // detectLinearMentions uses documentId as relatedItem.id. Forward scan checks each
+      // note's actionItem individually, so only the matching note gets populated.
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const noteWithMatch = makeMeetingNote({
+        documentId: "doc-1",
+        documentTitle: "Sprint Review",
+        actionItem: "Fix TEAM-4 before release",
+      });
+      const noteWithoutMatch = makeMeetingNote({
+        documentId: "doc-1", // same document — reverse mapping would populate this incorrectly
+        documentTitle: "Sprint Review",
+        actionItem: "Update the changelog",
+      });
+
+      buildSourceLinearCrossRefs([issue], [], [], [noteWithMatch, noteWithoutMatch]);
+
+      expect(noteWithMatch.crossReferenceMetadata).toBeDefined();
+      expect(noteWithMatch.crossReferenceMetadata!.relatedItems[0].id).toBe("TEAM-4");
+      // This note's actionItem does NOT mention TEAM-4 — must NOT be populated
+      expect(noteWithoutMatch.crossReferenceMetadata).toBeUndefined();
+    });
+
+    it("should not mutate note when actionItem does not mention any issue", () => {
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const note = makeMeetingNote({ actionItem: "Follow up with design team" });
+
+      buildSourceLinearCrossRefs([issue], [], [], [note]);
+
+      expect(note.crossReferenceMetadata).toBeUndefined();
+    });
+  });
+
+  describe("deduplication", () => {
+    it("should count as one match when identifier appears in both subject and snippet", () => {
+      // buildSourceLinearCrossRefs concatenates subject + snippet and calls containsExactToken
+      // once per (email, issue) pair — one match → one appendCrossRef call.
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const email = makeEmail({ subject: "Re: TEAM-4", snippet: "TEAM-4 is still open" });
+
+      buildSourceLinearCrossRefs([issue], [email], [], []);
+
+      expect(email.crossReferenceMetadata!.relatedItems).toHaveLength(1);
+      expect(email.crossReferenceMetadata!.totalMentions).toBe(1);
+    });
+
+    it("should accumulate refs for multiple distinct issues that appear in one item", () => {
+      const issueA = makeLinearIssue({ identifier: "TEAM-4", title: "Issue A" });
+      const issueB = makeLinearIssue({ identifier: "TEAM-5", title: "Issue B" });
+      const email = makeEmail({ subject: "TEAM-4 and TEAM-5 updates" });
+
+      buildSourceLinearCrossRefs([issueA, issueB], [email], [], []);
+
+      expect(email.crossReferenceMetadata!.relatedItems).toHaveLength(2);
+      const ids = email.crossReferenceMetadata!.relatedItems.map((r) => r.id);
+      expect(ids).toContain("TEAM-4");
+      expect(ids).toContain("TEAM-5");
+    });
+
+    it("appendCrossRef dedup guard: should not add a ref whose id already exists in relatedItems", () => {
+      // This exercises appendCrossRef's own dedup guard (relatedItems.some(r => r.id === ref.id)).
+      // The guard fires when an item's crossReferenceMetadata is pre-populated with a ref whose id
+      // matches what buildSourceLinearCrossRefs would add. The current callers never produce this
+      // scenario organically, so we set it up manually by pre-populating the email.
+      const issue = makeLinearIssue({ identifier: "TEAM-4" });
+      const email = makeEmail({ subject: "Re: TEAM-4" });
+      email.crossReferenceMetadata = {
+        mentionedIn: ["linear"],
+        relatedItems: [
+          {
+            source: "linear",
+            id: "TEAM-4",
+            snippet: "Pre-existing ref",
+            url: "https://linear.app/team/issue/TEAM-4",
+          },
+        ],
+        totalMentions: 1,
+      };
+
+      buildSourceLinearCrossRefs([issue], [email], [], []);
+
+      // appendCrossRef's guard should block the duplicate — counts stay at 1
+      expect(email.crossReferenceMetadata.relatedItems).toHaveLength(1);
+      expect(email.crossReferenceMetadata.totalMentions).toBe(1);
+    });
   });
 });

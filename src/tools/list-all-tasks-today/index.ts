@@ -12,6 +12,8 @@ import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
 import { computeStableId } from "../../utils/stable-task-keys";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
+  buildCalendarCrossRefs,
+  buildSourceLinearCrossRefs,
   detectGitHubMentions,
   detectLinearMentions,
   linkMeetingAssets,
@@ -648,7 +650,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           gmailTodos,
           slackMessages,
           meetingNoteActions,
-          meetingSummaries
+          meetingSummaries,
+          calendarEvents
         );
       }
 
@@ -676,6 +679,12 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // 2.5. Relations: Merge API blocking into deps + inject into cross-refs
       enrichRelations(linearIssues);
+
+      // 2.6. Calendar cross-refs: Link calendar events that reference Linear issues (URL-based)
+      buildCalendarCrossRefs(calendarEvents, linearIssues);
+
+      // 2.7. Source cross-refs: Populate Gmail, Slack, Meeting Notes with referenced Linear issues
+      buildSourceLinearCrossRefs(linearIssues, gmailTodos, slackMessages, meetingNoteActions);
 
       // 3. Meeting prep: Generate context for calendar events (skip non-meeting types)
       for (const meeting of calendarEvents) {
