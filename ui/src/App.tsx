@@ -375,7 +375,7 @@ function App() {
     // Pick a fresh phrase immediately when cycling starts
     setFetchPhrase(() => phraseCycler.next())
     setPhraseFading(false)
-    const interval = setInterval(cyclePhrase, 2300)
+    const interval = setInterval(cyclePhrase, 1300)
     return () => clearInterval(interval)
   }, [showCycling, cyclePhrase])
 

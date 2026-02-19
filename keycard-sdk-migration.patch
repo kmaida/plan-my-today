@@ -1,0 +1,452 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index b94a03f..4a2a160 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -74,7 +74,7 @@ ui/                  # Vite + React dashboard and Todaygent chat agent
+ ## Environment
+ 
+ - Node.js + TypeScript (ES2020 target)
+-- Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_STS_ISSUER_URL` (single-tenant) or `ISSUER_BASE_DOMAIN` + `MCP_BASE_DOMAIN` (multi-tenant)
++- Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_STS_ISSUER_URL`
+ - Optional: `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`
+ - See `.env.example` for full list
+ 
+diff --git a/package.json b/package.json
+index 15c5d22..18a0ac8 100644
+--- a/package.json
++++ b/package.json
+@@ -31,7 +31,8 @@
+     "oauth"
+   ],
+   "dependencies": {
+-    "@keycardlabs/mcp-oauth": "file:./keycardlabs-mcp-oauth-0.0.0.tgz",
++    "@keycardai/mcp": "file:keycardai-mcp-0.1.0.tgz",
++    "@keycardai/oauth": "file:keycardai-oauth-0.1.0.tgz",
+     "@modelcontextprotocol/sdk": "^1.16.0",
+     "compression": "^1.8.1",
+     "dotenv": "^17.2.0",
+diff --git a/src/config.ts b/src/config.ts
+index 2cd3abb..3c20159 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -10,8 +10,6 @@ interface ServerConfig {
+   host: string;
+   baseUrl: string;
+   keycardIssuerUrl: string;
+-  issuerBaseDomain: string;
+-  mcpBaseDomain: string;
+   keycardClientId: string;
+   keycardClientSecret: string;
+   slackEmojiName: string;
+@@ -53,8 +51,6 @@ function getConfig(): ServerConfig {
+   // Base URL for the server (used in startup logs and metadata)
+   const BASE_URL = `http://${HOST}:${PORT}`;
+   const KEYCARD_STS_ISSUER_URL = process.env.KEYCARD_STS_ISSUER_URL;
+-  const ISSUER_BASE_DOMAIN = process.env.ISSUER_BASE_DOMAIN;
+-  const MCP_BASE_DOMAIN = process.env.MCP_BASE_DOMAIN;
+ 
+   // Keycard client ID and secret are required for the MCP server to authenticate with Keycard
+   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
+@@ -88,18 +84,10 @@ function getConfig(): ServerConfig {
+     console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
+   }
+ 
+-  // KEYCARD_STS_ISSUER_URL is required in single-tenant mode
+-  // In multi-tenant mode, ISSUER_BASE_DOMAIN and MCP_BASE_DOMAIN are required
+-  const isMultiTenant = ISSUER_BASE_DOMAIN && MCP_BASE_DOMAIN;
+-
+-  if (!isMultiTenant && !KEYCARD_STS_ISSUER_URL) {
++  if (!KEYCARD_STS_ISSUER_URL) {
+     throw new Error(
+-      "❌ FATAL: Either KEYCARD_STS_ISSUER_URL (single-tenant) or ISSUER_BASE_DOMAIN + MCP_BASE_DOMAIN (multi-tenant) must be defined.\n" +
+-        "💡 Single-tenant example:\n" +
+-        "   KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud\n" +
+-        "💡 Multi-tenant example:\n" +
+-        "   ISSUER_BASE_DOMAIN=keycard.cloud\n" +
+-        "   MCP_BASE_DOMAIN=mcp.example.com"
++      "❌ FATAL: KEYCARD_STS_ISSUER_URL must be defined.\n" +
++        "💡 Example: KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud"
+     );
+   }
+ 
+@@ -116,9 +104,7 @@ function getConfig(): ServerConfig {
+     port: PORT,
+     host: HOST,
+     baseUrl: BASE_URL,
+-    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL || "", // Fallback for multi-tenant mode
+-    issuerBaseDomain: ISSUER_BASE_DOMAIN || "",
+-    mcpBaseDomain: MCP_BASE_DOMAIN || "",
++    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL,
+     keycardClientId: KEYCARD_CLIENT_ID || "",
+     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
+     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",
+diff --git a/src/middleware/auth.ts b/src/middleware/auth.ts
+index 3de071c..1f1a3bd 100644
+--- a/src/middleware/auth.ts
++++ b/src/middleware/auth.ts
+@@ -1,5 +1,8 @@
+-import { createRequire } from "node:module";
+-import type { AuthInfo, RequestHandler } from "../types/index";
++import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
++import type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
++import { JWTOAuthTokenVerifier } from "@keycardai/mcp/server/auth/verifiers/jwt";
++import { JWKSOAuthKeyring } from "@keycardai/oauth/keyring";
++import type { RequestHandler } from "../types/index";
+ 
+ // Extend Express Request to include auth property
+ declare module "express-serve-static-core" {
+@@ -20,80 +23,92 @@ export interface AuthMiddlewareOptions {
+   requiredScopes?: string[];
+ }
+ 
+-// --------------------------------------------------------------------------
+-// Custom verifier wrapper that handles array `aud` claims.
+-//
+-// The upstream @keycardlabs/mcp-oauth JWTOAuthTokenVerifier does
+-//   `resource: new URL(jsonPayload.aud)`
+-// which silently mangles array audiences into a comma-joined URL string.
+-// We wrap the default verifier so that when `aud` is an array, `resource`
+-// is set to the first entry (the MCP resource URL).
+-//
+-// The comma-detection is a safe no-op once the library ships the fix —
+-// a correct `resource` won't contain commas, so the wrapper becomes a
+-// passthrough. Safe to remove this entire block after the fix lands in
+-// @keycardlabs/mcp-oauth and we bump the dependency.
+-// --------------------------------------------------------------------------
+-
+-interface TokenVerifier {
+-  verifyAccessToken(token: string): Promise<{
+-    token: string;
+-    clientId: string;
+-    resource: URL;
+-    scopes: string[];
+-    expiresAt: number;
+-  }>;
++/**
++ * Decodes a JWT payload without verification (for reading claims only).
++ * Actual signature verification is handled by JWTOAuthTokenVerifier.
++ */
++function decodeJwtClaims(token: string): Record<string, unknown> {
++  const parts = token.split(".");
++  if (parts.length !== 3) {
++    throw new Error("Invalid JWT format: expected 3 dot-separated parts");
++  }
++  try {
++    return JSON.parse(
++      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString()
++    );
++  } catch (err) {
++    throw new Error(
++      `Failed to decode JWT claims: ${err instanceof Error ? err.message : String(err)}`
++    );
++  }
+ }
+ 
+-function createArrayAudVerifier(): TokenVerifier {
+-  // FRAGILE WORKAROUND: Reaches into @keycardlabs/mcp-oauth internals via
+-  // relative path because JWKSOAuthKeyring isn't in the package's exports map.
+-  // This WILL break if the library restructures its internal files.
+-  // TODO: Remove once upstream exposes JWKSOAuthKeyring in its public API
+-  //       or fixes the array `aud` mangling in JWTOAuthTokenVerifier.
+-  const innerRequire = createRequire(
+-    require.resolve("@keycardlabs/mcp-oauth/server/auth/verifiers/jwt")
+-  );
+-  const { JWKSOAuthKeyring } = innerRequire("../../../shared/keyring.js");
+-  const { JWTOAuthTokenVerifier } = innerRequire("./jwt.js");
++/**
++ * Token verifier that wraps the Keycard SDK's JWTOAuthTokenVerifier to handle
++ * the case where Keycard issues `aud` as an array of audience URIs.
++ *
++ * Per RFC 7519 §4.1.3, `aud` can be a string or an array. The SDK's default
++ * verifier only handles the string case (`new URL(claims.aud)`), which produces
++ * a garbage URL when `aud` is an array. This wrapper normalizes array `aud` by
++ * picking the first audience that is a valid URL, which the bearer auth
++ * middleware then matches against the request URL.
++ *
++ * TODO: Remove once the Keycard SDK handles array `aud` natively.
++ */
++class ArrayAudTokenVerifier {
++  private inner: JWTOAuthTokenVerifier;
++
++  constructor() {
++    this.inner = new JWTOAuthTokenVerifier(new JWKSOAuthKeyring());
++  }
+ 
+-  const inner: TokenVerifier = new JWTOAuthTokenVerifier(new JWKSOAuthKeyring());
++  async verifyAccessToken(token: string): Promise<AuthInfo> {
++    const authInfo = await this.inner.verifyAccessToken(token);
+ 
+-  return {
+-    async verifyAccessToken(token: string) {
+-      const result = await inner.verifyAccessToken(token);
++    // If aud is a single string, the SDK already parsed it correctly
++    const claims = decodeJwtClaims(token);
++    if (!Array.isArray(claims.aud)) {
++      return authInfo;
++    }
+ 
+-      // Detect the mangled comma-joined URL produced by `new URL([...])`.
+-      // If the resource href contains a comma it was almost certainly an
+-      // array audience — re-parse the first element instead.
+-      if (result.resource?.href.includes(",")) {
+-        const firstAud = result.resource.href.split(",")[0];
+-        result.resource = new URL(firstAud);
++    // aud is an array — pick the first entry that is a valid URL
++    for (const entry of claims.aud) {
++      try {
++        authInfo.resource = new URL(entry);
++        return authInfo;
++      } catch {
++        // Not a URL (e.g. a plain string audience) — skip
+       }
++    }
+ 
+-      return result;
+-    },
+-  };
++    // No valid URL found — clear resource so the middleware skips the check
++    authInfo.resource = undefined;
++    return authInfo;
++  }
+ }
+ 
+ /**
+- * Creates authentication middleware for protecting MCP endpoints
++ * Creates authentication middleware for protecting MCP endpoints.
++ *
++ * Delegates to the Keycard SDK's requireBearerAuth with a custom token verifier
++ * that handles array `aud` claims (Keycard includes the userinfo endpoint
++ * alongside the resource URI in the audience).
+  *
+- * @param requireBearerAuthImpl - The bearerAuth implementation (passed to avoid complex imports)
++ * @param requireBearerAuthImpl - The bearerAuth implementation from @keycardai/mcp
+  * @param options - Configuration options for the middleware
+  * @returns Express middleware function
+  */
+ export function createAuthMiddleware(
+   requireBearerAuthImpl: (config: {
+-    verifier?: TokenVerifier;
+-    requiredScopes: string[];
++    verifier?: OAuthTokenVerifier;
++    requiredScopes?: string[];
+   }) => RequestHandler,
+   options: AuthMiddlewareOptions = {}
+ ): RequestHandler {
+   const { requiredScopes = [] } = options;
+ 
+   return requireBearerAuthImpl({
+-    verifier: createArrayAudVerifier(),
++    verifier: new ArrayAudTokenVerifier(),
+     requiredScopes,
+   });
+ }
+diff --git a/src/server.ts b/src/server.ts
+index 8a0d591..7d76a56 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -1,11 +1,9 @@
+ import { randomUUID } from "node:crypto";
+ import fs from "node:fs/promises";
+ import path from "node:path";
+-import { requireBearerAuth } from "@keycardlabs/mcp-oauth/server/auth/middleware/bearerAuth";
+-import {
+-  type InferredAuthMetadataOptions,
+-  mcpAuthMetadataRouter,
+-} from "@keycardlabs/mcp-oauth/server/auth/router";
++import { requireBearerAuth } from "@keycardai/mcp/server/auth/middleware/bearerAuth";
++import { mcpAuthMetadataRouter } from "@keycardai/mcp/server/auth/router";
++import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
+ import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
+ import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
+@@ -81,43 +79,23 @@ export function createApp(): express.Application {
+     })
+   );
+ 
+-  // Check if we're in multi-tenant mode
+-  const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
+-
+-  if (isMultiTenant) {
+-    // Multi-tenant mode: dynamic issuer based on Host header
+-    const multiTenantOptions: InferredAuthMetadataOptions = {
+-      oauthMetadata: {
+-        issuer: (req: express.Request) => {
+-          // Extract zoneId from Host header (e.g., z123.dev.local -> z123)
+-          const zoneId = req.headers.host?.split(".")[0] || "default";
+-          // Use HTTP for local development, HTTPS for production
+-          const protocol = config.issuerBaseDomain.includes("localdev") ? "http" : "https";
+-          return `${protocol}://${zoneId}.${config.issuerBaseDomain}`;
+-        },
+-      },
+-      scopesSupported: ["mcp:tools"],
+-      resourceName: "Plan My Today MCP",
+-    };
+-    app.use(mcpAuthMetadataRouter(multiTenantOptions));
+-  } else {
+-    // Single-tenant mode: static issuer (backward compatibility)
+-    const singleTenantOptions: InferredAuthMetadataOptions = {
+-      oauthMetadata: {
+-        issuer: config.keycardIssuerUrl,
+-      },
++  // OAuth metadata routes (Keycard issuer discovery).
++  // The OAuthMetadata type requires authorization_endpoint/token_endpoint/etc.
++  // but Keycard manages those in the console — the router only reads `issuer`
++  // at runtime to build the .well-known responses.
++  app.use(
++    mcpAuthMetadataRouter({
++      oauthMetadata: { issuer: config.keycardIssuerUrl } as OAuthMetadata,
+       scopesSupported: ["mcp:tools"],
+       resourceName: "Plan My Today MCP",
+-    };
+-    app.use(mcpAuthMetadataRouter(singleTenantOptions));
+-  }
++    })
++  );
+ 
+   // Health check — no auth required, placed before logging to stay lightweight
+   app.get("/health", (_req: express.Request, res: express.Response) => {
+     res.json({
+       status: "ok",
+       version: "0.2.1",
+-      mode: isMultiTenant ? "multi-tenant" : "single-tenant",
+       authConfigured: !!config.keycardClientId,
+       chatConfigured: !!config.anthropicApiKey,
+     });
+@@ -706,22 +684,12 @@ export function startServer(): void {
+ 
+   app
+     .listen(config.port, () => {
+-      const isMultiTenant = config.issuerBaseDomain && config.mcpBaseDomain;
+-      const issuer = isMultiTenant
+-        ? `https://{zoneId}.${config.issuerBaseDomain}`
+-        : config.keycardIssuerUrl;
+-
+-      // Clean startup messages
+       logger.info("🚀 To Do MCP Server started!");
+       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
+-      logger.info(`🔐 Keycard Issuer: ${issuer}`);
++      logger.info(`🔐 Keycard Issuer: ${config.keycardIssuerUrl}`);
+       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
+ 
+-      // Detailed debug info
+       logger.debug("Server configuration details", {
+-        mode: isMultiTenant ? "multi-tenant" : "single-tenant",
+-        issuerBaseDomain: isMultiTenant ? config.issuerBaseDomain : undefined,
+-        mcpBaseDomain: isMultiTenant ? config.mcpBaseDomain : undefined,
+         architecture: "One MCP server instance per session (prevents race conditions)",
+         observabilityEnabled: config.observability.enableOtel,
+         environment: config.observability.environment,
+diff --git a/tests/auth-array-aud.test.ts b/tests/auth-array-aud.test.ts
+new file mode 100644
+index 0000000..bc81f03
+--- /dev/null
++++ b/tests/auth-array-aud.test.ts
+@@ -0,0 +1,87 @@
++/**
++ * Canary test for the Keycard SDK's array `aud` handling.
++ *
++ * The SDK's JWTOAuthTokenVerifier does `new URL(claims.aud)` which mangles
++ * array audiences into a garbage comma-joined URL. We work around this with
++ * ArrayAudTokenVerifier in src/middleware/auth.ts.
++ *
++ * The `it.failing` test below proves the SDK bug exists. Once the upstream
++ * PR is merged and we bump the SDK, it will start passing — Jest will then
++ * report it as a failure (since it's expected to fail). That's our signal to:
++ *   1. Delete ArrayAudTokenVerifier from src/middleware/auth.ts
++ *   2. Delete this test file
++ *
++ * Upstream PR: https://github.com/keycardai/typescript-sdk
++ */
++
++import { JWTOAuthTokenVerifier } from "@keycardai/mcp/server/auth/verifiers/jwt";
++import { JWKSOAuthKeyring } from "@keycardai/oauth/keyring";
++
++// Mock the low-level JWT verifier to skip real JWKS fetching and signature
++// verification. This lets us control exactly what claims are returned.
++jest.mock("@keycardai/oauth/jwt/verifier", () => {
++  const mockVerify = jest.fn();
++  return {
++    JWTVerifier: jest.fn().mockImplementation(() => ({
++      verify: mockVerify,
++    })),
++    __mockVerify: mockVerify,
++  };
++});
++
++const RESOURCE_URL = "http://localhost:9005/mcp";
++const USERINFO_URL = "https://example.keycard.cloud/openid/connect/userinfo";
++const DUMMY_TOKEN = "header.payload.signature";
++
++/** Builds a realistic JWT claims payload matching Keycard's token structure. */
++function baseClaims(audOverride: string | string[]) {
++  return {
++    iss: "https://example.keycard.cloud",
++    sub: "user-123",
++    aud: audOverride,
++    client_id: "test-client-id",
++    scope: "openid profile",
++    iat: Math.floor(Date.now() / 1000),
++    exp: Math.floor(Date.now() / 1000) + 3600,
++  };
++}
++
++describe("JWTOAuthTokenVerifier array aud handling (SDK canary)", () => {
++  let verifier: JWTOAuthTokenVerifier;
++  let mockVerify: jest.Mock;
++
++  beforeEach(() => {
++    // Access the shared mock function via the module's exported helper
++    const mod = require("@keycardai/oauth/jwt/verifier");
++    mockVerify = mod.__mockVerify;
++    mockVerify.mockReset();
++
++    verifier = new JWTOAuthTokenVerifier(new JWKSOAuthKeyring());
++  });
++
++  it("handles string aud correctly (baseline)", async () => {
++    mockVerify.mockResolvedValue(baseClaims(RESOURCE_URL));
++
++    const authInfo = await verifier.verifyAccessToken(DUMMY_TOKEN);
++
++    expect(authInfo.resource?.toString()).toBe(RESOURCE_URL);
++  });
++
++  // ── Expected to FAIL with the current SDK ──────────────────────────────
++  // The SDK does `new URL(claims.aud)` which, when aud is an array, coerces
++  // it to "http://localhost:9005/mcp,https://example.keycard.cloud/..."
++  // instead of picking the first valid URL.
++  //
++  // When this test starts PASSING, the upstream fix has landed. Delete
++  // ArrayAudTokenVerifier from src/middleware/auth.ts and this test file.
++  it.failing(
++    "handles array aud by picking the first valid URL (upstream SDK fix needed)",
++    async () => {
++      mockVerify.mockResolvedValue(baseClaims([RESOURCE_URL, USERINFO_URL]));
++
++      const authInfo = await verifier.verifyAccessToken(DUMMY_TOKEN);
++
++      expect(authInfo.resource?.toString()).toBe(RESOURCE_URL);
++    }
++  );
++});
+diff --git a/tsup.config.ts b/tsup.config.ts
+index 3bc3a75..e71a0ef 100644
+--- a/tsup.config.ts
++++ b/tsup.config.ts
+@@ -20,14 +20,14 @@ export default defineConfig({
+ 
+   // Keep these as external require() calls (not bundled):
+   // - express: middleware chaining relies on module identity
+-  // - @keycardlabs/mcp-oauth: local tgz with dual CJS/ESM exports
++  // - @keycardai/mcp + @keycardai/oauth: local tgz with dual CJS/ESM builds
+   // - @modelcontextprotocol/sdk: deep path imports (/server/mcp.js etc.)
+   // - dotenv: reads .env files at runtime relative to cwd
+   // - zod: runtime schema builders, large but necessary
+   external: [
+     "express",
+     "compression",
+-    /^@keycardlabs\/.*/,
++    /^@keycardai\/.*/,
+     /^@modelcontextprotocol\/.*/,
+     "dotenv",
+     "zod",
