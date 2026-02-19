@@ -138,7 +138,7 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-assigned-actions` | Google Drive action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
-| `dismiss-task` | Dismiss meeting note todos, drive items, Slack messages, or ad-hoc tasks from dashboard (local store) |
+| `dismiss-task` | Dismiss meeting note todos, GitHub items, Slack messages, or ad-hoc tasks from dashboard (local store) |
 | `restore-dismissed-task` | Restore a previously dismissed task so it reappears on the dashboard |
 | `read-dashboard-tasks` | Read the full task data currently displayed on the dashboard (free local read, no API calls) |
 | `set-task-priority` | Boost or demote a task's priority category or score; overrides persist until cleared or auto-pruned |

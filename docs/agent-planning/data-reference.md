@@ -175,7 +175,12 @@ interface GitHubPRDetail {
   title: string;
   url: string;                         // GitHub URL
   repo: string;                        // "owner/repo"
-  type: "assigned" | "review";         // Assigned to you OR review requested
+  isAssigned: boolean;                 // You are assigned to this PR
+  isReviewRequested: boolean;          // You have been asked to review
+  isAuthored: boolean;                 // You opened this PR
+  isOwnedRepo: boolean;                // PR is on a repo you own / org repo
+  isBot: boolean;                      // Dependency/security bot (dependabot, renovate, snyk)
+  dismissalId: string;                 // Stable ID for dismissal: "{repo}#{number}"
   updatedAt: string;                   // ISO timestamp
   isDraft: boolean;                    // True if still a draft
   priorityMetadata?: PriorityMetadata;
@@ -184,8 +189,11 @@ interface GitHubPRDetail {
 ```
 
 **Key fields for planning:**
-- `type` → "review" requests are higher priority
-- `isDraft` → Drafts are lower priority (not ready)
+- `isReviewRequested` → Review requests are highest priority (+100)
+- `isAuthored` → PRs you opened (+70)
+- `isAssigned` → PRs assigned to you (+60)
+- `isBot` → Dependency bots (dependabot, renovate, Snyk) are de-prioritized (-60)
+- `isDraft` → Drafts are lower priority (-30, not ready for review)
 - `updatedAt` → Age affects priority score
 
 ### GitHub Issue
@@ -197,6 +205,11 @@ interface GitHubIssueDetail {
   title: string;
   url: string;                         // GitHub URL
   repo: string;                        // "owner/repo"
+  isAssigned: boolean;                 // You are assigned to this issue
+  isAuthored: boolean;                 // You opened this issue
+  isOwnedRepo: boolean;                // Issue is on a repo you own / org repo
+  isBot: boolean;                      // Dependency/security bot (dependabot, renovate, snyk)
+  dismissalId: string;                 // Stable ID for dismissal: "{repo}#{number}"
   updatedAt: string;                   // ISO timestamp
   labels?: string[];                   // Issue labels
   priorityMetadata?: PriorityMetadata;
@@ -310,7 +323,7 @@ interface PriorityMetadata {
 **Example signals by source:**
 - Calendar: `proximity`, `hasConferenceLink`
 - Linear: `dueToday`, `daysUntilDue`, `temporalUrgency`, `hasEstimate`
-- GitHub: `ageHours`, `isReviewRequest`, `isDraft`
+- GitHub: `ageHours`, `isReviewRequested`, `isDraft`, `isBot`, `itemType`
 - Gmail: `ageHours`, `isImportant`, `needsReply`, `hasActionItems`, `isFromIndividual`
 - Slack: `ageHours`, `isMention`, `isDM`, `inThread`
 
@@ -434,23 +447,31 @@ PROJ-456 (no due date, but active):
 
 **Base score:** 50
 
-**Type modifiers:**
+**Relationship modifiers (additive — multiple flags stack):**
 - Review requested: +100
-- Assigned PR: +60
+- Authored by you: +70
+- Assigned to you: +60
+- On your repo (no other flags): +40
 - Draft PR: -30
+- Dependency/security bot (no review): -60
 
-**Age bonus:**
+> Bot PRs lose all positive bonuses and take a -60 penalty, unless a review was explicitly requested (in which case the penalty is waived and all bonuses apply normally).
+
+**Recency bonus:**
 - ≤4 hours: +40
 - ≤24 hours: +20
-- ≤7 days: +10
+- ≤48 hours: +10
 
-**Example calculation:**
+**Example calculations:**
 ```
-PR #456 (review, 3 hours old):
-- Base: 50
-- Review: +100
-- Age: +40
-- Total: 190 (critical)
+PR #456 (review requested, 3 hours old):
+- Base: 50 + Review: +100 + Age: +40 = 190 (critical)
+
+PR #789 (authored, assigned, no recency):
+- Base: 50 + Authored: +70 + Assigned: +60 = 180 (critical)
+
+Dependabot PR (owned repo, no review):
+- Base: 50 - Bot: -60 = -10 (low) — bonuses suppressed
 ```
 
 ### Gmail Messages
