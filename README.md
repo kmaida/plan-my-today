@@ -100,6 +100,8 @@ npm run plan-my-today
 # Builds, starts the server, and opens the browser
 ```
 
+**Install as a PWA:** Open the app in Chrome and click the install icon in the address bar. Once installed, `npm run plan-my-today` will open the standalone PWA window automatically.
+
 ### 4. Sign In
 
 1. Open `http://localhost:9005` (prod) or `http://localhost:9006` (dev)
