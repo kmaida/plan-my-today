@@ -35,6 +35,8 @@ export const TIME_WINDOWS = {
   DEFAULT_DAYS_BACK: 14,
   /** Slack messages lookback window */
   SLACK_DAYS_BACK: 2,
+  /** Meeting notes (Granola) lookback window */
+  MEETING_NOTES_DAYS_BACK: 7,
 } as const;
 
 /** Slack saved messages configuration */

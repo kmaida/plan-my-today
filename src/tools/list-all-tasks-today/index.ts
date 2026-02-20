@@ -397,7 +397,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         (async () => {
           const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
           return fetchMeetingNoteActions(token.access_token, {
-            daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
+            daysBack: TIME_WINDOWS.MEETING_NOTES_DAYS_BACK,
             maxResults: FETCH_LIMITS.MEETINGS,
           });
         })(),

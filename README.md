@@ -242,9 +242,13 @@ This app uses [Keycard](https://keycard.ai) to broker OAuth tokens for all data 
 
 → **[Keycard Setup Guide](./docs/keycard-setup.md)** — full configuration walkthrough for providers, resources, and credentials.
 
-### Meeting Notes
+### Meeting Notes (Granola)
 
-Meeting notes are read from Google Drive (no separate API key needed). The tool searches for recent documents and extracts action items. Set `USER_DISPLAY_NAME` in `.env` to filter action items to yours.
+Meeting notes are synced from Granola to Google Drive via Zapier, then read by the MCP server. No separate API key is needed — Google Drive access is handled through Keycard.
+
+> **[Granola Setup Guide](./docs/granola-setup.md)** — full walkthrough for the Granola → Zapier → Google Drive pipeline.
+
+Set `MEETING_NOTES_FOLDER_ID` to your Google Drive folder ID and `USER_DISPLAY_NAME` to filter action items to yours.
 
 ## Environment Variables
 
@@ -259,6 +263,7 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 | `HOST` | Server host | `localhost` |
 | `SLACK_EMOJI_NAME` | Custom emoji for Slack saved messages | `mcp-todo-reminder` |
 | `CALENDAR_PREP_PREFIX` | Event title prefix for meeting prep blocks | `[prep]` |
+| `MEETING_NOTES_FOLDER_ID` | Google Drive folder ID for Granola meeting notes ([setup guide](./docs/granola-setup.md)) | — |
 | `USER_DISPLAY_NAME` | Comma-separated name variants for filtering meeting note action items | — |
 | `ORG_GITHUB_REPOS` | Comma-separated `owner/repo` pairs for org repos to watch | — |
 | `LOG_LEVEL` | Logging level | `INFO` |
@@ -279,6 +284,7 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 ## Documentation
 
 - [Keycard Setup Guide](./docs/keycard-setup.md) — OAuth providers, resources, and credentials configuration
+- [Granola Setup Guide](./docs/granola-setup.md) — meeting notes pipeline (Granola → Zapier → Google Drive)
 - [Agent Planning Guide](./docs/agent-planning/README.md) — how the AI planning system works
 - [System Prompt](./docs/agent-planning/system-prompt.md) — the Todaygent system prompt
 - [Metadata Guide](./docs/agent-planning/metadata-guide.md) — priority scoring, dependencies, cross-references

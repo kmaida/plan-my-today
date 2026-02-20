@@ -16,6 +16,7 @@ interface ServerConfig {
   calendarPrepPrefix: string;
   userDisplayNames: string[];
   orgGithubRepos: string[];
+  meetingNotesFolderId: string;
   anthropicApiKey: string;
   anthropicModel: string;
   observability: {
@@ -71,6 +72,10 @@ function getConfig(): ServerConfig {
   // Comma-separated owner/repo pairs, e.g. "myorg/backend,myorg/frontend"
   const ORG_GITHUB_REPOS = process.env.ORG_GITHUB_REPOS || "";
 
+  // Google Drive folder ID for meeting notes (Granola → Zapier → GDrive pipeline)
+  // Find this in the Drive URL: https://drive.google.com/drive/folders/<FOLDER_ID>
+  const MEETING_NOTES_FOLDER_ID = process.env.MEETING_NOTES_FOLDER_ID || "";
+
   // Anthropic API for chatbot (optional — only needed if the UI chatbot is used)
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
@@ -122,6 +127,7 @@ function getConfig(): ServerConfig {
     orgGithubRepos: ORG_GITHUB_REPOS
       ? ORG_GITHUB_REPOS.split(",").map((r) => r.trim()).filter(Boolean)
       : [],
+    meetingNotesFolderId: MEETING_NOTES_FOLDER_ID,
     observability: {
       serviceName: SERVICE_NAME,
       serviceVersion: SERVICE_VERSION,

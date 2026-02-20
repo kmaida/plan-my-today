@@ -51,49 +51,14 @@ interface ExtractedActionItem {
 export interface FetchMeetingNotesOptions {
   daysBack?: number;
   maxResults?: number;
-  folderName?: string;
 }
 
-const DEFAULT_FOLDER_NAME = "Meeting Notes";
 const DEFAULT_MAX_RESULTS = FETCH_LIMITS.MEETINGS;
-const BUSINESS_DAYS_LOOKBACK = 10;
 
 /** Max meeting age for LLM extraction (business days). Older docs get regex-only —
  *  by then, action items are likely captured in Linear. Cache hits still return
  *  LLM-extracted items from when the doc was recent. */
 const LLM_RECENCY_BUSINESS_DAYS = 3;
-
-/**
- * Finds the ID of a folder by name in Google Drive
- */
-export async function findFolderByName(
-  accessToken: string,
-  folderName: string
-): Promise<string | null> {
-  const query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-
-  const response = await fetch(
-    `https://www.googleapis.com/drive/v3/files?` +
-      new URLSearchParams({
-        q: query,
-        fields: "files(id,name)",
-        pageSize: "1",
-      }),
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to search for folder: ${response.status} ${errorText}`);
-  }
-
-  const data = (await response.json()) as DriveFilesResponse;
-  return data.files?.[0]?.id || null;
-}
 
 /**
  * Fetches recent Google Docs from a folder
@@ -435,15 +400,14 @@ export async function fetchMeetingNoteActions(
   options: FetchMeetingNotesOptions = {}
 ): Promise<MeetingNoteActionDetail[]> {
   const {
-    daysBack = 21, // Increased to ~3 weeks to ensure 10 business days coverage
+    daysBack = 7,
     maxResults = DEFAULT_MAX_RESULTS,
-    folderName = DEFAULT_FOLDER_NAME,
   } = options;
 
-  // Find the Meeting Notes folder
-  const folderId = await findFolderByName(accessToken, folderName);
+  // Folder ID is configured via MEETING_NOTES_FOLDER_ID env var
+  const folderId = config.meetingNotesFolderId;
   if (!folderId) {
-    return []; // Folder not found, return empty
+    return []; // No folder configured, return empty
   }
 
   // Fetch recent documents from the folder
@@ -452,19 +416,8 @@ export async function fetchMeetingNoteActions(
     return [];
   }
 
-  // Filter documents by meeting date (last 10 business days)
   const now = new Date();
-  const eligibleDocs = docs.filter((doc) => {
-    if (!doc.name) return false;
-
-    const meetingDate = parseDateFromFilename(doc.name);
-    if (!meetingDate) {
-      // No parseable date - include for backward compatibility
-      return true;
-    }
-
-    return isWithinBusinessDays(meetingDate, BUSINESS_DAYS_LOOKBACK, now);
-  });
+  const eligibleDocs = docs.filter((doc) => !!doc.name);
 
   if (eligibleDocs.length === 0) {
     return [];

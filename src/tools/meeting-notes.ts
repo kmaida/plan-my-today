@@ -20,10 +20,6 @@ const meetingNotesInputSchema = {
     .number()
     .describe("Maximum number of documents to process (default: 10)")
     .optional(),
-  folderName: z
-    .string()
-    .describe("Google Drive folder name containing meeting notes (default: 'Meeting Notes')")
-    .optional(),
 };
 
 /**
@@ -78,7 +74,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
     {
       title: "List Meeting Notes Action Items",
       description:
-        "Extract action items from Granola meeting notes synced to Google Drive. Searches for documents with meeting dates in the filename from the last 10 business days (weekdays only). Searches a specified folder (default: 'Meeting Notes') for recent documents and extracts todos, action items, and assignments. Use this when the user asks about action items from meetings, follow-ups from calls, or todos from meeting notes.",
+        "Extract action items from Granola meeting notes synced to Google Drive. Searches for documents with meeting dates in the filename from the last 10 business days (weekdays only). Reads from the Google Drive folder configured via MEETING_NOTES_FOLDER_ID and extracts todos, action items, and assignments. Use this when the user asks about action items from meetings, follow-ups from calls, or todos from meeting notes.",
       inputSchema: meetingNotesInputSchema,
     },
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: MCP tool handler — auth, API call, response formatting
@@ -98,15 +94,13 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
         // Exchange user's JWT for a Drive access token
         const tokenResponse = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
 
-        const daysBack = args.daysBack || 21; // Increased to ~3 weeks to ensure 10 business days coverage
+        const daysBack = args.daysBack || 7;
         const maxResults = args.maxResults || 10;
-        const folderName = args.folderName || "Meeting Notes";
 
         // Fetch and process meeting notes
         const actionItems = await fetchMeetingNoteActions(tokenResponse.access_token, {
           daysBack,
           maxResults,
-          folderName,
         });
 
         if (actionItems.length === 0) {
@@ -114,7 +108,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
             content: [
               {
                 type: "text",
-                text: `No action items found in meeting notes from the "${folderName}" folder in the last ${daysBack} days.\n\nThis could mean:\n- The folder doesn't exist or is named differently\n- No meeting notes have been added recently\n- The notes don't contain recognizable action items (checkboxes, "Action Items:" sections, TODO markers, etc.)`,
+                text: `No action items found in meeting notes in the last ${daysBack} days.\n\nThis could mean:\n- MEETING_NOTES_FOLDER_ID is not set in your .env file\n- No meeting notes have been added recently\n- The notes don't contain recognizable action items (checkboxes, "Action Items:" sections, TODO markers, etc.)`,
               },
             ],
           };
