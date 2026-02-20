@@ -63,6 +63,7 @@ Before configuring Keycard, you need OAuth apps registered with each service. Th
    - `mpim:read`
 3. Set the redirect URL to your Keycard zone's OAuth callback
 4. Note the **Client ID** and **Client Secret**
+5. **Install the app** to your Slack workspace (OAuth & Permissions → Install to Workspace)
 
 ## 2. Configure Keycard Zone
 
