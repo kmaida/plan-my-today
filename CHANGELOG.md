@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.2.3](https://github.com/kmaida/plan-my-today/compare/v0.2.1...v0.2.3) (2026-02-20)
+
 ## [0.2.0] - 2026-01-27
 
 ### BREAKING CHANGES
