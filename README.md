@@ -292,6 +292,12 @@ Set `MEETING_NOTES_FOLDER_ID` to your Google Drive folder ID and `USER_DISPLAY_N
 - [Claude Desktop Setup](./docs/agent-planning/claude-desktop-setup.md) — using with Claude Desktop
 - [Data Reference](./docs/agent-planning/data-reference.md) — data structures and constants
 
+## Troubleshooting
+
+**"[Keycard zone] redirected you too many times"**
+
+Clear your Keycard cookies: navigate to `chrome://settings/content/all?searchSubpage=keycard.cloud` and delete the `keycard.cloud` cookie, then retry.
+
 ## License
 
 Elastic License 2.0 (ELv2) — see [LICENSE](./LICENSE) for details.
