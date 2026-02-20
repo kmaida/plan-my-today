@@ -8,7 +8,7 @@ import type { AssignedActionDetail } from "./today-todos/types";
 
 const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
 const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
-const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
+const GMAIL_RESOURCE = "https://gmail.googleapis.com";
 const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];

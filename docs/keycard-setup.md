@@ -83,7 +83,7 @@ Resources define the API surfaces the app can exchange tokens for. Create one re
 | Resource | Identifier | Scopes |
 |----------|-----------|--------|
 | Google Calendar | `https://www.googleapis.com/calendar/v3` | `https://www.googleapis.com/auth/calendar.readonly` |
-| Gmail | `https://www.googleapis.com/gmail/v1` | `https://www.googleapis.com/auth/gmail.readonly` |
+| Gmail | `https://gmail.googleapis.com` | `https://www.googleapis.com/auth/gmail.readonly` |
 | Google Drive | `https://www.googleapis.com/drive/v3` | `https://www.googleapis.com/auth/drive.readonly` |
 | Google Drive Activity | `https://driveactivity.googleapis.com` | `https://www.googleapis.com/auth/drive.activity.readonly` |
 | GitHub | `https://api.github.com` | *(none — permissions controlled by GitHub App)* |

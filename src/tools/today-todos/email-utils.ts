@@ -496,7 +496,7 @@ export async function fetchMeetingSummaries(
   const query = `from:zoom.us subject:"meeting assets" after:${afterDate}`;
 
   const messagesResponse = await fetch(
-    `https://www.googleapis.com/gmail/v1/users/me/messages?` +
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?` +
       new URLSearchParams({
         q: query,
         maxResults: maxResults.toString(),
@@ -528,7 +528,7 @@ export async function fetchMeetingSummaries(
 
   // Fetch message details WITH FULL BODY to extract recording links
   const messagePromises = messagesData.messages.slice(0, maxResults).map((msg) =>
-    fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
+    fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -940,7 +940,7 @@ export async function fetchGmailTodos(
   }
 
   const messagesResponse = await fetch(
-    `https://www.googleapis.com/gmail/v1/users/me/messages?` +
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?` +
       new URLSearchParams({
         q: query,
         maxResults: maxResults.toString(),
@@ -972,7 +972,7 @@ export async function fetchGmailTodos(
 
   // Fetch full message details (includes payload.body/parts for comment URL extraction)
   const messagePromises = messagesData.messages.slice(0, maxResults).map((msg) =>
-    fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
+    fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

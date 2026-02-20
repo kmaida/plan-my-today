@@ -5,7 +5,7 @@ import { handleToolError } from "../utils/tool-error-utils";
 import { fetchGmailTodos } from "./today-todos/email-utils";
 import type { GmailMessageDetail } from "./today-todos/types";
 
-const GMAIL_RESOURCE = "https://www.googleapis.com/gmail/v1";
+const GMAIL_RESOURCE = "https://gmail.googleapis.com";
 const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 
 /**
