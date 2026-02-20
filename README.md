@@ -2,6 +2,8 @@
 
 A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggregates tasks from Google Calendar, Linear, Gmail, GitHub, Slack, Google Drive, and meeting notes into a single prioritized view with an embedded AI agent ("Todaygent") that helps you plan your day.
 
+Built with [Keycard](https://keycard.ai) for OAuth 2.0 token exchange (RFC 8693).
+
 ## How It Works
 
 ```
@@ -24,8 +26,8 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 │             │                                            │
 │             ▼                                            │
 │  ┌─ Keycard ─────────────────────────────┐               │
-│  │  OAuth 2.0 + Token Exchange           │               │
-│  │  ├── Google (Calendar, Gmail, Drive)   │               │
+│  │  OAuth 2.0 + Token Exchange (RFC 8693)│               │
+│  │  ├── Google (Calendar, Gmail, Drive)  │               │
 │  │  ├── Linear                           │               │
 │  │  ├── GitHub                           │               │
 │  │  └── Slack                            │               │
@@ -37,8 +39,8 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 
 ### Prerequisites
 
-- **Node.js 18+** and **npm**
-- **Keycard account** with a configured zone (for OAuth)
+- **Node.js 20+** and **npm**
+- **[Keycard](https://keycard.ai) account** with a configured zone (for OAuth token exchange)
 - **Anthropic API key** (for the Todaygent chat agent)
 
 ### 1. Clone & Install
@@ -47,12 +49,19 @@ A **daily planning dashboard and AI chat agent** powered by an MCP server. Aggre
 git clone https://github.com/kmaida/plan-my-today.git
 cd plan-my-today
 npm install
-cd ui && npm install && cd ..
 ```
+
+> The UI dependencies are installed automatically as part of `npm run build:all`.
 
 ### 2. Configure Environment
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+At minimum you need:
 
 ```bash
 # ── Required: Keycard OAuth ───────────────────
@@ -60,16 +69,11 @@ KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud
 KEYCARD_CLIENT_ID=your-client-id
 KEYCARD_CLIENT_SECRET=your-client-secret
 
-# ── Required: Todaygent chat agent ────────────
+# ── Required for chat agent ───────────────────
 ANTHROPIC_API_KEY=your-anthropic-api-key
-
-# ── Optional: Server ──────────────────────────
-PORT=9005
-HOST=localhost
-
-# ── Optional: Slack saved messages emoji ─────
-SLACK_EMOJI_NAME=my-todo-reminder
 ```
+
+See [Environment Variables](#environment-variables) for the full list.
 
 ### 3. Run
 
@@ -77,51 +81,53 @@ SLACK_EMOJI_NAME=my-todo-reminder
 ```bash
 npm run build:all
 npm run start:prod
-# Opens at http://localhost:9005
+# → http://localhost:9005
 ```
 
 **Development (with hot reload):**
 ```bash
-# Terminal 1: MCP server
+# Terminal 1: MCP server (auto-restarts on file changes)
 npm run dev
 
-# Terminal 2: UI dev server
+# Terminal 2: UI dev server (Vite HMR)
 cd ui && npm run dev
-# Opens at http://localhost:9006 (proxies API to 9005)
+# → http://localhost:9006 (proxies API to 9005)
 ```
 
-**One-click launch (macOS):**
-Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the prod server, and opens the browser.
+**One-step launch (macOS):**
+```bash
+npm run plan-my-today
+# Builds, starts the server, and opens the browser
+```
 
 ### 4. Sign In
 
 1. Open `http://localhost:9005` (prod) or `http://localhost:9006` (dev)
-2. Click **Sign in with Google** — you'll authenticate through Keycard
-3. Grant access to each service (Calendar, Gmail, Drive, etc.)
+2. Click **Sign in with Google** — authenticates through Keycard
+3. Grant access to each service (Calendar, Gmail, Linear, etc.)
 4. Your tasks load automatically
 
 ## Features
 
 ### Task Dashboard
-- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Drive, meeting notes
-- Priority scoring and grouping (critical, high, medium, low)
-- Source-based grouping with filter/search
-- Dismiss and restore tasks from the dashboard
-- Manual priority overrides (boost or demote individual tasks)
+- Tasks from 8 sources: Calendar, Linear, Gmail, GitHub, Slack, Google Drive, meeting notes, and ad-hoc tasks
+- Priority scoring with cross-source dependency detection and bi-directional linking
+- Priority and source-based grouping with search and filter
+- Dismiss and restore tasks; manual priority overrides (boost/demote)
 - Light, dark, and system theme modes
 - Smooth expand/collapse animations with reduced-motion support
 
 ### Todaygent Chat Agent
-- Built-in AI chat panel powered by Claude (Opus 4.6)
+- Built-in AI chat panel powered by Claude
 - Ask it to plan your day, prioritize tasks, analyze dependencies
-- Agentic loop: can call MCP tools autonomously to fetch and reason about your real data
+- Agentic loop: calls MCP tools autonomously to fetch and reason about your real data
 - Streaming responses with expandable tool call visibility
 - Chat persistence across page reloads
 - Prompt caching for efficient token usage
 
 ### OAuth & Auth
 - OAuth 2.0 via Keycard with PKCE
-- Token exchange for Google, Linear, GitHub, and Slack APIs
+- RFC 8693 token exchange for Google, Linear, GitHub, and Slack APIs
 - Auth error banner with reauthorization flow
 - Session persistence
 
@@ -130,7 +136,7 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | Tool | Description |
 |------|-------------|
 | `list-all-tasks-today` | Aggregates tasks from all sources into prioritized JSON |
-| `list-calendar-events` | Google Calendar events |
+| `list-calendar-events` | Google Calendar events for today |
 | `list-linear-issues` | Linear issues assigned to you |
 | `list-gmail-todos` | Gmail emails needing action |
 | `list-github-todos` | GitHub PRs and issues assigned to you |
@@ -138,10 +144,10 @@ Double-click `TO DO.command` on the Desktop. It opens iTerm, builds, starts the 
 | `list-assigned-actions` | Google Drive action items assigned to you |
 | `list-drive-activity` | Recent Google Drive activity |
 | `list-meeting-notes-actions` | Action items from meeting notes (via Google Drive) |
-| `dismiss-task` | Dismiss meeting note todos, GitHub items, Slack messages, or ad-hoc tasks from dashboard (local store) |
-| `restore-dismissed-task` | Restore a previously dismissed task so it reappears on the dashboard |
-| `read-dashboard-tasks` | Read the full task data currently displayed on the dashboard (free local read, no API calls) |
-| `set-task-priority` | Boost or demote a task's priority category or score; overrides persist until cleared or auto-pruned |
+| `dismiss-task` | Dismiss a task from the dashboard (persisted locally) |
+| `restore-dismissed-task` | Restore a previously dismissed task |
+| `read-dashboard-tasks` | Read current dashboard task data (local read, no API calls) |
+| `set-task-priority` | Override a task's priority; persists until cleared or auto-pruned |
 
 ## REST API
 
@@ -184,7 +190,7 @@ src/
 ├── config.ts                 # Environment config
 ├── constants.ts              # App constants
 ├── middleware/                # Auth & logging middleware
-├── services/                 # Keycard client, completion store, priority override store
+├── services/                 # Keycard client, completion store, priority overrides, LLM cache
 ├── tools/                    # MCP tool implementations
 │   ├── calendar.ts           # Google Calendar
 │   ├── linear.ts             # Linear issues
@@ -194,24 +200,26 @@ src/
 │   ├── assigned-actions.ts   # Google Drive actions
 │   ├── drive-activity.ts     # Google Drive activity
 │   ├── meeting-notes.ts      # Meeting notes (via Google Drive)
-│   ├── dismiss-task.ts
+│   ├── dismiss-task.ts       # Dismiss tasks
 │   ├── restore-dismissed-task.ts
 │   ├── read-dashboard-tasks.ts
-│   ├── set-task-priority.ts
-│   └── list-all-tasks-today/ # Aggregation tool
-├── utils/                    # Shared utilities
+│   ├── set-task-priority.ts  # Priority overrides
+│   ├── list-all-tasks-today/ # Aggregation + priority scoring
+│   └── today-todos/          # Source-specific extraction utilities
+├── utils/                    # Shared utilities (date parsing, filtering, task store)
 ├── types/                    # TypeScript types
-└── observability/            # OpenTelemetry, structured logging
+└── observability/            # OpenTelemetry, structured logging (Winston)
 
 ui/
 ├── src/
 │   ├── App.tsx               # Main dashboard layout
 │   ├── auth/                 # OAuth (PKCE, Keycard discovery, AuthGate)
-│   ├── mcp/                  # MCP client context (SSE transport)
-│   ├── chat/                 # Todaygent chat (useChat hook, system prompt, persistence)
+│   ├── mcp/                  # MCP client context
+│   ├── chat/                 # Todaygent chat (agentic loop, system prompt, persistence)
 │   ├── api/                  # REST client & data transformers
 │   ├── components/
 │   │   ├── Chat/             # ChatPanel, ChatMessage, ToolCallCard, TodaygentMascot, ThinkingIndicator
+│   │   ├── AppLogo.tsx       # App branding
 │   │   ├── TaskCard.tsx      # Individual task display
 │   │   ├── TaskGroup.tsx     # Collapsible task groups
 │   │   ├── FilterBar.tsx     # Search & filter panel
@@ -228,38 +236,13 @@ ui/
 
 ## Service Setup
 
-Each data source requires configuration in Keycard.
+This app uses [Keycard](https://keycard.ai) to broker OAuth tokens for all data sources (Google, Linear, GitHub, Slack). You'll need a Keycard account with a configured zone and OAuth apps registered for each service.
 
-### Google Services (Calendar, Gmail, Docs, Drive)
-
-Configure in Keycard Console:
-- Enable token exchange for each Google API resource
-- Required scopes: `calendar.readonly`, `gmail.readonly`, `drive.readonly`, `documents.readonly`
-
-### Linear
-
-1. Create an OAuth app in Linear (Settings > API > OAuth Applications)
-2. Add Linear as a credential provider in Keycard
-3. Token exchange resource: `https://api.linear.app`, scope: `read`
-
-### GitHub
-
-1. Create a GitHub App (Settings > Developer settings > GitHub Apps)
-2. Set permissions: Metadata (Read-only), Issues (Read-only), Pull requests (Read-only), Contents (Read-only)
-3. Install the app on your GitHub account
-4. Add GitHub as a credential provider in Keycard
-5. Token exchange resource: `https://api.github.com` (no scopes — permissions controlled by GitHub App settings)
-
-### Slack
-
-1. Add Slack as a credential provider in your Keycard zone
-2. Authorize Slack access through the Keycard consent flow
-3. Token exchange resource: `https://slack.com/api` (scopes: `search:read`, `reactions:read`, `users:read`, `channels:read`, `groups:read`, `im:read`, `mpim:read`)
-4. Optionally set `SLACK_EMOJI_NAME` in `.env` to track saved messages with a custom emoji
+→ **[Keycard Setup Guide](./docs/keycard-setup.md)** — full configuration walkthrough for providers, resources, and credentials.
 
 ### Meeting Notes
 
-Meeting notes are read from Google Drive (no separate API key needed). The tool searches a configurable folder (default: "Meeting Notes") for recent documents and extracts action items.
+Meeting notes are read from Google Drive (no separate API key needed). The tool searches for recent documents and extracts action items. Set `USER_DISPLAY_NAME` in `.env` to filter action items to yours.
 
 ## Environment Variables
 
@@ -269,9 +252,13 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 | `KEYCARD_CLIENT_ID` | Keycard client ID | — (required) |
 | `KEYCARD_CLIENT_SECRET` | Keycard client secret | — (required) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Todaygent | — (required for chat) |
+| `ANTHROPIC_MODEL` | Claude model for chat agent | `claude-sonnet-4-6` |
 | `PORT` | Server port | `9005` |
 | `HOST` | Server host | `localhost` |
-| `SLACK_EMOJI_NAME` | Custom emoji for saved messages | `mcp-todo-reminder` |
+| `SLACK_EMOJI_NAME` | Custom emoji for Slack saved messages | `mcp-todo-reminder` |
+| `CALENDAR_PREP_PREFIX` | Event title prefix for meeting prep blocks | `[prep]` |
+| `USER_DISPLAY_NAME` | Comma-separated name variants for filtering meeting note action items | — |
+| `ORG_GITHUB_REPOS` | Comma-separated `owner/repo` pairs for org repos to watch | — |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `ENABLE_OTEL` | Enable OpenTelemetry | `true` |
 
@@ -280,15 +267,16 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 | Script | Description |
 |--------|-------------|
 | `npm run dev` | Start server in dev mode (nodemon + ts-node) |
-| `npm run build` | Compile server TypeScript |
-| `npm run build:all` | Build server + UI |
+| `npm run build` | Compile server TypeScript (via tsup) |
+| `npm run build:all` | Build server + install UI deps + build UI |
 | `npm run start:prod` | Start production server |
-| `npm run dashboard` | Build (if needed), start server, open browser |
-| `npm test` | Run tests |
-| `npm run check` | Lint + format check |
+| `npm run plan-my-today` | Build, start server, and open browser (macOS) |
+| `npm test` | Run Jest tests |
+| `npm run check` | Biome lint + format check |
 
 ## Documentation
 
+- [Keycard Setup Guide](./docs/keycard-setup.md) — OAuth providers, resources, and credentials configuration
 - [Agent Planning Guide](./docs/agent-planning/README.md) — how the AI planning system works
 - [System Prompt](./docs/agent-planning/system-prompt.md) — the Todaygent system prompt
 - [Metadata Guide](./docs/agent-planning/metadata-guide.md) — priority scoring, dependencies, cross-references
@@ -298,4 +286,4 @@ Meeting notes are read from Google Drive (no separate API key needed). The tool 
 
 ## License
 
-Apache-2.0 License — see LICENSE file for details.
+Elastic License 2.0 (ELv2) — see [LICENSE](./LICENSE) for details.
