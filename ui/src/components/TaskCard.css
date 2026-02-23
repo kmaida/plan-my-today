@@ -79,6 +79,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding-right: 60px;
+  min-width: 0;
 }
 
 .task-card__title {
@@ -89,6 +90,8 @@
   margin: 0;
   line-height: var(--line-height-normal);
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding-right: var(--space-sm);
 }
 
