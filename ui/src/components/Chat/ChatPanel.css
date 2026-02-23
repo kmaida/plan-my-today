@@ -384,6 +384,29 @@
   margin: var(--space-sm) 0;
 }
 
+.chat-message--assistant .chat-message__text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-xs) 0;
+  font-size: var(--font-size-small);
+}
+
+.chat-message--assistant .chat-message__text th,
+.chat-message--assistant .chat-message__text td {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-divider);
+  text-align: left;
+}
+
+.chat-message--assistant .chat-message__text th {
+  background: var(--color-hover);
+  font-weight: var(--font-weight-medium);
+}
+
+.chat-message--assistant .chat-message__text tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-hover) 50%, transparent);
+}
+
 .chat-message__tools {
   display: flex;
   flex-direction: column;

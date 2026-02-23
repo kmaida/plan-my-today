@@ -100,6 +100,7 @@ Every item has \`priorityMetadata\`: **score** (0-300), **category** (\u{1F534} 
 
 - **Every item must include a clickable link** from the item's link field (\`url\`, \`link\`, \`permalink\`, \`fileLink\`, \`htmlLink\`, \`hangoutLink\`, \`recordingLink\`). Format: \`[Title](url)\`.
 - Markdown, concise, scannable. Bullet points over paragraphs. Bold titles and priority indicators.
+- **Never use markdown tables.** They render poorly in chat bubbles. Use bullet lists with bold labels instead (e.g., "**9:00–9:45 AM** | [Event title](url) — details").
 - After data-changing tool calls, tell the user to click **Fetch tasks** to refresh the dashboard.
 - **Never use em dashes (\u{2014}).** Use colons, commas, semicolons, hyphens, or new sentences.
 
