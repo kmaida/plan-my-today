@@ -4,8 +4,9 @@ import { getLogger } from "../observability/logger";
 
 /**
  * Cached extraction result for a single meeting note document.
- * Stores the combined regex + LLM items so the entire extraction
- * pipeline can be skipped on cache hit.
+ * Stores the final extracted items (LLM-filtered when available,
+ * regex-only otherwise) so the extraction pipeline can be skipped
+ * on cache hit.
  */
 export interface CachedExtractionResult {
   items: CachedActionItem[];

@@ -53,28 +53,25 @@ function normalizeForDedup(text: string): string {
 }
 
 /**
- * Checks if an LLM-extracted item is a duplicate of an existing regex item.
- * Uses normalized substring matching — if either text contains the other
- * (after normalization), it's considered a duplicate.
+ * Checks if a text is a duplicate of any item in the comparison list.
+ * Used to deduplicate within the LLM's own output and across chunks.
  *
- * NOTE: Bidirectional substring match is aggressive — a short regex item like
- * "Send email" will suppress a more specific LLM item like "Send email to
- * vendor about pricing by Friday". This is intentional (prefer fewer
- * duplicates over completeness), but means the LLM adds the most value
- * when regex items are specific.
+ * Uses normalized bidirectional substring matching — if either text
+ * contains the other (after lowercasing, stripping bullets/checkboxes,
+ * collapsing whitespace), it's considered a duplicate.
  */
-function isDuplicate(llmText: string, existingTexts: string[]): boolean {
-  const normalizedLlm = normalizeForDedup(llmText);
-  if (!normalizedLlm) return true; // empty after normalization
+function isDuplicate(text: string, comparisonTexts: string[]): boolean {
+  const normalized = normalizeForDedup(text);
+  if (!normalized) return true; // empty after normalization
 
-  for (const existing of existingTexts) {
+  for (const existing of comparisonTexts) {
     const normalizedExisting = normalizeForDedup(existing);
-    // Skip empty existing items — every string contains "", which would
-    // cause all LLM items to be incorrectly marked as duplicates.
+    // Skip empty items — every string contains "", which would
+    // cause all items to be incorrectly marked as duplicates.
     if (!normalizedExisting) continue;
     if (
-      normalizedLlm.includes(normalizedExisting) ||
-      normalizedExisting.includes(normalizedLlm)
+      normalized.includes(normalizedExisting) ||
+      normalizedExisting.includes(normalized)
     ) {
       return true;
     }
@@ -85,33 +82,33 @@ function isDuplicate(llmText: string, existingTexts: string[]): boolean {
 /**
  * Extracts action items from meeting note content using the Anthropic API.
  *
- * This supplements the regex extraction in granola-utils.ts by catching
- * implicit commitments like "Kim will follow up with the vendor" or
- * "we agreed to ship by Thursday" that structured patterns miss.
+ * Acts as the authoritative filter for user relevance: reviews any items
+ * found by regex extraction AND discovers additional implicit commitments
+ * (e.g., "Kim will follow up with the vendor", "we agreed to ship by Thursday").
  *
  * Non-throwing: returns an empty array on any failure (network, API error,
  * invalid response). Failures are logged as warnings.
  *
  * @param content - Document text chunk (should be ≤ LLM_CONTENT_LIMIT chars)
- * @param existingItems - Already-extracted item texts (for deduplication)
+ * @param regexItemTexts - Regex-extracted item texts for the LLM to review for user relevance
  * @param userNames - User display names for relevance filtering
- * @returns New action items not already found by regex, or empty array on failure
+ * @returns User-relevant action items (confirmed regex items + new discoveries), or empty array on failure
  */
 export async function extractActionItemsWithLlm(
   content: string,
-  existingItems: string[],
+  regexItemTexts: string[],
   userNames: string[]
 ): Promise<LlmExtractedItem[]> {
   const logger = getLogger().withOperation("llm_extraction");
 
   const userContext =
     userNames.length > 0
-      ? `The current user goes by: ${userNames.join(", ")}. ONLY return action items that are this user's responsibility — items explicitly assigned to them, items they volunteered for, or items clearly directed at them. Do NOT include items assigned to other people or general team tasks that aren't specifically this user's job. When in doubt, leave it out.`
+      ? `The current user goes by: ${userNames.join(", ")}. ONLY return action items that are this user's responsibility — items explicitly assigned to them, items they volunteered for, or items clearly directed at them. Do NOT include items assigned to other people or general team tasks that aren't specifically this user's job. When in doubt, leave it out. For every item you include, set the "assignee" field to "${userNames[0]}".`
       : "Include all action items regardless of assignee.";
 
   const existingContext =
-    existingItems.length > 0
-      ? `\n\nThe following items have already been extracted — do NOT include duplicates:\n${existingItems.map((t) => `- ${t}`).join("\n")}`
+    regexItemTexts.length > 0
+      ? `\n\nThe following items were found by an initial text scan. Review each one and include it in your output ONLY if it is this user's responsibility. Also extract any additional action items not listed here.\n\nPreviously found items:\n${regexItemTexts.map((t) => `- ${t}`).join("\n")}`
       : "";
 
   const prompt = `You are extracting action items from meeting notes. The content may include structured notes AND a raw meeting transcript (after a "# Transcript:" heading). Pay close attention to both sections.
@@ -215,10 +212,7 @@ ${content}`;
     const text = typeof obj.text === "string" ? obj.text.trim() : "";
     if (!text || text.length < 3) continue;
 
-    // Skip duplicates of existing regex-extracted items
-    if (isDuplicate(text, existingItems)) continue;
-
-    // Also skip duplicates within the LLM's own output
+    // Skip duplicates within the LLM's own output
     if (isDuplicate(text, results.map((r) => r.text))) continue;
 
     results.push({
@@ -263,34 +257,34 @@ function splitIntoChunks(
  * For documents that fit within LLM_CONTENT_LIMIT, calls extractActionItemsWithLlm
  * directly. For longer documents, splits the content into overlapping chunks,
  * runs LLM extraction on each chunk in parallel, then deduplicates the merged
- * results against the regex-extracted items and against each other.
+ * results across chunks.
  *
  * Non-throwing: returns an empty array on any failure.
  *
  * @param content - Full document text (may exceed LLM_CONTENT_LIMIT)
- * @param existingItems - Already-extracted item texts (for deduplication)
+ * @param regexItemTexts - Regex-extracted item texts for the LLM to review for user relevance
  * @param userNames - User display names for relevance filtering
- * @returns Deduplicated action items from all chunks
+ * @returns User-relevant action items deduplicated across chunks
  */
 export async function extractActionItemsWithLlmChunked(
   content: string,
-  existingItems: string[],
+  regexItemTexts: string[],
   userNames: string[]
 ): Promise<LlmExtractedItem[]> {
   try {
     // Short documents: single-call fast path
     if (content.length <= LLM_CONTENT_LIMIT) {
-      return extractActionItemsWithLlm(content, existingItems, userNames);
+      return extractActionItemsWithLlm(content, regexItemTexts, userNames);
     }
 
     const logger = getLogger().withOperation("llm_extraction_chunked");
     const chunks = splitIntoChunks(content, LLM_CONTENT_LIMIT, CHUNK_OVERLAP);
     logger.info(`Splitting ${content.length} char document into ${chunks.length} chunks for LLM extraction`);
 
-    // Run all chunks in parallel — each chunk gets the same regex items for dedup context
+    // Run all chunks in parallel — each chunk gets the same regex items for relevance review
     const chunkResults = await Promise.all(
       chunks.map((chunk) =>
-        extractActionItemsWithLlm(chunk, existingItems, userNames)
+        extractActionItemsWithLlm(chunk, regexItemTexts, userNames)
       )
     );
 
@@ -299,9 +293,6 @@ export async function extractActionItemsWithLlmChunked(
     const deduped: LlmExtractedItem[] = [];
 
     for (const item of allItems) {
-      // Skip duplicates against regex-extracted items (should already be filtered
-      // per-chunk, but belt-and-suspenders for overlap regions)
-      if (isDuplicate(item.text, existingItems)) continue;
       // Skip duplicates against other chunks' results
       if (isDuplicate(item.text, deduped.map((d) => d.text))) continue;
       deduped.push(item);

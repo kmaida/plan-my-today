@@ -65,7 +65,7 @@ describe("field mapping", () => {
   });
 
   it("falls back to constructed link when webViewLink is undefined", () => {
-    const items = [{ text: "Do the thing", isUrgent: false }];
+    const items = [{ text: "Do the thing", assignee: "Kim", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC_NO_LINK, TIMESTAMP, null, NOW);
 
@@ -75,7 +75,7 @@ describe("field mapping", () => {
   });
 
   it("sets meetingDate to undefined when passed null", () => {
-    const items = [{ text: "Do the thing", isUrgent: false }];
+    const items = [{ text: "Do the thing", assignee: "Kim", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, null, NOW);
 
@@ -83,7 +83,7 @@ describe("field mapping", () => {
   });
 
   it("attaches priorityMetadata to each result", () => {
-    const items = [{ text: "Ship the feature", isUrgent: true }];
+    const items = [{ text: "Ship the feature", assignee: "Kim", isUrgent: true }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, MEETING_DATE, NOW);
 
@@ -99,12 +99,12 @@ describe("user-name filtering", () => {
     mockConfig.userDisplayNames = ["kim"];
   });
 
-  it("keeps items with no assignee (unassigned = potentially mine)", () => {
+  it("drops items with no assignee (unassigned = not attributable to user)", () => {
     const items = [{ text: "Unassigned task", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, null, NOW);
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(0);
   });
 
   it("keeps items assigned to the configured user", () => {

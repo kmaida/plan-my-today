@@ -68,10 +68,10 @@ describe("short documents (≤ LLM_CONTENT_LIMIT)", () => {
     expect(result[0].text).toBe("Follow up with vendor");
   });
 
-  it("deduplicates against existing items on the single-call path", async () => {
+  it("returns confirmed regex items alongside new discoveries", async () => {
     queueApiResponse([
-      { text: "Fix the login bug by Thursday", isUrgent: false },
-      { text: "Brand new item", isUrgent: false },
+      { text: "Fix the login bug by Thursday", isUrgent: false }, // confirmed from regex
+      { text: "Brand new item", isUrgent: false }, // new discovery
     ]);
 
     const result = await extractActionItemsWithLlmChunked(
@@ -80,8 +80,10 @@ describe("short documents (≤ LLM_CONTENT_LIMIT)", () => {
       []
     );
 
-    expect(result).toHaveLength(1);
-    expect(result[0].text).toBe("Brand new item");
+    // LLM reviews regex items for relevance — confirmed items are kept
+    expect(result).toHaveLength(2);
+    expect(result[0].text).toBe("Fix the login bug by Thursday");
+    expect(result[1].text).toBe("Brand new item");
   });
 });
 

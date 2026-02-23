@@ -366,7 +366,7 @@ export function buildActionDetails(
   const relevantItems =
     userNames.length > 0
       ? extractedItems.filter((item) => {
-          if (!item.assignee) return true; // Keep unassigned items
+          if (!item.assignee) return false; // Unassigned = not attributable to user
           const assigneeLower = item.assignee.toLowerCase();
           const textLower = item.text.toLowerCase();
           return userNames.some(
@@ -459,10 +459,12 @@ export async function fetchMeetingNoteActions(
         // Cache miss — full extraction pipeline
         logger.info(`Cache miss for document ${doc.name}, running extraction`);
         const content = await exportDocAsText(accessToken, doc.id);
-        const extractedItems = extractActionItemsFromContent(content);
+        const regexItems = extractActionItemsFromContent(content);
 
-        // LLM supplement: only for recent docs (≤ 3 business days).
-        // Older meetings likely have action items in Linear already.
+        // LLM is the authoritative relevance filter: it reviews regex items
+        // for user relevance AND discovers additional implicit commitments.
+        // Only runs for recent docs (≤ 3 business days) — older meetings
+        // likely have action items in Linear already.
         // Cache hits bypass this gate — they return whatever was cached
         // when the doc was first processed (including LLM results).
         const dateForRecency = meetingDate
@@ -471,16 +473,27 @@ export async function fetchMeetingNoteActions(
           ? isWithinBusinessDays(dateForRecency, LLM_RECENCY_BUSINESS_DAYS, now)
           : true;
 
+        let extractedItems: ExtractedActionItem[];
         if (isRecentEnough && shouldUseLlmExtraction(content)) {
           const llmItems = await extractActionItemsWithLlmChunked(
             content,
-            extractedItems.map((item) => item.text),
+            regexItems.map((item) => item.text),
             config.userDisplayNames
           );
-          extractedItems.push(...llmItems);
+          // LLM results are canonical — they include confirmed regex items
+          // plus new discoveries, already filtered for user relevance.
+          extractedItems = llmItems;
+
+          if (llmItems.length === 0 && regexItems.length > 0) {
+            logger.info(
+              `LLM returned 0 items for "${doc.name}" (regex found ${regexItems.length}) — trusting LLM relevance judgment`
+            );
+          }
+        } else {
+          extractedItems = regexItems;
         }
 
-        // Store combined results (regex + LLM) in the in-memory cache.
+        // Store results in the in-memory cache.
         // setCachedItems is synchronous — no race condition between
         // concurrent docs in the same Promise.all batch.
         setCachedItems(cache, doc.id, extractedItems);

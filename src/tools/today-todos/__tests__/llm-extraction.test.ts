@@ -127,6 +127,17 @@ describe("extractActionItemsWithLlm", () => {
     expect(prompt).toContain("ONLY return action items that are this user's responsibility");
   });
 
+  it("instructs LLM to set assignee to user's primary name", async () => {
+    mockAnthropicResponse([]);
+
+    await extractActionItemsWithLlm("content", [], ["kim", "kim maida"]);
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const prompt = body.messages[0].content;
+    // Must use the first (primary) name variant so buildActionDetails can match
+    expect(prompt).toContain('set the "assignee" field to "kim"');
+  });
+
   it("uses permissive prompt when no user names are configured", async () => {
     mockAnthropicResponse([]);
 
@@ -138,7 +149,7 @@ describe("extractActionItemsWithLlm", () => {
     expect(prompt).not.toContain("ONLY return");
   });
 
-  it("includes existing items in the prompt for dedup", async () => {
+  it("includes regex items in the prompt for relevance review", async () => {
     mockAnthropicResponse([]);
 
     await extractActionItemsWithLlm(
@@ -148,8 +159,11 @@ describe("extractActionItemsWithLlm", () => {
     );
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(body.messages[0].content).toContain("Fix login bug");
-    expect(body.messages[0].content).toContain("Update docs");
+    const prompt = body.messages[0].content;
+    expect(prompt).toContain("Fix login bug");
+    expect(prompt).toContain("Update docs");
+    expect(prompt).toContain("Previously found items");
+    expect(prompt).toContain("include it in your output ONLY if it is this user's responsibility");
   });
 
   it("parses valid action items from the response", async () => {
@@ -169,26 +183,24 @@ describe("extractActionItemsWithLlm", () => {
     expect(items[1].isUrgent).toBe(true);
   });
 
-  it("deduplicates against existing regex-extracted items", async () => {
-    mockAnthropicResponse([
-      { text: "Fix the login bug", isUrgent: false }, // duplicate
-      { text: "New item from LLM", isUrgent: false }, // new
-    ]);
+  it("returns empty when LLM finds no user-relevant items (even with regex candidates)", async () => {
+    mockAnthropicResponse([]);
 
+    // Regex found items, but LLM determined none belong to this user
     const items = await extractActionItemsWithLlm(
-      "notes",
-      ["Fix the login bug"],
-      []
+      "Sarah: I'll handle the vendor call\nAlex: Let me update the docs",
+      ["Handle the vendor call", "Update the docs"],
+      ["kim"]
     );
 
-    expect(items).toHaveLength(1);
-    expect(items[0].text).toBe("New item from LLM");
+    // Trust the LLM's relevance judgment — no fallback to regex items
+    expect(items).toHaveLength(0);
   });
 
-  it("deduplicates with normalized matching (substring, case, whitespace)", async () => {
+  it("returns items matching regex-extracted items (LLM confirms relevance)", async () => {
     mockAnthropicResponse([
-      { text: "fix the login bug by Thursday", isUrgent: false }, // contains existing
-      { text: "Completely new task", isUrgent: false },
+      { text: "Fix the login bug", isUrgent: false }, // confirmed from regex
+      { text: "New item from LLM", isUrgent: false }, // new discovery
     ]);
 
     const items = await extractActionItemsWithLlm(
@@ -197,8 +209,10 @@ describe("extractActionItemsWithLlm", () => {
       []
     );
 
-    expect(items).toHaveLength(1);
-    expect(items[0].text).toBe("Completely new task");
+    // LLM now reviews regex items for relevance — confirmed items are returned
+    expect(items).toHaveLength(2);
+    expect(items[0].text).toBe("Fix the login bug");
+    expect(items[1].text).toBe("New item from LLM");
   });
 
   it("deduplicates within the LLM's own output", async () => {
@@ -213,12 +227,12 @@ describe("extractActionItemsWithLlm", () => {
     expect(items[0].text).toBe("Follow up with vendor");
   });
 
-  it("ignores empty strings in existingItems during dedup", async () => {
+  it("includes empty regexItemTexts in prompt without errors", async () => {
     mockAnthropicResponse([
       { text: "A real action item", isUrgent: false },
     ]);
 
-    // An empty string in existingItems should NOT suppress all LLM results
+    // Empty strings in regexItemTexts should not cause prompt issues
     const items = await extractActionItemsWithLlm("notes", [""], []);
 
     expect(items).toHaveLength(1);
