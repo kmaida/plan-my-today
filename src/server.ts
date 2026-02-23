@@ -11,7 +11,6 @@ import compression from "compression";
 import express from "express";
 import { config } from "./config";
 import { PATHS } from "./constants";
-import { createAuthMiddleware } from "./middleware/auth";
 import { httpLoggingMiddleware } from "./middleware/logging";
 import { getLogger } from "./observability/logger";
 import {
@@ -23,8 +22,8 @@ import type { McpServer } from "./types/index";
 import { filterCompletedTasks, type TaskStoreData } from "./utils/filter-completed-tasks";
 import { removeTaskFromStore } from "./utils/task-store-utils";
 
-// Create authentication middleware using the local SDK
-const authMiddleware = createAuthMiddleware(requireBearerAuth);
+// Create authentication middleware using the Keycard SDK
+const authMiddleware = requireBearerAuth({ requiredScopes: [] });
 
 // Global storage for per-session servers
 const sessionServers: {

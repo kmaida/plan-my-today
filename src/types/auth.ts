@@ -1,6 +1,17 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { z } from "zod/v3";
 
+// Extend Express Request to include auth property
+declare module "express-serve-static-core" {
+  interface Request {
+    /**
+     * Authentication information added by Keycard auth middleware
+     * Contains validated user and token information
+     */
+    auth?: AuthInfo;
+  }
+}
+
 // Re-export AuthInfo for use in other modules
 export type { AuthInfo };
 
