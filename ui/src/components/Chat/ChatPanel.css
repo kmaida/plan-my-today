@@ -300,6 +300,10 @@
   word-break: break-word;
 }
 
+.chat-message--assistant .chat-message__text--streaming {
+  white-space: pre-wrap;
+}
+
 .chat-message--assistant .chat-message__text h1,
 .chat-message--assistant .chat-message__text h2,
 .chat-message--assistant .chat-message__text h3 {

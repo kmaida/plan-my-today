@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
 import { clearPersistedChatState, restoreChatState, saveChatState } from "./chat-persistence";
+import { createStreamParseState, processSseLine, toAnthropicResponse } from "./sse-parser";
 import type { SystemPromptParts } from "./system-prompt";
 import { evaluateToolRound, type ToolRoundResult } from "./tool-round-utils";
 import type {
@@ -10,8 +11,6 @@ import type {
   ContentBlock,
   Message,
   SessionUsage,
-  StreamEvent,
-  TokenUsage,
   ToolCall,
   ToolDefinition,
 } from "./types";
@@ -137,6 +136,21 @@ export function useChat(
     }
   }, [isLoading, messages, sessionUsage]);
 
+  /**
+   * Mark a specific assistant message as no longer streaming.
+   * This keeps UI state consistent when a request is cancelled or errors.
+   */
+  const finalizeStreamingMessage = useCallback((messageId: string | null) => {
+    if (!messageId) return;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && m.role === "assistant" && m.isStreaming
+          ? { ...m, isStreaming: false }
+          : m
+      )
+    );
+  }, []);
+
   const sendMessage = useCallback(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: chat send handler — manages message state, streaming, and tool calls
     async (userText: string) => {
@@ -168,6 +182,7 @@ export function useChat(
       // Track whether onFetchStarted was called this turn so we can ensure
       // onToolRoundComplete always fires to reset the header animation.
       let fetchStartedThisTurn = false;
+      let activeAssistantMsgId: string | null = null;
 
       try {
         const tools = toAnthropicTools(mcpTools);
@@ -183,9 +198,10 @@ export function useChat(
 
           // Create a streaming assistant message in the UI
           const msgId = uid();
+          activeAssistantMsgId = msgId;
           setMessages((prev) => [
             ...prev,
-            { id: msgId, role: "assistant", text: "", timestamp: Date.now() },
+            { id: msgId, role: "assistant", text: "", isStreaming: true, timestamp: Date.now() },
           ]);
 
           const onTextDelta = (accumulated: string) => {
@@ -231,9 +247,10 @@ export function useChat(
             // Final response — update the streaming message with final text and usage
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === msgId ? { ...m, text: fullText, usage: response.usage } : m
+                m.id === msgId ? { ...m, text: fullText, isStreaming: false, usage: response.usage } : m
               )
             );
+            activeAssistantMsgId = null;
             break;
           }
 
@@ -293,8 +310,11 @@ export function useChat(
 
           // Update the streaming message with tool calls (intermediate turn)
           setMessages((prev) =>
-            prev.map((m) => (m.id === msgId ? { ...m, text: fullText, toolCalls } : m))
+            prev.map((m) =>
+              m.id === msgId ? { ...m, text: fullText, isStreaming: false, toolCalls } : m
+            )
           );
+          activeAssistantMsgId = null;
 
           // Add tool results to history so Claude can see them
           historyRef.current.push({ role: "user", content: toolResults });
@@ -306,6 +326,7 @@ export function useChat(
       } catch (err) {
         // Don't surface abort errors — they're intentional (unmount / new request)
         if (err instanceof DOMException && err.name === "AbortError") {
+          finalizeStreamingMessage(activeAssistantMsgId);
           // If we signalled the header animation, send a no-op round result
           // so the caller resets refreshing state.
           if (fetchStartedThisTurn && onToolRoundComplete) {
@@ -315,6 +336,7 @@ export function useChat(
           return;
         }
         const msg = err instanceof Error ? err.message : "Chat request failed";
+        finalizeStreamingMessage(activeAssistantMsgId);
         setError(msg);
       } finally {
         // If we signalled the header animation but onToolRoundComplete never
@@ -326,7 +348,15 @@ export function useChat(
         setIsLoading(false);
       }
     },
-    [isConnected, mcpTools, callTool, buildSystemPrompt, onToolRoundComplete, onFetchStarted]
+    [
+      isConnected,
+      mcpTools,
+      callTool,
+      buildSystemPrompt,
+      onToolRoundComplete,
+      onFetchStarted,
+      finalizeStreamingMessage,
+    ]
   );
 
   /** Cancel the in-flight stream. Partial text stays in the chat (it's already
@@ -361,8 +391,7 @@ export function useChat(
  * Calls `onText` with the accumulated text as each delta arrives (for real-time UI).
  * Returns the reconstructed AnthropicResponse so the agentic loop logic stays unchanged.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SSE stream parser with multi-event handling
-async function streamChatAPI(
+export async function streamChatAPI(
   messages: Message[],
   tools: ToolDefinition[],
   systemParts: SystemPromptParts | null,
@@ -397,22 +426,7 @@ async function streamChatAPI(
     throw new Error("Chat API returned an empty response body");
   }
 
-  // Reconstruct the full response from SSE events
-  const content: ContentBlock[] = [];
-  let stopReason: AnthropicResponse["stop_reason"] = null;
-  let messageId = "";
-  let model = "";
-  const usage: TokenUsage = {
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_creation_input_tokens: 0,
-    cache_read_input_tokens: 0,
-  };
-
-  // Track text accumulation across blocks for the onText callback
-  const textParts: string[] = [];
-  // Track partial JSON for tool_use input blocks
-  const partialJson: Map<number, string> = new Map();
+  const parseState = createStreamParseState();
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -426,106 +440,26 @@ async function streamChatAPI(
       buffer += decoder.decode(value, { stream: true });
 
       // Parse SSE lines from the buffer
-      const lines = buffer.split("\n");
+      const lines = buffer.split(/\r?\n/);
       buffer = lines.pop()!; // keep incomplete last line in buffer
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") continue;
+        processSseLine(parseState, line, onText);
+      }
+    }
 
-        let event: StreamEvent;
-        try {
-          event = JSON.parse(data) as StreamEvent;
-        } catch {
-          continue;
-        }
-
-        switch (event.type) {
-          case "message_start":
-            messageId = event.message.id;
-            model = event.message.model;
-            usage.input_tokens = event.message.usage.input_tokens;
-            usage.cache_creation_input_tokens =
-              event.message.usage.cache_creation_input_tokens ?? 0;
-            usage.cache_read_input_tokens = event.message.usage.cache_read_input_tokens ?? 0;
-            break;
-
-          case "content_block_start":
-            if (event.content_block.type === "text") {
-              content[event.index] = { type: "text", text: "" };
-            } else if (event.content_block.type === "thinking") {
-              // Adaptive thinking block — accumulate but don't stream to UI.
-              // Thinking blocks must be preserved in history for multi-turn
-              // conversations with tools (Anthropic API requirement).
-              content[event.index] = { type: "thinking", thinking: "" };
-            } else if (event.content_block.type === "tool_use") {
-              content[event.index] = {
-                type: "tool_use",
-                id: event.content_block.id,
-                name: event.content_block.name,
-                input: {},
-              };
-              partialJson.set(event.index, "");
-            } else if (event.content_block.type === "compaction") {
-              content[event.index] = { type: "compaction", content: "" };
-            }
-            break;
-
-          case "content_block_delta": {
-            const block = content[event.index];
-            if (event.delta.type === "text_delta" && block?.type === "text") {
-              block.text += event.delta.text;
-              // Update accumulated text for the onText callback
-              textParts[event.index] = block.text;
-              onText(textParts.filter(Boolean).join(""));
-            } else if (event.delta.type === "thinking_delta" && block?.type === "thinking") {
-              // Accumulate thinking content (not streamed to UI)
-              block.thinking += event.delta.thinking;
-            } else if (event.delta.type === "input_json_delta" && block?.type === "tool_use") {
-              const current = partialJson.get(event.index) ?? "";
-              partialJson.set(event.index, current + event.delta.partial_json);
-            } else if (event.delta.type === "compaction_delta" && block?.type === "compaction") {
-              // Compaction summary arrives as a single complete delta (not incremental)
-              block.content = event.delta.content;
-            }
-            break;
-          }
-
-          case "content_block_stop": {
-            const block = content[event.index];
-            if (block?.type === "tool_use") {
-              const jsonStr = partialJson.get(event.index);
-              if (jsonStr) {
-                try {
-                  block.input = JSON.parse(jsonStr) as Record<string, unknown>;
-                } catch {
-                  block.input = {};
-                }
-              }
-              partialJson.delete(event.index);
-            }
-            break;
-          }
-
-          case "message_delta":
-            stopReason = event.delta.stop_reason;
-            usage.output_tokens = event.usage.output_tokens;
-            break;
-        }
+    // Flush any remaining decoded bytes and process final line(s), even if the
+    // stream ended without a trailing newline. This prevents dropped tail events.
+    buffer += decoder.decode();
+    if (buffer.trim().length > 0) {
+      const trailingLines = buffer.split(/\r?\n/);
+      for (const line of trailingLines) {
+        processSseLine(parseState, line, onText);
       }
     }
   } finally {
     reader.releaseLock();
   }
 
-  return {
-    id: messageId,
-    type: "message",
-    role: "assistant",
-    content: content.filter(Boolean),
-    model,
-    stop_reason: stopReason,
-    usage,
-  };
+  return toAnthropicResponse(parseState);
 }

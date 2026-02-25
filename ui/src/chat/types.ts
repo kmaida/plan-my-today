@@ -110,6 +110,8 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   text: string;
+  /** True while assistant content is still streaming for this message. */
+  isStreaming?: boolean;
   toolCalls?: ToolCall[];
   timestamp: number;
   /** Token usage for this assistant turn (only present on final response, not intermediate tool rounds). */
