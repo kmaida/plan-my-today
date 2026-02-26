@@ -1,7 +1,8 @@
+import { TIME_WINDOWS } from "../../constants";
 import { getLogger } from "../../observability/logger";
 import { AuthenticationError } from "../../utils/error-utils";
 import type { DocCommentEmail } from "./drive-comments-utils";
-import { verifyAndEnrichDocComments } from "./drive-comments-utils";
+import { getUnresolvedComments, verifyAndEnrichDocComments } from "./drive-comments-utils";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { AssignedActionDetail } from "./types";
 
@@ -9,6 +10,133 @@ import type { AssignedActionDetail } from "./types";
 export interface CommentEmailContext {
   docCommentEmails: DocCommentEmail[];
   driveToken: string;
+}
+
+// ── Drive v3 file list response types ────────────────────────────────────────
+
+interface DriveFileItem {
+  id?: string;
+  name?: string;
+  webViewLink?: string;
+  modifiedTime?: string;
+}
+
+interface DriveFilesListResponse {
+  files?: DriveFileItem[];
+}
+
+/**
+ * Fetches Google Drive files that need the user's action via Drive v3.
+ *
+ * Primary query: `files.list` with `q='followup:actionitems'` — a Drive search
+ * operator that returns files where the authenticated user has unresolved
+ * assigned comments. This is a single API call.
+ *
+ * Fallback (if the primary query returns an HTTP error — not just empty):
+ * Scans recently modified owned files and checks each for unresolved comments
+ * via `getUnresolvedComments`. This is 1 + N API calls (N = files checked).
+ *
+ * @param driveToken - Google Drive v3 access token (drive.readonly scope)
+ * @returns Array of assigned actions (files with action items for this user)
+ */
+export async function fetchDriveActionItems(driveToken: string): Promise<AssignedActionDetail[]> {
+  const logger = getLogger().withOperation("drive_utils");
+
+  // ── Primary: followup:actionitems ───────────────────────────────────────
+  const primaryResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
+      q: "followup:actionitems",
+      pageSize: "20",
+      orderBy: "modifiedTime desc",
+      fields: "files(id,name,webViewLink,modifiedTime)",
+    })}`,
+    {
+      headers: { Authorization: `Bearer ${driveToken}` },
+    }
+  );
+
+  if (primaryResponse.ok) {
+    const data = (await primaryResponse.json()) as DriveFilesListResponse;
+    const files = data.files || [];
+
+    logger.info("Drive v3 followup:actionitems", { fileCount: files.length });
+
+    return files
+      .filter((f) => f.id && (f.name || f.webViewLink))
+      .map((f) => ({
+        fileTitle: f.name || "Document",
+        fileId: f.id,
+        actionType: "assigned to you",
+        fileLink: f.webViewLink || `https://drive.google.com/open?id=${f.id}`,
+        timestamp: f.modifiedTime,
+        isAssignment: true,
+        driveType: "assignment" as const,
+      }));
+  }
+
+  // Auth errors should propagate
+  if (primaryResponse.status === 401 || primaryResponse.status === 403) {
+    throw new AuthenticationError("Google Drive", primaryResponse.status);
+  }
+
+  // ── Fallback: owned files → per-file comment check ──────────────────────
+  logger.warn("Drive followup:actionitems failed — falling back to owned-files scan", {
+    status: primaryResponse.status,
+  });
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - TIME_WINDOWS.DEFAULT_DAYS_BACK);
+
+  const fallbackResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
+      q: `'me' in owners AND modifiedTime > '${cutoff.toISOString()}' AND trashed = false AND (mimeType='application/vnd.google-apps.document' OR mimeType='application/vnd.google-apps.spreadsheet' OR mimeType='application/vnd.google-apps.presentation')`,
+      pageSize: "10",
+      orderBy: "modifiedTime desc",
+      fields: "files(id,name,webViewLink,modifiedTime)",
+    })}`,
+    {
+      headers: { Authorization: `Bearer ${driveToken}` },
+    }
+  );
+
+  if (!fallbackResponse.ok) {
+    if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+      throw new AuthenticationError("Google Drive", fallbackResponse.status);
+    }
+    logger.warn("Drive fallback files.list also failed — returning empty", {
+      status: fallbackResponse.status,
+    });
+    return [];
+  }
+
+  const fallbackData = (await fallbackResponse.json()) as DriveFilesListResponse;
+  const ownedFiles = (fallbackData.files || []).filter((f) => !!f.id);
+
+  // Check each file for unresolved comments in parallel
+  const results = await Promise.all(
+    ownedFiles.map(async (f): Promise<AssignedActionDetail | null> => {
+      const comments = await getUnresolvedComments(f.id!, driveToken);
+      if (comments.length === 0) return null;
+
+      return {
+        fileTitle: f.name || "Document",
+        fileId: f.id,
+        actionType: `has ${comments.length} unresolved comment${comments.length !== 1 ? "s" : ""}`,
+        fileLink: f.webViewLink || `https://drive.google.com/open?id=${f.id}`,
+        timestamp: comments[0]?.createdTime || f.modifiedTime,
+        isAssignment: false,
+        commentCount: comments.length,
+        driveType: "unresolved-comment" as const,
+      };
+    })
+  );
+
+  const actionItems = results.filter((r): r is AssignedActionDetail => r !== null);
+  logger.info("Drive fallback results", {
+    filesChecked: ownedFiles.length,
+    actionItems: actionItems.length,
+  });
+  return actionItems;
 }
 
 /**
@@ -74,6 +202,9 @@ export async function fetchAssignedActions(
     primaryActionDetail?: {
       comment?: Comment;
     };
+    actors?: Array<{
+      user?: { knownUser?: KnownUser };
+    }>;
     targets?: Array<{
       driveItem?: DriveItem;
     }>;
@@ -87,6 +218,12 @@ export async function fetchAssignedActions(
 
   const activities = data.activities || [];
   const actionItems: AssignedActionDetail[] = [];
+  const logger = getLogger().withOperation("drive_utils");
+
+  logger.info("Drive Activity API response", {
+    totalActivities: activities.length,
+    daysBack,
+  });
 
   for (const activity of activities) {
     const comment = activity.primaryActionDetail?.comment;
@@ -94,8 +231,11 @@ export async function fetchAssignedActions(
 
     const wasAssigned = comment.assignment?.assignedUser?.knownUser?.isCurrentUser;
     const wasMentioned = comment.mentionedUsers?.some((u) => u.knownUser?.isCurrentUser);
+    // Self-assignment: actor is current user + assignment exists but assignedUser flag wasn't set
+    const actorIsSelf = activity.actors?.some((a) => a.user?.knownUser?.isCurrentUser);
+    const isSelfAssignment = actorIsSelf && !!comment.assignment && !wasAssigned;
 
-    if (wasAssigned || wasMentioned) {
+    if (wasAssigned || wasMentioned || isSelfAssignment) {
       const target = activity.targets?.[0];
       const rawTitle = target?.driveItem?.title;
       const fileId = target?.driveItem?.name?.match(/^items\/(.+)$/)?.[1];
@@ -121,8 +261,22 @@ export async function fetchAssignedActions(
         isAssignment: !!comment.assignment,
         driveType: comment.assignment ? "assignment" : "mention",
       });
+    } else {
+      logger.debug("Drive activity filtered out", {
+        hasAssignment: !!comment.assignment,
+        assignedUserIsCurrentUser: comment.assignment?.assignedUser?.knownUser?.isCurrentUser,
+        mentionedUsersCount: comment.mentionedUsers?.length ?? 0,
+        actorIsSelf,
+        targetTitle: activity.targets?.[0]?.driveItem?.title,
+      });
     }
   }
+
+  logger.info("Drive Activity filter results", {
+    totalActivities: activities.length,
+    passedFilter: actionItems.length,
+    filteredOut: activities.length - actionItems.length,
+  });
 
   // Enrich with Gmail-discovered doc comment emails (if context provided)
   if (commentEmailContext && commentEmailContext.docCommentEmails.length > 0) {

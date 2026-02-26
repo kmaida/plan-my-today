@@ -93,7 +93,7 @@ export async function verifyAndEnrichDocComments(
   driveToken: string,
   excludeFileIds: Set<string>
 ): Promise<AssignedActionDetail[]> {
-  // Filter out docs already surfaced via Drive Activity API (@mentions/assignments)
+  // Filter out docs already surfaced via primary Drive query or Activity API
   const toVerify = docCommentEmails.filter((e) => !excludeFileIds.has(e.fileId));
 
   if (toVerify.length === 0) {

@@ -23,7 +23,7 @@ import {
 import { parseDependencies } from "../today-todos/dependency-utils";
 import type { DocCommentEmail } from "../today-todos/drive-comments-utils";
 import { verifyAndEnrichDocComments } from "../today-todos/drive-comments-utils";
-import { calculateDrivePriority, fetchAssignedActions } from "../today-todos/drive-utils";
+import { calculateDrivePriority, fetchDriveActionItems } from "../today-todos/drive-utils";
 import {
   calculateEmailPriority,
   calculateMeetingSummaryPriority,
@@ -69,8 +69,6 @@ const LINEAR_RESOURCE = "https://api.linear.app";
 const LINEAR_SCOPES = ["read"];
 const GMAIL_RESOURCE = "https://gmail.googleapis.com";
 const GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
-const DRIVE_ACTIVITY_RESOURCE = "https://driveactivity.googleapis.com";
-const DRIVE_ACTIVITY_SCOPES = ["https://www.googleapis.com/auth/drive.activity.readonly"];
 const GITHUB_RESOURCE = "https://api.github.com";
 const DRIVE_RESOURCE = "https://www.googleapis.com/drive/v3";
 const DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
@@ -367,14 +365,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
           };
         })(),
 
-        // 3: Google Drive Activity (assigned actions)
+        // 3: Google Drive v3 (files with action items for this user)
         (async () => {
-          const token = await keycardClient.exchange(
-            authInfo,
-            DRIVE_ACTIVITY_RESOURCE,
-            DRIVE_ACTIVITY_SCOPES
-          );
-          return fetchAssignedActions(token.access_token, TIME_WINDOWS.DEFAULT_DAYS_BACK);
+          const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+          return fetchDriveActionItems(token.access_token);
         })(),
 
         // 4: GitHub (conditional)
@@ -430,7 +424,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       if (fetchResults[3].status === "fulfilled") {
         rawAssignedActions = fetchResults[3].value;
       } else {
-        errors.push(formatAuthError("Google Drive Activity", fetchResults[3].reason));
+        errors.push(formatAuthError("Google Drive", fetchResults[3].reason));
         failedSources.push("drive");
       }
 
