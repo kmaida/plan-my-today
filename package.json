@@ -7,10 +7,10 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "tsc --noEmit && jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:integration": "jest tests/server-integration.test.ts --forceExit",
+    "test:integration": "tsc --noEmit && jest tests/server-integration.test.ts --forceExit",
     "start": "nodemon --ignore data/ --exec ts-node -r tsconfig-paths/register src/index.ts",
     "start:prod": "node dist/index.js",
     "build": "tsup",
@@ -23,7 +23,8 @@
     "format": "biome format --write src/",
     "check": "biome check src/",
     "check:fix": "biome check --write src/",
-    "release": "release-it"
+    "release": "release-it",
+    "prepare": "husky"
   },
   "keywords": [
     "mcp",
@@ -48,6 +49,7 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^24.0.15",
     "@types/supertest": "^6.0.2",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "release-it": "^19.2.4",

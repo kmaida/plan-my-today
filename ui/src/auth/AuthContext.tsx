@@ -88,6 +88,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const initialized = useRef(false)
 
+  // ── Auth failure tracking ───────────────────────────────────────────────────
+
+  /** Increment consecutive failure counter; arms force_fresh_login after 2+ failures. */
+  function recordAuthFailure() {
+    const stored = parseInt(sessionStorage.getItem('auth_fail_count') ?? '0', 10)
+    const count = (isNaN(stored) ? 0 : stored) + 1
+    sessionStorage.setItem('auth_fail_count', String(count))
+    if (count >= 2) {
+      sessionStorage.setItem('force_fresh_login', '1')
+    }
+  }
+
+  /** Reset failure counter and fresh-login flag after a successful login. */
+  function clearAuthFailures() {
+    sessionStorage.removeItem('auth_fail_count')
+    sessionStorage.removeItem('force_fresh_login')
+  }
+
   // ── Restore or handle callback on mount ────────────────────────────────────
 
   useEffect(() => {
@@ -101,15 +119,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const state = params.get('state')
+    const error = params.get('error')
+    const errorDescription = params.get('error_description')
 
     if (code && state) {
       handleCallback(code, state)
+    } else if (error) {
+      recordAuthFailure()
+      sessionStorage.removeItem(PKCE_KEY)
+      window.history.replaceState({}, '', '/')
+      setError(errorDescription ?? error)
+      setIsLoading(false)
     } else {
       restoreSession()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function restoreSession() {
+    // If a login was started but never completed (user got stuck at Keycard and
+    // navigated back manually), record as a failure and flag for potential escalation.
+    if (sessionStorage.getItem(PKCE_KEY)) {
+      sessionStorage.removeItem(PKCE_KEY)
+      recordAuthFailure()
+    }
+
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY)
       if (saved && !isTokenExpired(saved)) {
@@ -127,7 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Validate state
       const stored = sessionStorage.getItem(PKCE_KEY)
-      if (!stored) throw new Error('Missing PKCE state — login may have expired')
+      if (!stored) {
+        recordAuthFailure()
+        throw new Error('Your login session expired. Click "Connect" to log in again.')
+      }
 
       const pkce = JSON.parse(stored) as { state: string; code_verifier: string }
       if (pkce.state !== state) throw new Error('State mismatch — possible CSRF attack')
@@ -158,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthToken(accessToken)
       sessionStorage.setItem(STORAGE_KEY, accessToken)
       sessionStorage.removeItem(PKCE_KEY)
+      clearAuthFailures()
 
       // Clean URL
       window.history.replaceState({}, '', '/')
@@ -195,7 +232,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { authorization_endpoint } = await discoverEndpoints(AUTH_CONFIG.discoveryBaseUrl)
 
       // Build authorization URL
-      const params = new URLSearchParams({
+      const forceFreshLogin = sessionStorage.getItem('force_fresh_login') === '1'
+      if (forceFreshLogin) {
+        sessionStorage.removeItem('force_fresh_login')
+      }
+
+      const authParams = new URLSearchParams({
         client_id: AUTH_CONFIG.clientId,
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
@@ -205,8 +247,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         state,
         resource: AUTH_CONFIG.resource,
       })
+      if (forceFreshLogin) {
+        authParams.set('prompt', 'login')
+      }
 
-      window.location.href = `${authorization_endpoint}?${params.toString()}`
+      window.location.href = `${authorization_endpoint}?${authParams.toString()}`
     } catch (err) {
       console.error('Login failed:', err)
       setError(err instanceof Error ? err.message : 'Failed to start login')

@@ -49,6 +49,13 @@ async function doDiscover(baseUrl: string): Promise<OAuthEndpoints> {
     const issuer: string = resourceMeta.authorization_servers?.[0];
     if (!issuer) throw new Error("No authorization_servers in protected resource metadata");
 
+    // Validate issuer is an HTTPS URL before using it — prevents open redirect
+    // if a misconfigured or malicious server returns an unsafe value.
+    const issuerUrl = new URL(issuer);
+    if (issuerUrl.protocol !== "https:") {
+      throw new Error(`Issuer URL must use HTTPS, got: ${issuerUrl.protocol}`);
+    }
+
     // Step 2: Get auth endpoints from the issuer's OAuth metadata
     const authServerRes = await fetch(`${issuer}/.well-known/oauth-authorization-server`);
     if (!authServerRes.ok) throw new Error(`Auth server discovery failed: ${authServerRes.status}`);
@@ -69,14 +76,15 @@ async function doDiscover(baseUrl: string): Promise<OAuthEndpoints> {
   } catch (err) {
     console.error("OAuth discovery failed, using fallback:", err);
 
-    // Fallback: construct from known Keycard zone URL pattern
+    // Fallback: construct from known Keycard zone URL pattern.
+    // Intentionally NOT cached — a transient failure at startup should not
+    // permanently block real discovery on the next login attempt.
     const fallbackIssuer =
       import.meta.env.VITE_KEYCARD_ISSUER || "https://chzabf1qgzjia0wfd17eietx70.keycard.cloud";
 
-    cachedEndpoints = {
+    return {
       authorization_endpoint: `${fallbackIssuer}/oauth/2/authorize`,
       token_endpoint: `${fallbackIssuer}/oauth/2/token`,
     };
-    return cachedEndpoints;
   }
 }
