@@ -40,6 +40,10 @@
   --color-low-bg: rgba(37, 99, 235, 0.1);
   --color-low-text: #1d4ed8;
 
+  /* Saved Message Tag */
+  --color-saved-bg: rgba(160, 120, 50, 0.10);
+  --color-saved-text: #7A5C1F;
+
   /* ===== Typography ===== */
 
   /* Font Families */
@@ -143,6 +147,10 @@
   --color-medium-text: #8FB4B7;
   --color-low-bg: rgba(179, 183, 188, 0.12);
   --color-low-text: #B3B7BC;
+
+  /* Saved Message Tag — muted taupe, distinct from warm high-priority gold */
+  --color-saved-bg: rgba(160, 145, 120, 0.12);
+  --color-saved-text: #9E9480;
 
   /* Shadows (softer in dark mode) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2), 0 1px 4px rgba(0, 0, 0, 0.2);

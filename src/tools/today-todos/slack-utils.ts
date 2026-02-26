@@ -113,10 +113,6 @@ async function getUserId(accessToken: string): Promise<string> {
 }
 
 /**
- * Fetch messages the user has saved with a specific emoji reaction
- * Uses reactions.list API to get all reactions, then filters by emoji
- */
-/**
  * Fetches messages that the user has bookmarked with a specific emoji reaction
  *
  * @param accessToken - Slack user token with reactions:read scope
@@ -126,7 +122,7 @@ async function getUserId(accessToken: string): Promise<string> {
  * @param maxResults - Maximum number of messages to return
  * @returns Array of saved messages matching the criteria
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Slack API pagination and message filtering
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Slack API response filtering with multiple conditions
 async function fetchSlackSavedMessages(
   accessToken: string,
   userId: string,
@@ -135,7 +131,7 @@ async function fetchSlackSavedMessages(
   maxResults: number
 ): Promise<SlackRawMessage[]> {
   const url = new URL("https://slack.com/api/reactions.list");
-  url.searchParams.set("limit", "50");
+  url.searchParams.set("limit", "200");
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -617,10 +613,9 @@ async function resolveSlackNames(
       // May overlap with the DM branch above (both can resolve the same user ID).
       // This is harmless — Map.set is last-write-wins with identical values.
       try {
-        const response = await fetch(
-          `https://slack.com/api/users.info?user=${userId}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
+        const response = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         const userData = (await response.json()) as SlackUserInfoResponse;
         const name = extractDisplayName(userData);
         if (name) {
@@ -693,7 +688,6 @@ async function ensurePermalinks(
  * @param options.maxMessages - Maximum messages to return (default: 5)
  * @returns Array of Slack messages sorted by priority
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestrates Slack API calls across multiple endpoints
 export async function fetchSlackMessages(
   accessToken: string,
   options: {
@@ -723,44 +717,45 @@ export async function fetchSlackMessages(
           ? "3 days ago"
           : `${daysBack} days ago`;
 
-  // Execute searches in parallel: @mentions, DMs, and saved messages
-  let mentions: SlackRawMessage[];
-  let dms: SlackRawMessage[];
-  let saved: SlackRawMessage[];
-
-  try {
-    [mentions, dms, saved] = await Promise.all([
-      searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
-      searchMessages(accessToken, `in:dm after:${timeFilter}`),
-      fetchSlackSavedMessages(
-        accessToken,
-        userId,
-        SLACK_SAVED_MESSAGES.EMOJI_NAME,
-        savedMessagesDaysBack,
-        SLACK_SAVED_MESSAGES.MAX_RESULTS
-      ),
-    ]);
-  } catch (error) {
+  // Execute all searches in parallel. Saved messages use .catch() for isolation
+  // so a reactions.list failure doesn't discard the already-resolved mentions/DMs.
+  const savedPromise = fetchSlackSavedMessages(
+    accessToken,
+    userId,
+    SLACK_SAVED_MESSAGES.EMOJI_NAME,
+    savedMessagesDaysBack,
+    SLACK_SAVED_MESSAGES.MAX_RESULTS
+  ).catch((error) => {
     const logger = getLogger().withOperation("slack_utils");
     logger.warn("Failed to fetch saved messages - continuing with mentions/DMs only", {
       error: error instanceof Error ? error.message : String(error),
     });
-    // Fallback: fetch only mentions and DMs
-    [mentions, dms] = await Promise.all([
-      searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
-      searchMessages(accessToken, `in:dm after:${timeFilter}`),
-    ]);
-    saved = [];
-  }
+    return [] as SlackRawMessage[];
+  });
 
-  // Deduplicate and group results, limit to configured max
+  const [mentions, dms, saved] = await Promise.all([
+    searchMessages(accessToken, `<@${userId}> after:${timeFilter}`),
+    searchMessages(accessToken, `in:dm after:${timeFilter}`),
+    savedPromise,
+  ]);
+
+  // Deduplicate and group, then hoist recently-saved messages to front so they
+  // survive trimming. Older saved messages (>7 days) flow through the normal trim.
   const allMessages = deduplicateAndGroup(mentions, [], dms, saved, userId);
-  const limitedMessages = allMessages.slice(0, maxMessages);
+  const recentSavedCutoff = Date.now() / 1000 - 7 * 24 * 60 * 60;
+  allMessages.sort((a, b) => {
+    const aHoist = a.type === "saved" && parseFloat(a.timestamp) >= recentSavedCutoff;
+    const bHoist = b.type === "saved" && parseFloat(b.timestamp) >= recentSavedCutoff;
+    if (aHoist && !bHoist) return -1;
+    if (!aHoist && bHoist) return 1;
+    return parseFloat(b.timestamp) - parseFloat(a.timestamp);
+  });
+  const limitedMessages = allMessages
+    .slice(0, maxMessages)
+    .sort((a, b) => parseFloat(b.timestamp) - parseFloat(a.timestamp));
 
   // Ensure all messages have permalinks and channel names
-  const [messagesWithPermalinks] = await Promise.all([
-    ensurePermalinks(accessToken, limitedMessages),
-  ]);
+  const messagesWithPermalinks = await ensurePermalinks(accessToken, limitedMessages);
   const enrichedMessages = await resolveSlackNames(accessToken, messagesWithPermalinks);
 
   // Filter out non-emoji messages that have been locally dismissed.

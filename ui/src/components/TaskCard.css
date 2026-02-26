@@ -126,6 +126,23 @@
   white-space: nowrap;
 }
 
+/* Saved message tag — inline pill in metadata row */
+
+.task-card__saved-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-saved-bg);
+  color: var(--color-saved-text);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 /* Priority reasons line */
 
 .task-card__reasons {

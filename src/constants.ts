@@ -44,9 +44,9 @@ export const SLACK_SAVED_MESSAGES = {
   /** Emoji name to track as "saved" (without colons, e.g., "mcp-todo-reminder") */
   EMOJI_NAME: config.slackEmojiName,
   /** Lookback window for saved messages (in days) */
-  DAYS_BACK: 14,
+  DAYS_BACK: 21,
   /** Maximum saved messages to fetch */
-  MAX_RESULTS: 15,
+  MAX_RESULTS: 50,
 } as const;
 
 /** API fetch limits (how many items to pull from each source API) */
@@ -57,8 +57,8 @@ export const FETCH_LIMITS = {
   LINEAR: 20,
   /** Gmail messages fetch limit */
   GMAIL: 15,
-  /** Slack messages fetch limit */
-  SLACK: 10,
+  /** Slack messages fetch limit (generous to accommodate hoisted saved messages) */
+  SLACK: 20,
   /** Meeting summaries fetch limit (max Google Docs to fetch) */
   MEETINGS: 5,
   /** Max action items returned from meeting notes (applied after priority sort) */

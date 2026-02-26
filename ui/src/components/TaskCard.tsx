@@ -166,9 +166,7 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
       } else if (userLabel) {
         items.push(userLabel)
       }
-      if (task.type === 'saved') {
-        items.push('Emoji')
-      }
+      // Saved messages get a visual pill rendered separately (not via items array)
       items.push(formatSmartDate(task.timestamp))
     }
 
@@ -261,20 +259,21 @@ export const TaskCard = memo(function TaskCard({ task, onDismiss, onViewSource, 
             </div>
 
             <div className="task-card__meta">
-              <span className={`task-card__source${metadata.length > 0 ? ' task-card__source--with-divider' : ''}`}><SourceIcon source={task.source} showLabel /></span>
+              <span className={`task-card__source${metadata.length > 0 || (isSlackTask(task) && task.type === 'saved') ? ' task-card__source--with-divider' : ''}`}><SourceIcon source={task.source} showLabel /></span>
+              {isSlackTask(task) && task.type === 'saved' && (
+                <span className="hint-tooltip hint-tooltip--left">
+                  <span className="task-card__saved-tag">Saved</span>
+                  <svg className="hint-tooltip__icon hint-tooltip__icon--inline" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
+                    <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">!</text>
+                  </svg>
+                  <span className="hint-tooltip__tooltip">Remove your reaction emoji in Slack to dismiss this item.</span>
+                </span>
+              )}
               {metadata.map((meta, i) => (
                 <span key={i} className="task-card__meta-item">
                   {i > 0 && ' · '}
-                  {meta === 'Emoji' ? (
-                    <span className="hint-tooltip hint-tooltip--left">
-                      {meta}
-                      <svg className="hint-tooltip__icon hint-tooltip__icon--inline" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-                        <text x="8" y="12" textAnchor="middle" fill="currentColor" fontSize="11" fontWeight="600">!</text>
-                      </svg>
-                      <span className="hint-tooltip__tooltip">Remove your reaction emoji in Slack to dismiss this item.</span>
-                    </span>
-                  ) : meta}
+                  {meta}
                 </span>
               ))}
             </div>
