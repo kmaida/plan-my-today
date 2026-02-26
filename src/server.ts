@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { requireBearerAuth } from "@keycardai/mcp/server/auth/middleware/bearerAuth";
+import { JWTOAuthTokenVerifier } from "@keycardai/mcp/server/auth/verifiers/jwt";
 import { mcpAuthMetadataRouter } from "@keycardai/mcp/server/auth/router";
+import { CachingJWKSOAuthKeyring } from "./services/caching-jwks-keyring";
 import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -22,8 +24,12 @@ import type { McpServer } from "./types/index";
 import { filterCompletedTasks, type TaskStoreData } from "./utils/filter-completed-tasks";
 import { removeTaskFromStore } from "./utils/task-store-utils";
 
-// Create authentication middleware using the Keycard SDK
-const authMiddleware = requireBearerAuth({ requiredScopes: [] });
+// Create authentication middleware using the Keycard SDK, with a local JWKS
+// cache to avoid fetching from Keycard on every JWT verification.
+// See src/services/caching-jwks-keyring.ts for caching and removal details.
+const keyring = new CachingJWKSOAuthKeyring();
+const authVerifier = new JWTOAuthTokenVerifier(keyring);
+const authMiddleware = requireBearerAuth({ verifier: authVerifier, requiredScopes: [] });
 
 // Global storage for per-session servers
 const sessionServers: {
