@@ -1,6 +1,6 @@
 /**
  * Tests for Google Drive utilities:
- * - fetchDriveActionItems: Drive v3 state-based query (primary path for task list)
+ * - fetchDriveActionItems: Drive v3 owned-files scan with per-file comment check (task list)
  * - fetchAssignedActions: Drive Activity API (used by standalone MCP tool)
  * - calculateDrivePriority: Priority scoring for Drive items
  */
@@ -64,46 +64,34 @@ describe("fetchDriveActionItems", () => {
     global.fetch = originalFetch;
   });
 
-  it("returns action items from followup:actionitems query", async () => {
-    global.fetch = mockFetch(
-      makeFilesListResponse([
-        {
-          id: "file1",
-          name: "Q1 Planning Doc",
-          webViewLink: "https://docs.google.com/document/d/file1/edit",
-          modifiedTime: "2026-02-25T10:00:00Z",
-        },
-        {
-          id: "file2",
-          name: "Sprint Retro",
-          webViewLink: "https://docs.google.com/document/d/file2/edit",
-          modifiedTime: "2026-02-24T15:00:00Z",
-        },
-      ])
-    );
+  /** Build a comments response with N unresolved comments */
+  function makeCommentsResponse(count: number) {
+    return {
+      comments: Array.from({ length: count }, (_, i) => ({
+        id: `c${i + 1}`,
+        content: `Comment ${i + 1}`,
+        resolved: false,
+        createdTime: "2026-02-25T10:00:00Z",
+      })),
+    };
+  }
 
-    const results = await fetchDriveActionItems("fake-token");
-    expect(results).toHaveLength(2);
-    expect(results[0].fileTitle).toBe("Q1 Planning Doc");
-    expect(results[0].fileId).toBe("file1");
-    expect(results[0].actionType).toBe("assigned to you");
-    expect(results[0].driveType).toBe("assignment");
-    expect(results[0].isAssignment).toBe(true);
-    expect(results[0].fileLink).toBe("https://docs.google.com/document/d/file1/edit");
-    expect(results[1].fileTitle).toBe("Sprint Retro");
-  });
-
-  it("returns empty array when followup:actionitems returns no files", async () => {
-    global.fetch = mockFetch(makeFilesListResponse([]));
+  it("returns empty array when no owned files are returned", async () => {
+    global.fetch = mockFetchRouted({
+      "files?": { body: makeFilesListResponse([]) },
+    });
 
     const results = await fetchDriveActionItems("fake-token");
     expect(results).toHaveLength(0);
   });
 
   it("skips files with no id", async () => {
-    global.fetch = mockFetch(
-      makeFilesListResponse([{ name: "No ID Doc" }, { id: "file1", name: "Has ID" }])
-    );
+    global.fetch = mockFetchRouted({
+      "files?": {
+        body: makeFilesListResponse([{ name: "No ID Doc" }, { id: "file1", name: "Has ID" }]),
+      },
+      "files/file1/comments": { body: makeCommentsResponse(1) },
+    });
 
     const results = await fetchDriveActionItems("fake-token");
     expect(results).toHaveLength(1);
@@ -111,21 +99,29 @@ describe("fetchDriveActionItems", () => {
   });
 
   it("uses 'Document' fallback when file has no name", async () => {
-    global.fetch = mockFetch(
-      makeFilesListResponse([
-        { id: "file1", webViewLink: "https://docs.google.com/document/d/file1/edit" },
-      ])
-    );
+    global.fetch = mockFetchRouted({
+      "files?": {
+        body: makeFilesListResponse([
+          { id: "file1", webViewLink: "https://docs.google.com/document/d/file1/edit" },
+        ]),
+      },
+      "files/file1/comments": { body: makeCommentsResponse(1) },
+    });
 
     const results = await fetchDriveActionItems("fake-token");
     expect(results).toHaveLength(1);
     expect(results[0].fileTitle).toBe("Document");
   });
 
-  it("skips files with id but no name and no webViewLink", async () => {
-    global.fetch = mockFetch(
-      makeFilesListResponse([{ id: "orphan" }, { id: "file1", name: "Has Name" }])
-    );
+  it("includes files with only an id (no name or webViewLink)", async () => {
+    // The owned-files scan filters only on !!f.id, so files with no name/link are still checked
+    global.fetch = mockFetchRouted({
+      "files?": {
+        body: makeFilesListResponse([{ id: "orphan" }, { id: "file1", name: "Has Name" }]),
+      },
+      "files/orphan/comments": { body: makeCommentsResponse(0) },
+      "files/file1/comments": { body: makeCommentsResponse(1) },
+    });
 
     const results = await fetchDriveActionItems("fake-token");
     expect(results).toHaveLength(1);
@@ -133,29 +129,33 @@ describe("fetchDriveActionItems", () => {
   });
 
   it("constructs fileLink from id when webViewLink is missing", async () => {
-    global.fetch = mockFetch(makeFilesListResponse([{ id: "file1", name: "Test" }]));
+    global.fetch = mockFetchRouted({
+      "files?": { body: makeFilesListResponse([{ id: "file1", name: "Test" }]) },
+      "files/file1/comments": { body: makeCommentsResponse(1) },
+    });
 
     const results = await fetchDriveActionItems("fake-token");
     expect(results[0].fileLink).toBe("https://drive.google.com/open?id=file1");
   });
 
   it("throws AuthenticationError on 401", async () => {
-    global.fetch = mockFetch({}, false, 401);
+    global.fetch = mockFetchRouted({
+      "files?": { body: {}, ok: false, status: 401 },
+    });
 
     await expect(fetchDriveActionItems("fake-token")).rejects.toThrow(/Google Drive/);
   });
 
   it("throws AuthenticationError on 403", async () => {
-    global.fetch = mockFetch({}, false, 403);
+    global.fetch = mockFetchRouted({
+      "files?": { body: {}, ok: false, status: 403 },
+    });
 
     await expect(fetchDriveActionItems("fake-token")).rejects.toThrow(/Google Drive/);
   });
 
-  it("falls back to owned-files scan when primary query returns non-auth error", async () => {
-    // Primary returns 400 (bad request — e.g. followup:actionitems not supported)
-    // Fallback returns owned files, then per-file comment checks return unresolved comments
+  it("returns files with unresolved comments from owned-files scan", async () => {
     global.fetch = mockFetchRouted({
-      "followup:actionitems": { body: {}, ok: false, status: 400 },
       "files?": {
         body: makeFilesListResponse([
           {
@@ -188,9 +188,8 @@ describe("fetchDriveActionItems", () => {
     expect(results[0].isAssignment).toBe(false);
   });
 
-  it("fallback skips files with zero unresolved comments", async () => {
+  it("skips files with zero unresolved comments", async () => {
     global.fetch = mockFetchRouted({
-      "followup:actionitems": { body: {}, ok: false, status: 400 },
       "files?": {
         body: makeFilesListResponse([
           { id: "owned1", name: "All Resolved" },
@@ -224,27 +223,8 @@ describe("fetchDriveActionItems", () => {
     expect(results[0].commentCount).toBe(2);
   });
 
-  it("fallback throws AuthenticationError on 401", async () => {
+  it("returns empty array when owned-files scan fails with non-auth error", async () => {
     global.fetch = mockFetchRouted({
-      "followup:actionitems": { body: {}, ok: false, status: 400 },
-      "files?": { body: {}, ok: false, status: 401 },
-    });
-
-    await expect(fetchDriveActionItems("fake-token")).rejects.toThrow(/Google Drive/);
-  });
-
-  it("fallback throws AuthenticationError on 403", async () => {
-    global.fetch = mockFetchRouted({
-      "followup:actionitems": { body: {}, ok: false, status: 400 },
-      "files?": { body: {}, ok: false, status: 403 },
-    });
-
-    await expect(fetchDriveActionItems("fake-token")).rejects.toThrow(/Google Drive/);
-  });
-
-  it("returns empty array when both primary and fallback fail", async () => {
-    global.fetch = mockFetchRouted({
-      "followup:actionitems": { body: {}, ok: false, status: 400 },
       "files?": { body: {}, ok: false, status: 500 },
     });
 

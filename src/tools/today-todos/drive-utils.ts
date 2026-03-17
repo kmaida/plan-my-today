@@ -28,66 +28,23 @@ interface DriveFilesListResponse {
 /**
  * Fetches Google Drive files that need the user's action via Drive v3.
  *
- * Primary query: `files.list` with `q='followup:actionitems'` — a Drive search
- * operator that returns files where the authenticated user has unresolved
- * assigned comments. This is a single API call.
+ * Scans recently modified owned files (last N days per TIME_WINDOWS.DEFAULT_DAYS_BACK)
+ * and checks each for unresolved comments via `getUnresolvedComments`. Costs 1 + N
+ * API calls (N = files returned by the owned-files scan).
  *
- * Fallback (if the primary query returns an HTTP error — not just empty):
- * Scans recently modified owned files and checks each for unresolved comments
- * via `getUnresolvedComments`. This is 1 + N API calls (N = files checked).
+ * Note: The `followup:actionitems` Drive search operator works in the web UI but
+ * is not officially supported in the files.list API and returns 400 for most accounts.
  *
  * @param driveToken - Google Drive v3 access token (drive.readonly scope)
- * @returns Array of assigned actions (files with action items for this user)
+ * @returns Array of assigned actions (files with unresolved comments for this user)
  */
 export async function fetchDriveActionItems(driveToken: string): Promise<AssignedActionDetail[]> {
   const logger = getLogger().withOperation("drive_utils");
 
-  // ── Primary: followup:actionitems ───────────────────────────────────────
-  const primaryResponse = await fetch(
-    `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
-      q: "followup:actionitems",
-      pageSize: "20",
-      orderBy: "modifiedTime desc",
-      fields: "files(id,name,webViewLink,modifiedTime)",
-    })}`,
-    {
-      headers: { Authorization: `Bearer ${driveToken}` },
-    }
-  );
-
-  if (primaryResponse.ok) {
-    const data = (await primaryResponse.json()) as DriveFilesListResponse;
-    const files = data.files || [];
-
-    logger.info("Drive v3 followup:actionitems", { fileCount: files.length });
-
-    return files
-      .filter((f) => f.id && (f.name || f.webViewLink))
-      .map((f) => ({
-        fileTitle: f.name || "Document",
-        fileId: f.id,
-        actionType: "assigned to you",
-        fileLink: f.webViewLink || `https://drive.google.com/open?id=${f.id}`,
-        timestamp: f.modifiedTime,
-        isAssignment: true,
-        driveType: "assignment" as const,
-      }));
-  }
-
-  // Auth errors should propagate
-  if (primaryResponse.status === 401 || primaryResponse.status === 403) {
-    throw new AuthenticationError("Google Drive", primaryResponse.status);
-  }
-
-  // ── Fallback: owned files → per-file comment check ──────────────────────
-  logger.warn("Drive followup:actionitems failed — falling back to owned-files scan", {
-    status: primaryResponse.status,
-  });
-
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - TIME_WINDOWS.DEFAULT_DAYS_BACK);
 
-  const fallbackResponse = await fetch(
+  const ownedFilesResponse = await fetch(
     `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({
       q: `'me' in owners AND modifiedTime > '${cutoff.toISOString()}' AND trashed = false AND (mimeType='application/vnd.google-apps.document' OR mimeType='application/vnd.google-apps.spreadsheet' OR mimeType='application/vnd.google-apps.presentation')`,
       pageSize: "10",
@@ -99,18 +56,18 @@ export async function fetchDriveActionItems(driveToken: string): Promise<Assigne
     }
   );
 
-  if (!fallbackResponse.ok) {
-    if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
-      throw new AuthenticationError("Google Drive", fallbackResponse.status);
+  if (!ownedFilesResponse.ok) {
+    if (ownedFilesResponse.status === 401 || ownedFilesResponse.status === 403) {
+      throw new AuthenticationError("Google Drive", ownedFilesResponse.status);
     }
-    logger.warn("Drive fallback files.list also failed — returning empty", {
-      status: fallbackResponse.status,
+    logger.warn("Drive files.list failed — returning empty", {
+      status: ownedFilesResponse.status,
     });
     return [];
   }
 
-  const fallbackData = (await fallbackResponse.json()) as DriveFilesListResponse;
-  const ownedFiles = (fallbackData.files || []).filter((f) => !!f.id);
+  const ownedFilesData = (await ownedFilesResponse.json()) as DriveFilesListResponse;
+  const ownedFiles = (ownedFilesData.files || []).filter((f) => !!f.id);
 
   // Check each file for unresolved comments in parallel
   const results = await Promise.all(
@@ -132,7 +89,7 @@ export async function fetchDriveActionItems(driveToken: string): Promise<Assigne
   );
 
   const actionItems = results.filter((r): r is AssignedActionDetail => r !== null);
-  logger.info("Drive fallback results", {
+  logger.info("Drive owned-files results", {
     filesChecked: ownedFiles.length,
     actionItems: actionItems.length,
   });

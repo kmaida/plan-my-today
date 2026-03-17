@@ -61,6 +61,11 @@ export function restoreChatState(): PersistedChatState | null {
     if (!Array.isArray(state.messages) || !Array.isArray(state.history)) {
       return null;
     }
+    // Restored messages are never actively streaming — force isStreaming off
+    // so stale streaming state doesn't block markdown rendering.
+    state.messages = state.messages.map((m) =>
+      m.isStreaming ? { ...m, isStreaming: false } : m
+    );
     return state;
   } catch {
     return null;

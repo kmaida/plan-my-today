@@ -300,9 +300,8 @@
   word-break: break-word;
 }
 
-.chat-message--assistant .chat-message__text--streaming {
-  white-space: pre-wrap;
-}
+/* Streaming class kept as a hook for future cursor animation;
+   no white-space override needed — ReactMarkdown renders during streaming. */
 
 .chat-message--assistant .chat-message__text h1,
 .chat-message--assistant .chat-message__text h2,

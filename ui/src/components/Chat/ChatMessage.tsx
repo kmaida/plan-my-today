@@ -18,7 +18,6 @@ interface ChatMessageProps {
 
 export const ChatMessage = memo(function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user'
-  const assistantRenderText = message.text
   const formattedTime = useMemo(
     () => new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     [message.timestamp],
@@ -31,11 +30,9 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
           <div className={`chat-message__text ${message.isStreaming ? "chat-message__text--streaming" : ""}`}>
             {isUser ? (
               message.text
-            ) : message.isStreaming ? (
-              assistantRenderText
             ) : (
               <ReactMarkdown components={markdownComponents}>
-                {assistantRenderText}
+                {message.text}
               </ReactMarkdown>
             )}
           </div>

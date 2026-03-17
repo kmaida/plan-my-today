@@ -364,6 +364,11 @@ export function useChat(
   const cancel = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    // Clear streaming flags before isLoading, so the persistence save
+    // (triggered by the isLoading true→false transition) captures final state.
+    setMessages((prev) =>
+      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+    );
     setIsLoading(false);
   }, []);
 

@@ -17,7 +17,7 @@ function makeAssistantMessage(overrides: Partial<ChatMessageType>): ChatMessageT
 }
 
 describe("ChatMessage markdown rendering", () => {
-  it("renders raw markdown while assistant message is streaming", () => {
+  it("renders markdown while assistant message is still streaming", () => {
     render(
       <ChatMessage
         message={makeAssistantMessage({
@@ -27,8 +27,7 @@ describe("ChatMessage markdown rendering", () => {
       />,
     );
 
-    expect(screen.queryByRole("link", { name: "link" })).not.toBeInTheDocument();
-    expect(screen.getByText("A [link](https://example.com) still streaming")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "link" })).toHaveAttribute("href", "https://example.com");
   });
 
   it("renders markdown once streaming completes", () => {
