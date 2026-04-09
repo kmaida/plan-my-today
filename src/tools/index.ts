@@ -1,15 +1,16 @@
 import type { McpServer } from "../types/index";
 import { registerAssignedActionsTool } from "./assigned-actions";
 import { registerCalendarTool } from "./calendar";
+import { registerDismissTaskTool } from "./dismiss-task";
 import { registerDriveActivityTool } from "./drive-activity";
 import { registerGithubTool } from "./github";
 import { registerGmailTool } from "./gmail";
 import { registerLinearTool } from "./linear";
 import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
-import { registerDismissTaskTool } from "./dismiss-task";
-import { registerRestoreDismissedTaskTool } from "./restore-dismissed-task";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
+import { registerRestoreDismissedTaskTool } from "./restore-dismissed-task";
+import { registerROIbotDelegateTools } from "./roibot-delegate";
 import { registerSetTaskPriorityTool } from "./set-task-priority";
 import { registerSlackListTool } from "./slack-list";
 
@@ -30,6 +31,7 @@ export const TOOL_REGISTRY = [
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
   { name: "read-dashboard-tasks", register: registerReadDashboardTasksTool },
   { name: "set-task-priority", register: registerSetTaskPriorityTool },
+  { name: "roibot-delegate", register: registerROIbotDelegateTools },
 ] as const;
 
 /**
