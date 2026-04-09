@@ -6,6 +6,7 @@ TypeScript MCP server that aggregates to-dos from multiple sources (Google Calen
 
 - **Auth flow**: User authenticates via Keycard → Keycard issues delegated tokens → server exchanges tokens per-service
 - **Token exchange**: `src/services/keycard-client.ts` (singleton) handles RFC 8693 token exchange with Keycard
+- **Agent delegation**: `src/services/roibot-client.ts` — MCP client that calls ROIbot via Keycard token exchange (exchange user token for ROIbot-audience token, connect as MCP client, call tools)
 - **Transport**: Streamable HTTP MCP transport via Express (`src/server.ts`)
 - **Tools**: Each tool in `src/tools/` follows the register-function pattern, registered centrally in `src/tools/index.ts`
 - **Config**: All env vars loaded via `src/config.ts`, never hardcode secrets
@@ -19,7 +20,7 @@ src/
   config.ts          # All env var loading and validation
   server.ts          # Express + MCP transport setup
   index.ts           # Entry point
-  services/          # Keycard client (singleton), action completion store, priority override store
+  services/          # Keycard client (singleton), ROIbot MCP client, action completion store, priority override store
   tools/             # One file per tool, plus list-all-tasks-today/
   tools/index.ts     # Central tool registry (TOOL_REGISTRY array)
   middleware/         # Auth middleware
@@ -75,7 +76,7 @@ ui/                  # Vite + React dashboard and Todaygent chat agent
 
 - Node.js + TypeScript (ES2020 target)
 - Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_STS_ISSUER_URL`
-- Optional: `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`
+- Optional: `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`, `ROIBOT_MCP_ENDPOINT`
 - See `.env.example` for full list
 
 ## Working with Kim

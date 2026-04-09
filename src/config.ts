@@ -19,6 +19,7 @@ interface ServerConfig {
   meetingNotesFolderId: string;
   anthropicApiKey: string;
   anthropicModel: string;
+  roibotMcpEndpoint: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -80,6 +81,11 @@ function getConfig(): ServerConfig {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
+  // ROIbot MCP endpoint for agent-to-agent delegation (optional)
+  // This is the resource URI registered in the Keycard zone for ROIbot's MCP server.
+  // Used both as the token exchange resource and the HTTP endpoint to connect to.
+  const ROIBOT_MCP_ENDPOINT = process.env.ROIBOT_MCP_ENDPOINT || "";
+
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
   const ENVIRONMENT = process.env.OTEL_ENVIRONMENT || process.env.NODE_ENV || "development";
@@ -121,11 +127,14 @@ function getConfig(): ServerConfig {
     calendarPrepPrefix: CALENDAR_PREP_PREFIX,
     anthropicApiKey: ANTHROPIC_API_KEY,
     anthropicModel: ANTHROPIC_MODEL,
+    roibotMcpEndpoint: ROIBOT_MCP_ENDPOINT,
     userDisplayNames: USER_DISPLAY_NAME
       ? USER_DISPLAY_NAME.split(",").map((n) => n.trim().toLowerCase())
       : [],
     orgGithubRepos: ORG_GITHUB_REPOS
-      ? ORG_GITHUB_REPOS.split(",").map((r) => r.trim()).filter(Boolean)
+      ? ORG_GITHUB_REPOS.split(",")
+          .map((r) => r.trim())
+          .filter(Boolean)
       : [],
     meetingNotesFolderId: MEETING_NOTES_FOLDER_ID,
     observability: {
