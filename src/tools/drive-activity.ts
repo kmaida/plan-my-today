@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { type DriveComment, getUnresolvedComments } from "./today-todos/drive-comments-utils";
@@ -270,9 +270,8 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
       try {
         // Exchange user's JWT for Drive and Drive Activity access tokens
         const [tokenResponse, activityTokenResponse] = await Promise.all([
-          keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
-          keycardClient
-            .exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES)
+          exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
+          exchangeToken(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES)
             .catch(() => null),
         ]);
 
@@ -302,7 +301,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
             }),
           {
             headers: {
-              Authorization: `Bearer ${tokenResponse.access_token}`,
+              Authorization: `Bearer ${tokenResponse.accessToken}`,
             },
           }
         );
@@ -324,14 +323,14 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
 
         // Get files where user was mentioned in comments
         const mentionedFilesMap = activityTokenResponse
-          ? await getFilesWithMentions(activityTokenResponse.access_token, daysBack, fileType)
+          ? await getFilesWithMentions(activityTokenResponse.accessToken, daysBack, fileType)
           : new Map();
 
         // Find files with unresolved comments (even if not recently modified)
         const filesWithUnresolvedComments =
           includeComments && ownedOnly
             ? await findFilesWithUnresolvedComments(
-                tokenResponse.access_token,
+                tokenResponse.accessToken,
                 fileType,
                 ownedOnly,
                 Math.max(maxResults * 3, 50) // Check more files to find ones with comments
@@ -356,7 +355,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
                   }),
                 {
                   headers: {
-                    Authorization: `Bearer ${tokenResponse.access_token}`,
+                    Authorization: `Bearer ${tokenResponse.accessToken}`,
                   },
                 }
               );
@@ -460,7 +459,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
 
           // Fetch unresolved comments if requested
           if (includeComments && file.id) {
-            const comments = await getUnresolvedComments(file.id, tokenResponse.access_token);
+            const comments = await getUnresolvedComments(file.id, tokenResponse.accessToken);
             if (comments.length > 0) {
               fileOutput += `\n  **${comments.length} unresolved comment${comments.length > 1 ? "s" : ""}:**`;
               for (const comment of comments.slice(0, 3)) {

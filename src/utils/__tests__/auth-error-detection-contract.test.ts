@@ -5,7 +5,7 @@
  * UI's error detection. The contract is based on **typed error classes and
  * structured signals** — no string pattern matching anywhere in the chain:
  *
- * 1. KeycardClient throws `TokenExchangeError` (not plain Error) so
+ * 1. `exchangeToken()` throws `TokenExchangeError` (not plain Error) so
  *    downstream code can use `instanceof` instead of parsing error text.
  *
  * 2. Upstream API utils throw `AuthenticationError` with a status code.

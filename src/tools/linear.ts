@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { parseLocalDate } from "../utils/date-utils";
 import { handleToolError } from "../utils/tool-error-utils";
@@ -82,7 +82,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Linear access token
-        const tokenResponse = await keycardClient.exchange(
+        const tokenResponse = await exchangeToken(
           authInfo,
           LINEAR_RESOURCE,
           LINEAR_SCOPES
@@ -92,7 +92,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
         const limit = args.limit ?? 20;
 
         // Fetch issues using utility function
-        const issues = await fetchAllAssignedIssues(tokenResponse.access_token, {
+        const issues = await fetchAllAssignedIssues(tokenResponse.accessToken, {
           includeCompleted,
           limit,
         });

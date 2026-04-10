@@ -14,12 +14,7 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@/config": ["src/config"],
-      "@/types": ["src/types"],
-      "@/middleware": ["src/middleware"],
-      "@/tools": ["src/tools"],
-      "@/observability": ["src/observability"]
+      "@/*": ["src/*"]
     },
     
     "types": ["node"],

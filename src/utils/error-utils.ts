@@ -23,7 +23,7 @@ export class AuthenticationError extends Error {
  * be shown to end users.
  */
 export function formatAuthError(serviceName: string, error: unknown): string {
-  // TokenExchangeError — from KeycardClient when token exchange fails.
+  // TokenExchangeError — from keycard-client when token exchange fails.
   // Never use error.description directly — Keycard puts user IDs, resource
   // URLs, and scopes in error_description. Only surface descriptions that
   // are short and don't contain internal identifiers.

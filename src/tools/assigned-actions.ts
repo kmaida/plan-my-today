@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { type CommentEmailContext, fetchAssignedActions } from "./today-todos/drive-utils";
@@ -89,15 +89,15 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
 
         // Exchange tokens in parallel: Drive Activity (required), Gmail + Drive v3 (optional)
         const [activityToken, gmailToken, driveToken] = await Promise.all([
-          keycardClient.exchange(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES),
-          keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES).catch(() => null),
-          keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES).catch(() => null),
+          exchangeToken(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES),
+          exchangeToken(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES).catch(() => null),
+          exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES).catch(() => null),
         ]);
 
         // Build comment email context if Gmail + Drive tokens are available
         let commentEmailContext: CommentEmailContext | undefined;
         if (gmailToken && driveToken) {
-          const gmailResult = await fetchGmailTodos(gmailToken.access_token, {
+          const gmailResult = await fetchGmailTodos(gmailToken.accessToken, {
             daysBack,
             maxResults: 20,
             includeRead: false,
@@ -106,14 +106,14 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
           if (gmailResult.docCommentEmails.length > 0) {
             commentEmailContext = {
               docCommentEmails: gmailResult.docCommentEmails,
-              driveToken: driveToken.access_token,
+              driveToken: driveToken.accessToken,
             };
           }
         }
 
         // Fetch assigned actions (mentions/assignments + optional comment email enrichment)
         const actions = await fetchAssignedActions(
-          activityToken.access_token,
+          activityToken.accessToken,
           daysBack,
           commentEmailContext
         );

@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchGmailTodos } from "./today-todos/email-utils";
@@ -78,7 +78,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Gmail access token
-        const tokenResponse = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
+        const tokenResponse = await exchangeToken(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
 
         const maxResults = args.maxResults || 20;
         const daysBack = args.daysBack || 7;
@@ -90,7 +90,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
         // The utility function uses a fixed query, so custom queries aren't supported yet
 
         // Fetch emails using utility function (ignore doc comment emails in standalone tool)
-        const { emails } = await fetchGmailTodos(tokenResponse.access_token, {
+        const { emails } = await fetchGmailTodos(tokenResponse.accessToken, {
           daysBack,
           maxResults,
           includeRead: false, // Tool focuses on unread/starred

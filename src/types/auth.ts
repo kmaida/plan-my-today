@@ -49,14 +49,6 @@ export type AuthenticatedToolHandlerWithArgs<Args extends import("zod/v3").ZodRa
   | import("@modelcontextprotocol/sdk/types.js").CallToolResult
   | Promise<import("@modelcontextprotocol/sdk/types.js").CallToolResult>;
 
-export function parseJWTPayload(obj: unknown): JWTPayload | null {
-  try {
-    return JWTPayloadSchema.parse(obj);
-  } catch {
-    return null;
-  }
-}
-
 export function getSessionIdFromHeaders(headers: Record<string, unknown>): string | undefined {
   const sessionId = headers["mcp-session-id"];
   try {

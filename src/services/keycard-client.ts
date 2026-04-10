@@ -1,7 +1,9 @@
+import { OAuthError, TokenExchangeClient } from "@keycardai/oauth";
+import type { TokenResponse } from "@keycardai/oauth";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
-import { parseJWTPayload } from "../types/index";
-import { decodeJWT } from "../utils/auth-utils";
+
+export type { TokenResponse } from "@keycardai/oauth";
 
 /**
  * Error thrown when a Keycard token exchange fails.
@@ -23,105 +25,56 @@ export class TokenExchangeError extends Error {
 }
 
 /**
- * Parse an error_description from a Keycard JSON error response body.
- * Keycard returns: {"error":"invalid_grant","error_description":"Token has been revoked","requestId":"..."}
+ * SDK-backed token exchange client (singleton).
+ *
+ * Uses OAuth discovery (.well-known/oauth-authorization-server) to find the
+ * token endpoint, and Basic Auth for client credentials. Discovery result is
+ * cached for the lifetime of this instance.
  */
-function parseKeycardErrorDescription(body: string): string | undefined {
+const tokenExchangeClient = new TokenExchangeClient(config.keycardIssuerUrl, {
+  clientId: config.keycardClientId,
+  clientSecret: config.keycardClientSecret,
+});
+
+/**
+ * Exchange a user's Keycard token for a resource-specific access token.
+ *
+ * Uses RFC 8693 token exchange via the Keycard SDK's TokenExchangeClient.
+ * Throws TokenExchangeError on failure to preserve the existing error
+ * handling contract (instanceof-based detection in tool-error-utils and
+ * error-utils).
+ *
+ * @param authInfo - User's auth info from the MCP session (contains the Keycard token)
+ * @param resource - Target resource URI (e.g., "https://www.googleapis.com/calendar/v3")
+ * @param scopes - Optional OAuth scopes (e.g., ["https://www.googleapis.com/auth/calendar.readonly"])
+ */
+export async function exchangeToken(
+  authInfo: AuthInfo,
+  resource: string,
+  scopes?: string[]
+): Promise<TokenResponse> {
   try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    if (typeof parsed.error_description === "string") {
-      return parsed.error_description;
-    }
-  } catch {
-    // Not JSON
-  }
-  return undefined;
-}
-
-export interface TokenExchangeResponse {
-  access_token: string;
-  issued_token_type: string;
-  token_type: string;
-  expires_in: number;
-  scope?: string;
-}
-
-export class KeycardClient {
-  private keycardBaseUrl: string;
-  private clientId: string;
-  private clientSecret: string;
-
-  constructor() {
-    this.keycardBaseUrl = config.keycardIssuerUrl;
-    this.clientId = config.keycardClientId;
-    this.clientSecret = config.keycardClientSecret;
-  }
-
-  private getIssuerFromAuthInfo(authInfo: AuthInfo): string | undefined {
-    const fromExtra = parseJWTPayload(authInfo.extra)?.iss;
-    if (fromExtra) {
-      return fromExtra;
-    }
-
-    if (!authInfo.token) {
-      return undefined;
-    }
-
-    return decodeJWT(authInfo.token)?.iss;
-  }
-
-  async exchange(
-    authInfo: AuthInfo,
-    resource: string,
-    scopes?: string[]
-  ): Promise<TokenExchangeResponse> {
-    const keycardBaseUrl = this.keycardBaseUrl || this.getIssuerFromAuthInfo(authInfo);
-    if (!keycardBaseUrl) {
-      throw new TokenExchangeError("Token exchange failed: missing Keycard issuer URL");
-    }
-
-    const params = new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-      subject_token: authInfo.token,
-      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      resource: resource,
-      client_id: this.clientId,
-      client_secret: this.clientSecret,
+    return await tokenExchangeClient.exchangeToken({
+      subjectToken: authInfo.token,
+      resource,
+      scope: scopes?.join(" "),
     });
-
-    if (scopes?.length) {
-      params.set("scope", scopes.join(" "));
-    }
-
-    const requestInit = {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    } satisfies RequestInit;
-
-    const tokenUrl = `${keycardBaseUrl}/oauth/2/token`;
-
-    let response = await fetch(tokenUrl, requestInit);
-    if (response.status === 404) {
-      const fallbackUrl = `${keycardBaseUrl}/oauth/token`;
-      response = await fetch(fallbackUrl, requestInit);
-    }
-
-    if (!response.ok) {
-      const body = await response.text();
-      const description = parseKeycardErrorDescription(body);
+  } catch (error) {
+    // SDK v0.2.0 throws OAuthError for structured STS error responses
+    // (has errorCode like "invalid_grant" and message from error_description).
+    // Falls back to plain Error for non-JSON responses.
+    if (error instanceof OAuthError) {
       throw new TokenExchangeError(
-        `Token exchange failed: ${response.status} - ${body}`,
-        response.status,
-        description
+        `Token exchange failed: ${error.errorCode}`,
+        undefined,
+        error.message
       );
     }
-
-    return (await response.json()) as TokenExchangeResponse;
+    // Non-JSON failures (e.g. 502 from a proxy): SDK embeds HTTP status in
+    // error.message ("Token exchange failed (HTTP 502)") but doesn't expose it
+    // as a structured field. Downstream logs will show status: undefined — grep
+    // by message text instead.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new TokenExchangeError(message);
   }
 }
-
-// Singleton instance
-export const keycardClient = new KeycardClient();

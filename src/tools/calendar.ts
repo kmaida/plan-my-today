@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchCalendarEvents } from "./today-todos/calendar-utils";
@@ -36,7 +36,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Google Calendar access token
-        const tokenResponse = await keycardClient.exchange(
+        const tokenResponse = await exchangeToken(
           authInfo,
           CALENDAR_RESOURCE,
           CALENDAR_SCOPES
@@ -50,7 +50,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
         const maxResults = args.maxResults || 10;
 
         // Fetch calendar events using utility function
-        const events = await fetchCalendarEvents(tokenResponse.access_token, {
+        const events = await fetchCalendarEvents(tokenResponse.accessToken, {
           timeMin,
           timeMax,
           maxResults,

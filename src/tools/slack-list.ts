@@ -1,4 +1,4 @@
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerNoArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { calculateSlackPriority, fetchSlackMessages } from "./today-todos/slack-utils";
@@ -73,8 +73,8 @@ export function registerSlackListTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Slack access token via Keycard
-        const tokenResponse = await keycardClient.exchange(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
-        const messages = await fetchSlackMessages(tokenResponse.access_token);
+        const tokenResponse = await exchangeToken(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
+        const messages = await fetchSlackMessages(tokenResponse.accessToken);
 
         if (messages.length === 0) {
           return {

@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchGitHubTodos } from "./today-todos/github-utils";
@@ -87,14 +87,14 @@ export function registerGithubTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a GitHub access token
-        const tokenResponse = await keycardClient.exchange(authInfo, GITHUB_RESOURCE);
+        const tokenResponse = await exchangeToken(authInfo, GITHUB_RESOURCE);
 
         const includePRs = args.includePRs !== false; // default true
         const includeIssues = args.includeIssues !== false; // default true
         const limit = args.limit || 10;
 
         // Fetch PRs and issues using shared utility
-        const { prs, issues } = await fetchGitHubTodos(tokenResponse.access_token);
+        const { prs, issues } = await fetchGitHubTodos(tokenResponse.accessToken);
 
         // Apply limit parameter
         const limitedPRs = prs.slice(0, limit);

@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { keycardClient } from "../services/keycard-client";
+import { exchangeToken } from "../services/keycard-client";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 import { fetchMeetingNoteActions } from "./today-todos/granola-utils";
@@ -92,13 +92,13 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Drive access token
-        const tokenResponse = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+        const tokenResponse = await exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
 
         const daysBack = args.daysBack || 7;
         const maxResults = args.maxResults || 10;
 
         // Fetch and process meeting notes
-        const actionItems = await fetchMeetingNoteActions(tokenResponse.access_token, {
+        const actionItems = await fetchMeetingNoteActions(tokenResponse.accessToken, {
           daysBack,
           maxResults,
         });

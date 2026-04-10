@@ -4,7 +4,7 @@ import path from "node:path";
 import { z } from "zod/v3";
 import { config } from "../../config";
 import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
-import { keycardClient } from "../../services/keycard-client";
+import { exchangeToken } from "../../services/keycard-client";
 import { applyOverridesToTasks } from "../../services/priority-override-store";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
 import { formatAuthError } from "../../utils/error-utils";
@@ -333,27 +333,27 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const fetchResults = await Promise.allSettled([
         // 0: Calendar
         (async () => {
-          const token = await keycardClient.exchange(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
-          return fetchTodayCalendarEvents(token.access_token);
+          const token = await exchangeToken(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
+          return fetchTodayCalendarEvents(token.accessToken);
         })(),
 
         // 1: Linear
         (async () => {
-          const token = await keycardClient.exchange(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
-          return fetchLinearIssues(token.access_token, sevenDaysFromNow);
+          const token = await exchangeToken(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
+          return fetchLinearIssues(token.accessToken, sevenDaysFromNow);
         })(),
 
         // 2: Gmail (todos + meeting summaries + doc comment emails share one STS exchange)
         (async () => {
-          const token = await keycardClient.exchange(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
+          const token = await exchangeToken(authInfo, GMAIL_RESOURCE, GMAIL_SCOPES);
           const [gmailResult, summaries] = await Promise.all([
-            fetchGmailTodos(token.access_token, {
+            fetchGmailTodos(token.accessToken, {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
               maxResults: FETCH_LIMITS.GMAIL,
               includeRead: true,
               strictFiltering: false,
             }),
-            fetchMeetingSummaries(token.access_token, {
+            fetchMeetingSummaries(token.accessToken, {
               daysBack: TIME_WINDOWS.DEFAULT_DAYS_BACK,
               maxResults: FETCH_LIMITS.MEETINGS,
             }),
@@ -367,21 +367,21 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
         // 3: Google Drive v3 (files with action items for this user)
         (async () => {
-          const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
-          return fetchDriveActionItems(token.access_token);
+          const token = await exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+          return fetchDriveActionItems(token.accessToken);
         })(),
 
         // 4: GitHub (conditional)
         (async () => {
           if (!includeGithub) return { prs: [], issues: [] };
-          const token = await keycardClient.exchange(authInfo, GITHUB_RESOURCE);
-          return fetchGitHubTodos(token.access_token);
+          const token = await exchangeToken(authInfo, GITHUB_RESOURCE);
+          return fetchGitHubTodos(token.accessToken);
         })(),
 
         // 5: Slack
         (async () => {
-          const token = await keycardClient.exchange(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
-          return fetchSlackMessages(token.access_token, {
+          const token = await exchangeToken(authInfo, SLACK_RESOURCE, SLACK_SCOPES);
+          return fetchSlackMessages(token.accessToken, {
             daysBack: TIME_WINDOWS.SLACK_DAYS_BACK,
             maxMessages: FETCH_LIMITS.SLACK,
           });
@@ -389,8 +389,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
         // 6: Meeting notes (Granola via Google Drive)
         (async () => {
-          const token = await keycardClient.exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
-          return fetchMeetingNoteActions(token.access_token, {
+          const token = await exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
+          return fetchMeetingNoteActions(token.accessToken, {
             daysBack: TIME_WINDOWS.MEETING_NOTES_DAYS_BACK,
             maxResults: FETCH_LIMITS.MEETINGS,
           });
@@ -459,9 +459,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       // and a Drive v3 token.
       if (docCommentEmails.length > 0) {
         try {
-          const driveToken = await keycardClient
-            .exchange(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES)
-            .catch(() => null);
+          const driveToken = await exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES);
 
           if (driveToken) {
             // Dedup: skip docs already surfaced via @mention/assignment
@@ -471,7 +469,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
             const verifiedComments = await verifyAndEnrichDocComments(
               docCommentEmails,
-              driveToken.access_token,
+              driveToken.accessToken,
               existingFileIds
             );
 

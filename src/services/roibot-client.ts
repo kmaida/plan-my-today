@@ -4,7 +4,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { config } from "../config";
 import { getLogger } from "../observability/logger";
-import { keycardClient, TokenExchangeError } from "./keycard-client";
+import { exchangeToken, TokenExchangeError } from "./keycard-client";
 
 const logger = getLogger();
 
@@ -39,8 +39,8 @@ async function exchangeForROIbotToken(authInfo: AuthInfo): Promise<string> {
   }
 
   try {
-    const response = await keycardClient.exchange(authInfo, endpoint);
-    return response.access_token;
+    const response = await exchangeToken(authInfo, endpoint);
+    return response.accessToken;
   } catch (err) {
     if (err instanceof TokenExchangeError) {
       throw new ROIbotClientError(
