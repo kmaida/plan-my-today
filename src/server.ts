@@ -146,25 +146,18 @@ export function createApp(): express.Application {
         });
         return res.status(500).json({ error: "Failed to initialize MCP session" });
       }
+    } else if (sessionId) {
+      // Stale session ID — server has no transport for it. Almost always a
+      // client reconnecting after a nodemon restart. Per MCP Streamable HTTP
+      // spec, 404 signals the client to re-initialize via POST (without a
+      // session ID + an initialize body), which lands in the branch above.
+      logger.debug("Unknown session on /mcp POST — likely post-restart reconnect");
+      return res.status(404).json({ error: "Unknown session ID" });
     } else {
-      logger.warn("No valid session found; falling back to stateless transport");
-
-      const mcpServer = createMcpServerForSession();
-      const transport = new StreamableHTTPServerTransportImpl({
-        sessionIdGenerator: undefined,
-      });
-
-      sessionData = { transport };
-
-      try {
-        await mcpServer.connect(transport);
-      } catch (error) {
-        logger.error("Failed to connect MCP server to stateless transport", {
-          error: error instanceof Error ? error.message : "Unknown error",
-          stack: error instanceof Error ? error.stack : undefined,
-        });
-        return res.status(500).json({ error: "Failed to initialize MCP session" });
-      }
+      // No session ID and not an initialize request — malformed per spec.
+      // Every non-initialize POST must carry mcp-session-id.
+      logger.warn("POST /mcp without session ID and not an initialize request");
+      return res.status(400).json({ error: "Missing session ID (non-initialize request)" });
     }
 
     const { transport } = sessionData;
