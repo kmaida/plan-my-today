@@ -189,16 +189,28 @@ export function createApp(): express.Application {
   });
 
   /**
-   * Helper function for handling session-based MCP requests
+   * Helper function for handling session-based MCP requests.
+   *
+   * Distinguishes two failure modes:
+   * - Missing header → 400 + warn (client bug; a GET/DELETE /mcp without
+   *   mcp-session-id is malformed per the MCP Streamable HTTP transport spec).
+   * - Unknown session → 404 + debug (benign; almost always a stale client
+   *   reconnecting after a server restart. Per spec, clients treat 404 as a
+   *   signal to re-initialize via POST).
    */
   const handleSessionRequest = async (req: express.Request, res: express.Response) => {
     const { sessionId, logger } = req.context;
 
     logger?.debug("Handling session request");
 
-    if (!sessionId || !sessionServers[sessionId]) {
-      logger?.warn("Invalid or missing session ID");
-      return res.status(400).send("Invalid or missing session ID");
+    if (!sessionId) {
+      logger?.warn("Missing session ID on /mcp GET/DELETE");
+      return res.status(400).send("Missing session ID");
+    }
+
+    if (!sessionServers[sessionId]) {
+      logger?.debug("Unknown session — likely post-restart reconnect");
+      return res.status(404).send("Unknown session ID");
     }
 
     const { transport } = sessionServers[sessionId];
@@ -692,6 +704,7 @@ export function startServer(): void {
   app
     .listen(config.port, () => {
       logger.info("🚀 To Do MCP Server started!");
+      logger.info(`🌐 App URL:      ${config.baseUrl}`);
       logger.info(`🔗 MCP Endpoint: ${config.baseUrl}/mcp`);
       logger.info(`🔐 Keycard Issuer: ${config.keycardIssuerUrl}`);
       logger.info(`🛠️  Available Tools: ${getAvailableToolNames().join(", ")}`);
