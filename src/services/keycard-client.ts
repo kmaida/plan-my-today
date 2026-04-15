@@ -1,5 +1,9 @@
-import { OAuthError, TokenExchangeClient } from "@keycardai/oauth";
 import type { TokenResponse } from "@keycardai/oauth";
+import {
+  fetchAuthorizationServerMetadata,
+  OAuthError,
+  TokenExchangeClient,
+} from "@keycardai/oauth";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
 
@@ -35,6 +39,45 @@ const tokenExchangeClient = new TokenExchangeClient(config.keycardIssuerUrl, {
   clientId: config.keycardClientId,
   clientSecret: config.keycardClientSecret,
 });
+
+/**
+ * Cached promise for the authorization server's token_endpoint.
+ *
+ * Memoised at module scope so concurrent callers share a single discovery
+ * fetch — mirrors the per-instance promise-lock pattern inside
+ * TokenExchangeClient. Cleared on rejection so a transient discovery failure
+ * (e.g. DNS blip at boot) doesn't poison every subsequent request.
+ */
+let tokenEndpointPromise: Promise<string> | null = null;
+
+/**
+ * Resolve the Keycard authorization server's token_endpoint via RFC 8414
+ * discovery (.well-known/oauth-authorization-server). Cached for the lifetime
+ * of the process on success; errors are not cached.
+ *
+ * Used by the UI auth proxy in server.ts for the OAuth 2.0 authorization_code
+ * grant — the SDK does not expose an authorization_code client, so this is
+ * the minimum primitive we need to avoid hardcoding the endpoint path.
+ */
+export async function getTokenEndpoint(): Promise<string> {
+  if (!tokenEndpointPromise) {
+    tokenEndpointPromise = (async () => {
+      try {
+        const metadata = await fetchAuthorizationServerMetadata(config.keycardIssuerUrl);
+        if (!metadata.token_endpoint) {
+          throw new Error(
+            `Keycard issuer "${config.keycardIssuerUrl}" does not advertise a token_endpoint in its OAuth metadata`
+          );
+        }
+        return metadata.token_endpoint;
+      } catch (err) {
+        tokenEndpointPromise = null; // don't cache failures
+        throw err;
+      }
+    })();
+  }
+  return tokenEndpointPromise;
+}
 
 /**
  * Exchange a user's Keycard token for a resource-specific access token.

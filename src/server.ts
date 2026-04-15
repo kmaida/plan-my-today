@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { requireBearerAuth } from "@keycardai/mcp/server/auth/middleware/bearerAuth";
 import { mcpAuthMetadataRouter } from "@keycardai/mcp/server/auth/router";
-import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import compression from "compression";
 import express from "express";
@@ -17,6 +17,7 @@ import {
   markActionComplete as storeComplete,
   markActionIncomplete as storeIncomplete,
 } from "./services/action-completion-store";
+import { getTokenEndpoint } from "./services/keycard-client";
 import { getAvailableToolNames, registerAllTools, TOOL_REGISTRY } from "./tools/index";
 import type { McpServer } from "./types/index";
 import { filterCompletedTasks, type TaskStoreData } from "./utils/filter-completed-tasks";
@@ -437,7 +438,14 @@ export function createApp(): express.Application {
 
   // Proxy token exchange for the UI (adds client_secret server-side so the
   // browser never sees it — Keycard app is a confidential client).
+  //
+  // The token_endpoint is discovered via RFC 8414 (.well-known metadata) rather
+  // than hardcoded. This matches what the SDK's TokenExchangeClient does
+  // internally and keeps the UI login resilient to any future endpoint path
+  // change from Keycard. Discovery result is cached at module scope; see
+  // getTokenEndpoint in services/keycard-client.ts.
   app.post("/api/auth/token", async (req: express.Request, res: express.Response) => {
+    const logger = getLogger();
     try {
       const { code, code_verifier, redirect_uri } = req.body;
       if (!code || !code_verifier || !redirect_uri) {
@@ -447,7 +455,7 @@ export function createApp(): express.Application {
         return;
       }
 
-      const tokenUrl = `${config.keycardIssuerUrl}/oauth/2/token`;
+      const tokenUrl = await getTokenEndpoint();
       const body = new URLSearchParams({
         grant_type: "authorization_code",
         code,
@@ -466,7 +474,9 @@ export function createApp(): express.Application {
       const tokenData = await tokenRes.text();
       res.status(tokenRes.status).setHeader("Content-Type", "application/json").send(tokenData);
     } catch (err) {
-      console.error("Token exchange proxy failed:", err);
+      logger.error("Token exchange proxy failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       res.status(500).json({ error: "Token exchange proxy failed" });
     }
   });

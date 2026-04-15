@@ -15,21 +15,7 @@ declare module "express-serve-static-core" {
 // Re-export AuthInfo for use in other modules
 export type { AuthInfo };
 
-export const JWTPayloadSchema = z
-  .object({
-    sub: z.string().optional(),
-    iss: z.string().optional(),
-    aud: z.string().optional(),
-    client_id: z.string().optional(),
-    exp: z.number().positive().optional(),
-    iat: z.number().positive().optional(),
-    scope: z.string().optional(),
-  })
-  .passthrough();
-
 export const SessionIdHeaderSchema = z.string().min(1);
-
-export type JWTPayload = z.infer<typeof JWTPayloadSchema>;
 
 /**
  * Tool handler for tools without arguments
