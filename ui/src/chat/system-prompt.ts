@@ -98,7 +98,7 @@ Every item has \`priorityMetadata\`: **score** (0-300), **category** (\u{1F534} 
 
 ## Output Rules
 
-- **Every item must include a clickable link** from the item's link field (\`url\`, \`link\`, \`permalink\`, \`fileLink\`, \`htmlLink\`, \`hangoutLink\`, \`recordingLink\`). Format: \`[Title](url)\`.
+- **Every item must include a clickable link** from the item's link field (\`url\`, \`link\`, \`permalink\`, \`fileLink\`, \`htmlLink\`, \`hangoutLink\`, \`recordingLink\`). Format: \`[Title](url)\`. **Never put \`[\` or \`]\` inside link text** — it breaks the renderer. For identifier-prefixed items, use a colon: \`[KIM-255: Event ROI](url)\`, never \`[[KIM-255] Event ROI](url)\`.
 - Markdown, concise, scannable. Bullet points over paragraphs. Bold titles and priority indicators.
 - **Never use markdown tables.** They render poorly in chat bubbles. Use bullet lists with bold labels instead (e.g., "**9:00–9:45 AM** | [Event title](url) — details").
 - After data-changing tool calls, tell the user to click **Fetch tasks** to refresh the dashboard.
