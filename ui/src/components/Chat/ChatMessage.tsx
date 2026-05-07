@@ -1,6 +1,7 @@
 import { useMemo, memo } from "react";
 import ReactMarkdown from "react-markdown";
 import type { ChatMessage as ChatMessageType } from "../../chat/types";
+import { ApprovalCard } from "./ApprovalCard";
 import { ToolCallCard } from "./ToolCallCard";
 
 /** Static ReactMarkdown overrides — extracted to module level to avoid re-creation */
@@ -43,6 +44,9 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
               <ToolCallCard key={tc.id} toolCall={tc} />
             ))}
           </div>
+        )}
+        {message.pendingApproval && (
+          <ApprovalCard pending={message.pendingApproval} />
         )}
       </div>
       <div className="chat-message__meta">

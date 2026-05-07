@@ -7,9 +7,11 @@ import type { SystemPromptParts } from "./system-prompt";
 import { evaluateToolRound, type ToolRoundResult } from "./tool-round-utils";
 import type {
   AnthropicResponse,
+  ApprovalDecisions,
   ChatMessage,
   ContentBlock,
   Message,
+  PendingToolCall,
   SessionUsage,
   ToolCall,
   ToolDefinition,
@@ -270,11 +272,52 @@ export function useChat(
 
             try {
               const result = await callTool(block.name, block.input);
-              const content = result.content as Array<{ type: string; text?: string }> | undefined;
-              const textItem = content?.find((c) => c.type === "text");
-              resultText = textItem?.text ?? JSON.stringify(result);
-              // Respect the MCP protocol's isError flag from the server
-              isError = result.isError === true;
+
+              // ── HITL gate ───────────────────────────────────────────────
+              // ROIbot signals "user approval required" via _meta.pendingApproval
+              // (see src/tools/delegate-task-to-roibot.ts). When present, halt
+              // the agentic loop, render an approval card on the streaming
+              // message, await the user's click, then call resume-roibot-task
+              // with the structured decisions to get the final result.
+              //
+              // The LLM never sees the pendingApproval state — that's the
+              // security argument. It only sees the synthetic tool_result we
+              // construct AFTER the user resolves.
+              const pendingMeta = extractPendingApproval(result);
+              if (pendingMeta && block.name === "delegate-task-to-roibot") {
+                const decisions = await awaitApproval(msgId, pendingMeta, setMessages);
+                let finalText: string;
+                let finalIsError = false;
+                try {
+                  const resumeResult = await callTool("resume-roibot-task", {
+                    taskId: pendingMeta.taskId,
+                    contextId: pendingMeta.contextId,
+                    approvals: decisions,
+                  });
+                  // If resume itself returns another pendingApproval (cascaded
+                  // HITL), we don't loop in v1 — surface as the result text
+                  // and let the LLM acknowledge. Future: nested approval cards.
+                  if (extractPendingApproval(resumeResult)) {
+                    finalText = "ROIbot returned another pending approval; chain not supported in v1.";
+                    finalIsError = true;
+                  } else {
+                    const content = resumeResult.content as Array<{ type: string; text?: string }> | undefined;
+                    finalText = content?.find((c) => c.type === "text")?.text ?? "";
+                    finalIsError = resumeResult.isError === true;
+                  }
+                } catch (err) {
+                  finalText = err instanceof Error ? err.message : String(err);
+                  finalIsError = true;
+                }
+                resultText = finalText;
+                isError = finalIsError;
+              } else {
+                const content = result.content as Array<{ type: string; text?: string }> | undefined;
+                const textItem = content?.find((c) => c.type === "text");
+                resultText = textItem?.text ?? JSON.stringify(result);
+                // Respect the MCP protocol's isError flag from the server
+                isError = result.isError === true;
+              }
             } catch (err) {
               resultText = err instanceof Error ? err.message : String(err);
               isError = true;
@@ -387,6 +430,71 @@ export function useChat(
   }, []);
 
   return { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages };
+}
+
+// ── HITL helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Pull the `pendingApproval` meta off a tool result, with defensive parsing.
+ * Returns the parsed structure or undefined if absent / malformed.
+ */
+function extractPendingApproval(result: unknown):
+  | { taskId: string; contextId: string; pendingToolCalls: PendingToolCall[] }
+  | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  const meta = (result as { _meta?: unknown })._meta;
+  if (!meta || typeof meta !== "object") return undefined;
+  const pa = (meta as { pendingApproval?: unknown }).pendingApproval;
+  if (!pa || typeof pa !== "object") return undefined;
+  const obj = pa as Record<string, unknown>;
+  if (typeof obj.taskId !== "string" || typeof obj.contextId !== "string") return undefined;
+  const calls = obj.pendingToolCalls;
+  if (!Array.isArray(calls)) return undefined;
+  return {
+    taskId: obj.taskId,
+    contextId: obj.contextId,
+    pendingToolCalls: calls as PendingToolCall[],
+  };
+}
+
+/**
+ * Stash the pending state on the streaming chat message and wait for the user
+ * to click Approve / Deny on every card. The {@link ApprovalCard} component
+ * reads `pendingApproval` off the message and calls `resolve(...)` when the
+ * user submits decisions; the returned promise un-pauses the agentic loop.
+ *
+ * Resolves to a {@link ApprovalDecisions} record keyed by toolUseId.
+ */
+function awaitApproval(
+  msgId: string,
+  pending: { taskId: string; contextId: string; pendingToolCalls: PendingToolCall[] },
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+): Promise<ApprovalDecisions> {
+  return new Promise<ApprovalDecisions>((resolve) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId
+          ? {
+              ...m,
+              pendingApproval: {
+                ...pending,
+                resolve: (decisions) => {
+                  // Clear the pendingApproval from the message so the card
+                  // unmounts cleanly; the synthetic tool_result will populate
+                  // toolCalls in the next setMessages pass.
+                  setMessages((p2) =>
+                    p2.map((m2) =>
+                      m2.id === msgId ? { ...m2, pendingApproval: undefined } : m2,
+                    ),
+                  );
+                  resolve(decisions);
+                },
+              },
+            }
+          : m,
+      ),
+    );
+  });
 }
 
 // ── Streaming API call ───────────────────────────────────────────────────────
