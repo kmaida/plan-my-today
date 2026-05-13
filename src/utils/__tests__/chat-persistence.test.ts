@@ -160,6 +160,69 @@ describe("saveChatState + restoreChatState", () => {
   });
 });
 
+// ── pendingApproval strip on rehydration ───────────────────────────────────────
+
+describe("restoreChatState — pendingApproval strip", () => {
+  it("strips pendingApproval from messages on restore", () => {
+    // Simulate a persisted message with a pendingApproval field. The resolve
+    // callback would have been dropped silently by JSON.stringify; what
+    // survives in sessionStorage is the data-only fragment. Restoring it as-
+    // is would render a permanently-stuck approval card (buttons would call
+    // an undefined resolve), so the restore path must scrub it.
+    const persisted = {
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          text: "About to delegate…",
+          timestamp: 2000,
+          pendingApproval: { toolInput: { task: "assess SREcon" } },
+        },
+      ],
+      history: [],
+      sessionUsage: sampleUsage,
+      savedAt: Date.now(),
+    };
+    store[CHAT_STATE_KEY] = JSON.stringify(persisted);
+
+    const restored = restoreChatState();
+    expect(restored).not.toBeNull();
+    expect(restored!.messages[0].pendingApproval).toBeUndefined();
+  });
+
+  it("also clears isStreaming when stripping pendingApproval", () => {
+    // The strip path covers both fields in one map; verify they're cleaned up
+    // together so a message that was both streaming and pending doesn't keep
+    // either stale flag.
+    const persisted = {
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          text: "Mid-stream when persisted",
+          timestamp: 2000,
+          isStreaming: true,
+          pendingApproval: { toolInput: { task: "X" } },
+        },
+      ],
+      history: [],
+      sessionUsage: sampleUsage,
+      savedAt: Date.now(),
+    };
+    store[CHAT_STATE_KEY] = JSON.stringify(persisted);
+
+    const restored = restoreChatState();
+    expect(restored!.messages[0].isStreaming).toBe(false);
+    expect(restored!.messages[0].pendingApproval).toBeUndefined();
+  });
+
+  it("leaves messages without pendingApproval untouched", () => {
+    saveChatState(sampleMessages, sampleHistory, sampleUsage);
+    const restored = restoreChatState();
+    expect(restored!.messages).toEqual(sampleMessages);
+  });
+});
+
 // ── restoreChatState validation ────────────────────────────────────────────────
 
 describe("restoreChatState", () => {
