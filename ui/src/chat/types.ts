@@ -105,40 +105,28 @@ export interface ToolCall {
   isError?: boolean;
 }
 
-/** One Tier-1 ROIbot tool call awaiting user approval. */
-export interface PendingToolCall {
-  toolUseId: string;
-  toolName: string;
-  toolInput: unknown;
-}
-
 /**
- * Per-tool approval decision the user makes by clicking Approve/Deny on the
- * ApprovalCard. Keyed by `toolUseId` and shipped to ROIbot via
- * `resume-roibot-task`.
- */
-export type ApprovalDecisions = Record<
-  string,
-  { approved: true } | { approved: false; reason?: string }
->;
-
-/**
- * State attached to a chat message when ROIbot has paused for human approval.
- * The chat UI renders an `ApprovalCard` for each pending tool call and calls
- * `resolve(...)` exactly once when the user clicks Approve / Deny on all of them.
+ * Pre-call approval gate metadata. Attached to a {@link ChatMessage} while
+ * the chat UI is awaiting the user's Approve/Deny decision on a tool call
+ * from the `TOOLS_REQUIRING_APPROVAL` allowlist in `useChat.ts`. The agentic
+ * loop blocks on `resolve` and never dispatches the underlying tool unless
+ * `approved` is true — this is the UI-enforced HITL boundary.
  *
  * @remarks
- * The resolver is stored in React state so the ApprovalCard component can
- * reach it on click. Closure shenanigans: useChat creates a Promise and
- * stashes the resolver here; ApprovalCard calls it. The promise's
- * resolution un-pauses the agentic loop in useChat.
+ * The resolver is stored in React state so the {@link ApprovalCard}
+ * component can reach it on click. useChat creates a Promise and stashes
+ * the resolver here; ApprovalCard calls it. The promise's resolution
+ * un-pauses the agentic loop in useChat.
+ *
+ * Only `toolInput` is currently surfaced in the card (rendered as the task
+ * text for `delegate-task-to-roibot`). If a future gated tool needs the
+ * tool name in its card, add a `toolName` field here.
  */
 export interface PendingApprovalMeta {
-  taskId: string;
-  contextId: string;
-  pendingToolCalls: PendingToolCall[];
-  /** Called once when the user resolves every pending tool call. */
-  resolve: (decisions: ApprovalDecisions) => void;
+  /** The arguments the LLM passed to the tool, rendered in the card for review. */
+  toolInput: unknown;
+  /** Called exactly once when the user resolves the gate (or the stream aborts). */
+  resolve: (decision: { approved: boolean }) => void;
 }
 
 /** A chat message as displayed in the UI. */
@@ -152,6 +140,6 @@ export interface ChatMessage {
   timestamp: number;
   /** Token usage for this assistant turn (only present on final response, not intermediate tool rounds). */
   usage?: TokenUsage;
-  /** Set when ROIbot returned input-required and the chat is awaiting user click. */
+  /** Set while the pre-call HITL gate is awaiting the user's Approve/Deny click. */
   pendingApproval?: PendingApprovalMeta;
 }

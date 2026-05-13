@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { API_BASE } from "../config";
 import { useMCP } from "../mcp";
 import { clearPersistedChatState, restoreChatState, saveChatState } from "./chat-persistence";
@@ -10,6 +17,7 @@ import type {
   ChatMessage,
   ContentBlock,
   Message,
+  PendingApprovalMeta,
   SessionUsage,
   ToolCall,
   ToolDefinition,
@@ -19,6 +27,16 @@ import type {
 type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>;
 
 const MAX_TOOL_ROUNDS = 10; // Safety limit to prevent infinite loops
+
+/**
+ * Tools whose invocation requires explicit user approval via the chat UI.
+ * Before dispatching any tool in this set, the agentic loop renders an
+ * ApprovalCard on the streaming message and waits for the user to click
+ * Approve. The LLM cannot bypass this because dispatch happens client-side.
+ *
+ * Adding a tool here is the one-line extension point for new HITL gates.
+ */
+const TOOLS_REQUIRING_APPROVAL = new Set<string>(["delegate-task-to-roibot"]);
 
 /**
  * Infer an effort level from the user's message to pass to the Anthropic API.
@@ -240,11 +258,10 @@ export function useChat(
 
           const fullText = textParts.join("");
 
-          // Add assistant response to history
-          historyRef.current.push({ role: "assistant", content: response.content });
-
           if (response.stop_reason !== "tool_use" || toolUseBlocks.length === 0) {
-            // Final response — update the streaming message with final text and usage
+            // Final response — push to history, update the streaming message
+            // with final text and usage, and exit the agentic loop.
+            historyRef.current.push({ role: "assistant", content: response.content });
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === msgId
@@ -256,7 +273,11 @@ export function useChat(
             break;
           }
 
-          // Execute tool calls
+          // Tool-use response. We push the assistant message AND its
+          // tool_results atomically at the end of this block so a throw
+          // mid-dispatch (e.g. abort during the pre-call gate) doesn't leave
+          // an orphaned tool_use in history — which would 400 the next
+          // Anthropic request, since every tool_use must be matched.
           const toolCalls: ToolCall[] = [];
           const toolResults: ContentBlock[] = [];
 
@@ -267,20 +288,56 @@ export function useChat(
               fetchStartedThisTurn = true;
             }
 
-            let resultText: string;
+            let resultText = "";
             let isError = false;
+            let shouldDispatch = true;
 
-            try {
-              const result = await callTool(block.name, block.input);
-              const content = result.content as Array<{ type: string; text?: string }> | undefined;
-              const textItem = content?.find((c) => c.type === "text");
-              resultText = textItem?.text ?? JSON.stringify(result);
-              // Respect the MCP protocol's isError flag from the server
-              isError = result.isError === true;
-            } catch (err) {
-              resultText = err instanceof Error ? err.message : String(err);
-              isError = true;
+            // Pre-call HITL gate. Tools in TOOLS_REQUIRING_APPROVAL never
+            // dispatch until the user approves via the chat UI. Denial feeds a
+            // synthetic tool_result back to Claude so the conversation stays
+            // well-formed and the agent knows not to retry. The LLM cannot
+            // bypass this because the gate runs in client code, not on the
+            // server — see ApprovalCard for the UI.
+            if (TOOLS_REQUIRING_APPROVAL.has(block.name)) {
+              const decision = await awaitPreCallApproval(
+                msgId,
+                { toolInput: block.input },
+                setMessages,
+                abort.signal
+              );
+              if (abort.signal.aborted) {
+                // Stream was cancelled while the card was showing. Throw to
+                // unwind out of the for loop and into the outer AbortError
+                // handler; neither the assistant message nor any tool_results
+                // get pushed to history (they're paired below this loop), so
+                // the next turn sees clean state.
+                throw new DOMException("Aborted", "AbortError");
+              }
+              if (!decision.approved) {
+                resultText =
+                  "The user denied this delegation. Do not retry. If they want " +
+                  "ROIbot's help, they will explicitly ask again. Respond using only " +
+                  "your own context, or ask the user how they'd like to proceed.";
+                shouldDispatch = false;
+              }
             }
+
+            if (shouldDispatch) {
+              try {
+                const result = await callTool(block.name, block.input);
+                const content = result.content as
+                  | Array<{ type: string; text?: string }>
+                  | undefined;
+                const textItem = content?.find((c) => c.type === "text");
+                resultText = textItem?.text ?? JSON.stringify(result);
+                // Respect the MCP protocol's isError flag from the server
+                isError = result.isError === true;
+              } catch (err) {
+                resultText = err instanceof Error ? err.message : String(err);
+                isError = true;
+              }
+            }
+            // Denial path falls through with resultText already set above.
 
             toolCalls.push({
               id: block.id,
@@ -318,7 +375,9 @@ export function useChat(
           );
           activeAssistantMsgId = null;
 
-          // Add tool results to history so Claude can see them
+          // Atomic with the assistant message: push both so Claude sees a
+          // well-formed tool_use → tool_result pair on the next round.
+          historyRef.current.push({ role: "assistant", content: response.content });
           historyRef.current.push({ role: "user", content: toolResults });
         }
 
@@ -387,6 +446,50 @@ export function useChat(
   }, []);
 
   return { messages, isLoading, error, sessionUsage, sendMessage, cancel, clearMessages };
+}
+
+// ── Pre-call HITL gate ───────────────────────────────────────────────────────
+
+/**
+ * Stash pre-call approval state on the streaming chat message and wait for
+ * the user to click Approve / Deny. The {@link ApprovalCard} component reads
+ * `pendingApproval` off the message and calls `resolve(...)` once on click;
+ * the returned promise un-pauses the agentic loop.
+ *
+ * The abort signal is respected so cancelling the stream (e.g. the user
+ * clicks "stop") resolves the gate as a denial. The agentic loop sees the
+ * abort flag and unwinds via its existing AbortError path without pushing
+ * an orphaned tool_result back to Claude.
+ */
+function awaitPreCallApproval(
+  msgId: string,
+  meta: Omit<PendingApprovalMeta, "resolve">,
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+  abortSignal: AbortSignal
+): Promise<{ approved: boolean }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const clearAndResolve = (decision: { approved: boolean }) => {
+      if (settled) return;
+      settled = true;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msgId ? { ...m, pendingApproval: undefined } : m))
+      );
+      resolve(decision);
+    };
+
+    // Abort path: stop button clicked while the card is showing.
+    if (abortSignal.aborted) {
+      clearAndResolve({ approved: false });
+      return;
+    }
+    abortSignal.addEventListener("abort", () => clearAndResolve({ approved: false }), {
+      once: true,
+    });
+
+    const full: PendingApprovalMeta = { ...meta, resolve: clearAndResolve };
+    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, pendingApproval: full } : m)));
+  });
 }
 
 // ── Streaming API call ───────────────────────────────────────────────────────

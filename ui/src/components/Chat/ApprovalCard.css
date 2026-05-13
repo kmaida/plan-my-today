@@ -1,6 +1,7 @@
-/* ApprovalCard — inline HITL approval UI. Visually distinct from regular chat
- * bubbles (warm tone + border) so it reads as action-required. Sticky border
- * left so users scrolling fast still notice it. */
+/* ApprovalCard — inline HITL approval UI for pre-call gating of A2A
+ * delegation. Visually distinct from regular chat bubbles (warm tone +
+ * border) so it reads as action-required. Sticky border-left so users
+ * scrolling fast still notice it. */
 
 .approval-card {
   border: 1px solid #d97706;
@@ -30,59 +31,27 @@
   color: #4b5563;
 }
 
-.approval-card__list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 10px 0;
-}
-
-.approval-card__item {
+.approval-card__task {
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
   background: #fff;
   border: 1px solid #fde68a;
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-}
-
-.approval-card__item:last-child {
-  margin-bottom: 0;
-}
-
-.approval-card__tool {
-  margin-bottom: 8px;
-}
-
-.approval-card__tool code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  background: #fef3c7;
-  padding: 1px 4px;
-  border-radius: 3px;
-  color: #78350f;
-}
-
-.approval-card__input {
-  margin: 4px 0 0 0;
-  padding: 6px 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  border-left: 3px solid #fbbf24;
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  color: #374151;
-  overflow-x: auto;
+  font-style: normal;
+  color: #1f2937;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
 }
 
-.approval-card__buttons {
+.approval-card__footer {
   display: flex;
+  justify-content: flex-end;
   gap: 8px;
 }
 
 .approval-card__btn {
-  flex: 1;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 4px;
   border: 1px solid;
   font-size: 12px;
@@ -100,50 +69,42 @@
   transform: scale(0.98);
 }
 
-.approval-card__btn--approve {
-  border-color: #16a34a;
-  color: #166534;
-  background: #fff;
-}
-
-.approval-card__btn--approve.approval-card__btn--selected,
-.approval-card__btn--approve:not(:disabled):hover {
-  background: #dcfce7;
-}
-
 .approval-card__btn--deny {
   border-color: #dc2626;
   color: #991b1b;
   background: #fff;
 }
 
-.approval-card__btn--deny.approval-card__btn--selected,
 .approval-card__btn--deny:not(:disabled):hover {
   background: #fee2e2;
 }
 
-.approval-card__footer {
-  display: flex;
-  justify-content: flex-end;
+.approval-card__btn--approve {
+  border-color: #16a34a;
+  color: #166534;
+  background: #fff;
 }
 
+.approval-card__btn--approve:not(:disabled):hover {
+  background: #dcfce7;
+}
+
+/* Primary "Approve and send" button — filled treatment matching the
+ * card's amber accent, since this is the affirmative/action button. */
 .approval-card__submit {
-  padding: 6px 12px;
-  border-radius: 4px;
-  border: 1px solid #d97706;
+  border-color: #d97706;
   background: #d97706;
   color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.approval-card__submit:disabled {
-  cursor: not-allowed;
-  background: #fbbf24;
-  border-color: #fbbf24;
 }
 
 .approval-card__submit:not(:disabled):hover {
   background: #b45309;
+  border-color: #b45309;
+}
+
+.approval-card__submit:disabled {
+  background: #fbbf24;
+  border-color: #fbbf24;
+  color: #fff;
+  opacity: 1;
 }

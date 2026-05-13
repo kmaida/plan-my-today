@@ -61,10 +61,14 @@ export function restoreChatState(): PersistedChatState | null {
     if (!Array.isArray(state.messages) || !Array.isArray(state.history)) {
       return null;
     }
-    // Restored messages are never actively streaming — force isStreaming off
-    // so stale streaming state doesn't block markdown rendering.
+    // Restored messages are never actively streaming, and any `pendingApproval`
+    // we round-tripped through JSON has a dead `resolve` callback (functions
+    // don't serialize) — strip both so stale state doesn't block markdown
+    // rendering or surface a permanently-stuck approval card.
     state.messages = state.messages.map((m) =>
-      m.isStreaming ? { ...m, isStreaming: false } : m
+      m.isStreaming || m.pendingApproval
+        ? { ...m, isStreaming: false, pendingApproval: undefined }
+        : m
     );
     return state;
   } catch {

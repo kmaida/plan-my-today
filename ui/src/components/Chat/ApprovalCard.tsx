@@ -1,20 +1,22 @@
 /**
- * Approval card rendered inline in the chat when ROIbot pauses at a Tier-1
- * destructive action. The user must explicitly approve or deny each pending
- * tool call before the chat resumes — this is the UI-enforced HITL gate.
+ * Pre-call HITL approval card. Rendered inline in the chat when Todaygent
+ * tries to invoke a tool in `TOOLS_REQUIRING_APPROVAL` (currently just
+ * `delegate-task-to-roibot`). The user must click Approve before the call
+ * is dispatched — the dispatch happens client-side, so the LLM cannot
+ * bypass this gate.
  *
  * @remarks
- * **Why this exists**: ROIbot's orchestrator returns `state: 'input-required'`
- * when it wants to run a destructive tool. The MCP tool result carries
- * `_meta.pendingApproval` with structured pending-tool details. `useChat`
- * intercepts that meta BEFORE feeding any result back to the LLM and
- * surfaces this card. The LLM physically cannot self-approve because it
- * never sees the pending state — that's the security argument.
+ * **Why this exists**: making A2A delegation human-initiated is a
+ * load-bearing property of the system, not an emergent LLM behavior. The
+ * agentic loop in `useChat.ts` pauses at this card and only calls the
+ * underlying MCP tool if the user clicks Approve. Deny feeds a synthetic
+ * "user denied" result back to Claude so the conversation stays
+ * well-formed and the agent doesn't retry.
  *
- * **Per-tool decisions**: when ROIbot emits multiple Tier-1 tools in one
- * turn, each gets its own card; the user approves or denies them
- * independently. The "submit decisions" button is enabled only once
- * every card has been resolved.
+ * **Shape**: the card guards a single tool invocation. For
+ * `delegate-task-to-roibot` the input is `{ task: string }`, so we render
+ * the task text directly. When a second tool joins the allowlist, add a
+ * `toolName` field to PendingApprovalMeta and switch on it here.
  */
 
 import { useState } from "react";
@@ -26,93 +28,49 @@ interface ApprovalCardProps {
 }
 
 export function ApprovalCard({ pending }: ApprovalCardProps) {
-  // Per-toolUseId state: undefined = unresolved, true = approve, false = deny.
-  const [decisions, setDecisions] = useState<
-    Record<string, { approved: boolean; reason?: string } | undefined>
-  >({});
   const [submitted, setSubmitted] = useState(false);
 
-  const allResolved = pending.pendingToolCalls.every(
-    (p) => decisions[p.toolUseId] !== undefined,
-  );
-
-  function setDecision(toolUseId: string, approved: boolean) {
+  function decide(approved: boolean) {
     if (submitted) return;
-    setDecisions((prev) => ({ ...prev, [toolUseId]: { approved } }));
+    setSubmitted(true);
+    pending.resolve({ approved });
   }
 
-  function handleSubmit() {
-    if (!allResolved || submitted) return;
-    // TS doesn't know `decisions[k]` is non-undefined after the allResolved
-    // check; assert via map.
-    const final: Record<string, { approved: true } | { approved: false; reason?: string }> = {};
-    for (const p of pending.pendingToolCalls) {
-      const d = decisions[p.toolUseId];
-      if (!d) continue; // shouldn't happen given allResolved
-      final[p.toolUseId] = d.approved ? { approved: true } : { approved: false };
-    }
-    setSubmitted(true);
-    pending.resolve(final);
-  }
+  // delegate-task-to-roibot's only input is `task: string`. Other tools
+  // added to TOOLS_REQUIRING_APPROVAL would need their own rendering.
+  const taskText =
+    (pending.toolInput as { task?: string })?.task ??
+    JSON.stringify(pending.toolInput, null, 2);
 
   return (
-    <div className="approval-card" role="region" aria-label="Pending action approval">
+    <div className="approval-card" role="region" aria-label="Pending delegation approval">
       <div className="approval-card__header">
         <span className="approval-card__lock" aria-hidden="true">
           🔒
         </span>
-        <strong>ROIbot needs your approval</strong>
+        <strong>Todaygent wants to delegate to ROIbot</strong>
       </div>
       <p className="approval-card__intro">
-        ROIbot wants to run the following destructive action
-        {pending.pendingToolCalls.length > 1 ? "s" : ""}. Approve or deny each
-        before the task continues.
+        Approve to send this task over A2A. Nothing leaves your browser until
+        you click.
       </p>
-      <ul className="approval-card__list">
-        {pending.pendingToolCalls.map((p) => {
-          const decision = decisions[p.toolUseId];
-          return (
-            <li key={p.toolUseId} className="approval-card__item">
-              <div className="approval-card__tool">
-                <code>{p.toolName}</code>
-                <pre className="approval-card__input">
-                  {JSON.stringify(p.toolInput, null, 2)}
-                </pre>
-              </div>
-              <div className="approval-card__buttons">
-                <button
-                  type="button"
-                  disabled={submitted}
-                  className={`approval-card__btn approval-card__btn--approve${decision?.approved === true ? " approval-card__btn--selected" : ""}`}
-                  onClick={() => setDecision(p.toolUseId, true)}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={submitted}
-                  className={`approval-card__btn approval-card__btn--deny${decision?.approved === false ? " approval-card__btn--selected" : ""}`}
-                  onClick={() => setDecision(p.toolUseId, false)}
-                >
-                  Deny
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      <blockquote className="approval-card__task">{taskText}</blockquote>
       <div className="approval-card__footer">
         <button
           type="button"
-          className="approval-card__submit"
-          disabled={!allResolved || submitted}
-          onClick={handleSubmit}
+          className="approval-card__btn approval-card__btn--deny"
+          disabled={submitted}
+          onClick={() => decide(false)}
         >
-          {submitted
-            ? "Resuming…"
-            : allResolved
-              ? "Submit decisions"
-              : "Choose Approve or Deny for each item"}
+          Deny
+        </button>
+        <button
+          type="button"
+          className="approval-card__btn approval-card__btn--approve approval-card__submit"
+          disabled={submitted}
+          onClick={() => decide(true)}
+        >
+          Approve and send
         </button>
       </div>
     </div>
