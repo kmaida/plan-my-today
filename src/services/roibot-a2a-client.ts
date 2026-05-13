@@ -10,28 +10,23 @@
  *
  * @remarks
  * **RFC 8693 token exchange happens on every call**, not cached.
- * HITL pauses can stretch beyond a single token TTL (Kim takes 30s,
- * grabs a coffee, comes back), and a stale cached token would block
- * the resume. Re-exchanging is cheap (Keycard STS keeps its own JWKS
- * cache); always-fresh is correct.
+ * Re-exchanging is cheap (Keycard STS keeps its own JWKS cache);
+ * always-fresh is correct.
  *
- * **Two distinct entry points** — `startTask` and `resumeTask` — keep
- * the wire-shape obvious at call sites. New tasks send a TextPart;
- * resumes send a structured DataPart with approvals. The dashboard's
- * agent endpoint enforces the shape (rejects free-form text on a
- * continuation), so accidental cross-wiring fails loudly.
+ * **HITL boundary**: every `delegate-task-to-roibot` invocation is
+ * gated by a user-approval click in the Todaygent chat UI before this
+ * client is even called. Destructive actions inside ROIbot are out of
+ * scope for A2A — they must happen in ROIbot's own chat. If ROIbot
+ * ever returns `state: 'input-required'` over A2A, the calling tool
+ * refuses with a loud error rather than surfacing a mid-task approval.
  */
 
-import {
-  ClientFactory,
-  JsonRpcTransportFactory,
-  type Client,
-} from "@a2a-js/sdk/client";
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { randomUUID } from "node:crypto";
+import { type Client, ClientFactory, JsonRpcTransportFactory } from "@a2a-js/sdk/client";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
-import { exchangeToken, TokenExchangeError } from "./keycard-client";
 import { getLogger } from "../observability/logger";
+import { exchangeToken, TokenExchangeError } from "./keycard-client";
 
 const logger = getLogger();
 
@@ -50,29 +45,17 @@ export class ROIbotA2AClientError extends Error {
   }
 }
 
-/** One Tier-1 tool call ROIbot needs the user to approve or deny. */
-export interface PendingToolCall {
-  toolUseId: string;
-  toolName: string;
-  toolInput: unknown;
-}
-
 /**
- * Outcome of an A2A round-trip. `completed` is the happy path;
- * `input-required` means ROIbot is paused for user approval and
- * carries the `taskId`/`contextId` the caller must echo back to
- * resume; `failed` is a terminal error.
+ * Outcome of an A2A round-trip. `completed` is the happy path; `failed` is
+ * a terminal error. `input-required` is theoretically possible per the A2A
+ * protocol but disallowed by our policy — destructive actions must happen
+ * in ROIbot's own chat, not over A2A — so the calling tool refuses it
+ * loudly rather than threading approval state back through.
  */
 export interface DelegateResult {
   state: "completed" | "input-required" | "failed";
-  /** Final agent text, or pending-state description for `input-required`. */
+  /** Final agent text, or empty string if none was produced. */
   finalText: string;
-  /** Required for resume continuation when `state === 'input-required'`. */
-  taskId?: string;
-  /** Required for resume continuation when `state === 'input-required'`. */
-  contextId?: string;
-  /** The Tier-1 actions ROIbot wants approval for. */
-  pendingToolCalls?: PendingToolCall[];
 }
 
 /** True iff the env var is set; used by tools to short-circuit politely. */
@@ -100,39 +83,6 @@ export async function startTask(authInfo: AuthInfo, task: string): Promise<Deleg
 }
 
 /**
- * Resume an existing A2A task with structured approval decisions.
- *
- * Sends a continuation message carrying a single DataPart with shape
- * `{ approvals: { [toolUseId]: { approved, reason? } } }`. The dashboard
- * rejects continuation messages without this shape, so a misformed call
- * fails loud rather than racing into the orchestrator with bad input.
- */
-export async function resumeTask(
-  authInfo: AuthInfo,
-  taskId: string,
-  contextId: string,
-  approvals: Record<string, { approved: boolean; reason?: string }>,
-): Promise<DelegateResult> {
-  const client = await buildClient(authInfo);
-  const stream = client.sendMessageStream({
-    message: {
-      kind: "message",
-      messageId: randomUUID(),
-      role: "user",
-      taskId,
-      contextId,
-      parts: [
-        {
-          kind: "data",
-          data: { approvals },
-        },
-      ],
-    },
-  });
-  return consumeStream(stream);
-}
-
-/**
  * Build a per-call A2A `Client` with a Bearer-injecting fetch.
  *
  * Re-exchanges the user's session token for a ROIbot-audience token on
@@ -145,7 +95,7 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
   if (!config.roibotAgentEndpoint) {
     throw new ROIbotA2AClientError(
       "ROIBOT_AGENT_ENDPOINT not configured. Set it to ROIbot's /api/agent " +
-        "URL (e.g. https://event-roi.fly.dev/api/agent).",
+        "URL (e.g. https://event-roi.fly.dev/api/agent)."
     );
   }
 
@@ -157,12 +107,12 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
     if (err instanceof TokenExchangeError) {
       throw new ROIbotA2AClientError(
         `Token exchange to ROIbot failed: ${err.description ?? err.message}`,
-        err,
+        err
       );
     }
     throw new ROIbotA2AClientError(
       "Unexpected error exchanging token for ROIbot",
-      err instanceof Error ? err : undefined,
+      err instanceof Error ? err : undefined
     );
   }
 
@@ -188,63 +138,34 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
  * "done" signal.
  */
 async function consumeStream(
-  stream: AsyncGenerator<unknown, void, undefined>,
+  stream: AsyncGenerator<unknown, void, undefined>
 ): Promise<DelegateResult> {
   let state: DelegateResult["state"] = "failed";
   let finalText = "";
-  let taskId: string | undefined;
-  let contextId: string | undefined;
-  let pendingToolCalls: PendingToolCall[] | undefined;
 
   for await (const event of stream) {
     if (!event || typeof event !== "object") continue;
 
     const e = event as {
       kind?: string;
-      id?: string;
-      contextId?: string;
-      taskId?: string;
       status?: { state?: string; message?: { parts?: unknown[] } };
-      artifact?: { artifactId?: string; name?: string; parts?: unknown[] };
     };
 
-    // Task object — terminal or interim state with full snapshot
-    if (e.kind === "task") {
-      taskId ??= e.id;
-      contextId ??= e.contextId;
+    // Both `task` and `status-update` carry the same state+text shape; we
+    // don't distinguish them here. `artifact-update` events (used by the
+    // protocol for pending-approval publication) are ignored — approval is
+    // gated UI-side before the call ever leaves the browser.
+    if (e.kind === "task" || e.kind === "status-update") {
       const taskState = e.status?.state;
       if (taskState) state = mapTaskState(taskState);
       const text = extractText(e.status?.message?.parts ?? []);
       if (text) finalText = text;
-      continue;
-    }
-
-    // status-update — incremental state transition
-    if (e.kind === "status-update") {
-      taskId ??= e.taskId;
-      contextId ??= e.contextId;
-      const taskState = e.status?.state;
-      if (taskState) state = mapTaskState(taskState);
-      const text = extractText(e.status?.message?.parts ?? []);
-      if (text) finalText = text;
-      continue;
-    }
-
-    // artifact-update — pending approvals are published this way
-    if (e.kind === "artifact-update") {
-      const artifactName = e.artifact?.name ?? e.artifact?.artifactId;
-      if (artifactName === "pending-approvals") {
-        pendingToolCalls = extractPendingToolCalls(e.artifact?.parts ?? []);
-      }
-      continue;
     }
   }
 
-  logger.info(
-    `[roibot-a2a-client] consumed stream — state=${state}, taskId=${taskId ?? "?"}`,
-  );
+  logger.info(`[roibot-a2a-client] consumed stream — state=${state}`);
 
-  return { state, finalText, taskId, contextId, pendingToolCalls };
+  return { state, finalText };
 }
 
 function mapTaskState(s: string): DelegateResult["state"] {
@@ -260,26 +181,9 @@ function extractText(parts: unknown[]): string {
         !!p &&
         typeof p === "object" &&
         (p as { kind?: unknown }).kind === "text" &&
-        typeof (p as { text?: unknown }).text === "string",
+        typeof (p as { text?: unknown }).text === "string"
     )
     .map((p) => p.text)
     .join("\n")
     .trim();
-}
-
-function extractPendingToolCalls(parts: unknown[]): PendingToolCall[] | undefined {
-  for (const p of parts) {
-    if (
-      p &&
-      typeof p === "object" &&
-      (p as { kind?: unknown }).kind === "data"
-    ) {
-      const data = (p as { data?: unknown }).data;
-      if (data && typeof data === "object") {
-        const calls = (data as { pendingToolCalls?: unknown }).pendingToolCalls;
-        if (Array.isArray(calls)) return calls as PendingToolCall[];
-      }
-    }
-  }
-  return undefined;
 }

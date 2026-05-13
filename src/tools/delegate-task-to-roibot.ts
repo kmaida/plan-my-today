@@ -1,44 +1,25 @@
 import { z } from "zod/v3";
-import {
-  isROIbotConfigured,
-  resumeTask,
-  startTask,
-  type DelegateResult,
-} from "../services/roibot-a2a-client";
+import { type DelegateResult, isROIbotConfigured, startTask } from "../services/roibot-a2a-client";
 import type { McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 
 /**
- * Two tools that together implement A2A delegation to ROIbot:
- *
- * 1. `delegate-task-to-roibot` — the LLM-facing entry point. Pass a
- *    natural-language task description; ROIbot picks tools internally.
- *
- * 2. `resume-roibot-task` — INTERNAL. Called by Todaygent's chat HITL
- *    infrastructure (NOT by the LLM directly) after the user clicks
- *    Approve/Deny on a pending action card. The system prompt forbids
- *    the LLM from calling this tool itself — that's how we make the
- *    HITL gate UI-enforced rather than vibes-based.
+ * MCP tool that delegates a free-form task from Todaygent to ROIbot
+ * over A2A. Pass a natural-language description; ROIbot's own LLM
+ * picks tools internally and returns a coherent reply.
  *
  * @remarks
- * **Tool result `_meta.pendingApproval` is the security boundary**
+ * **HITL gate is enforced UI-side, not here.** Todaygent's chat UI
+ * intercepts every `delegate-task-to-roibot` invocation and waits for
+ * the user to click Approve before the call ever reaches this handler.
+ * The LLM cannot bypass the gate because dispatch happens in client
+ * code; see `ui/src/chat/useChat.ts` (`TOOLS_REQUIRING_APPROVAL`).
  *
- * When ROIbot returns `state: 'input-required'`, this tool returns a
- * `_meta.pendingApproval` field on the tool result. MCP's `_meta` is
- * a documented extension field that tool result consumers (the chat
- * UI) can read but the LLM never sees. The chat UI intercepts results
- * with `_meta.pendingApproval` and renders an approval card BEFORE
- * feeding anything back to the LLM. The LLM can't self-approve
- * because it physically never sees the pending state.
- *
- * **Two tools, not one polymorphic schema**
- *
- * Splitting `delegate-task-to-roibot` (start) from `resume-roibot-task`
- * (continuation) keeps each schema narrow and makes the LLM's choice
- * obvious. A single polymorphic tool with optional `taskId`/`approvals`
- * fields would invite the LLM to call resume directly — which would
- * defeat the chat-UI HITL boundary. The system prompt's "never call
- * resume" rule + the resume tool's INTERNAL marker reinforce the split.
+ * **Destructive actions are out of scope for A2A.** ROIbot can take
+ * destructive actions in its own chat (with its own HITL), but those
+ * are forbidden over A2A. If ROIbot ever returns `state:
+ * 'input-required'` here, we refuse with a loud error rather than
+ * surfacing a mid-task approval flow.
  */
 export function registerROIbotDelegateTools(mcpServer: McpServer): void {
   // ── delegate-task-to-roibot ────────────────────────────────────────────
@@ -53,109 +34,47 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
         "issues for events. " +
         "Pass a natural-language task description; ROIbot's own agent picks the right tools internally and " +
         "returns a coherent answer. " +
-        "If the task involves a destructive action (delete event, merge events, change config), the chat UI " +
-        "will pause for user approval automatically — do NOT call resume-roibot-task yourself.",
+        "Destructive actions (delete event, merge events, change config) are out of scope for A2A; if the " +
+        "user wants one, tell them to use ROIbot directly in its own chat.",
       inputSchema: {
-        task: z
-          .string()
-          .min(1)
-          .describe("Natural-language task description for ROIbot's agent."),
+        task: z.string().min(1).describe("Natural-language task description for ROIbot's agent."),
       },
     },
     async ({ task }, { authInfo }) => {
       if (!authInfo) return errorResult("❌ Not authenticated.");
       if (!isROIbotConfigured())
         return errorResult(
-          "⚠️ ROIBOT_AGENT_ENDPOINT not configured. Set it to ROIbot's /api/agent URL.",
+          "⚠️ ROIBOT_AGENT_ENDPOINT not configured. Set it to ROIbot's /api/agent URL."
         );
       try {
         const result = await startTask(authInfo, task);
         return formatResult(result);
       } catch (error) {
-        return handleToolError(error, "ROIbot", [], [
-          "Check ROIBOT_AGENT_ENDPOINT and the Keycard zone delegation chain.",
-        ]);
+        return handleToolError(
+          error,
+          "ROIbot",
+          [],
+          ["Check ROIBOT_AGENT_ENDPOINT and the Keycard zone delegation chain."]
+        );
       }
-    },
-  );
-
-  // ── resume-roibot-task ────────────────────────────────────────────────
-  mcpServer.registerTool(
-    "resume-roibot-task",
-    {
-      title: "Resume ROIbot task with approvals (INTERNAL)",
-      description:
-        "INTERNAL — called by Todaygent's chat UI after the user clicks Approve or Deny on a pending action " +
-        "card. Do NOT call this directly. The chat UI invokes it with the structured approval payload " +
-        "after rendering the card. If you (the assistant) call this tool, you are bypassing the human-in-" +
-        "the-loop gate, which is a violation of the safety contract.",
-      inputSchema: {
-        taskId: z
-          .string()
-          .describe("Echo from a prior input-required tool result, to continue."),
-        contextId: z
-          .string()
-          .describe("Echo from a prior input-required tool result, to continue."),
-        approvals: z
-          .record(
-            z.string(),
-            z.union([
-              z.object({ approved: z.literal(true) }),
-              z.object({ approved: z.literal(false), reason: z.string().optional() }),
-            ]),
-          )
-          .describe(
-            "Per-tool_use_id approval decisions: { [toolUseId]: { approved: boolean, reason?: string } }",
-          ),
-      },
-    },
-    async ({ taskId, contextId, approvals }, { authInfo }) => {
-      if (!authInfo) return errorResult("❌ Not authenticated.");
-      try {
-        const result = await resumeTask(authInfo, taskId, contextId, approvals);
-        return formatResult(result);
-      } catch (error) {
-        return handleToolError(error, "ROIbot", [], [
-          "Continuation failed; the task may have expired (24h TTL).",
-        ]);
-      }
-    },
+    }
   );
 }
 
 /**
  * Translate a {@link DelegateResult} into an MCP tool result.
  *
- * For `input-required`, attach the structured pending state under
- * `_meta.pendingApproval` so the chat UI can render an approval card.
- * The text content describes the situation in plain English so it
- * also makes sense to a non-card-aware client (e.g. mcp-remote).
+ * `input-required` is defensive: under the policy, ROIbot must not
+ * request human approval over A2A. If it does, refuse loudly rather
+ * than silently dropping the response or surfacing a stale approval
+ * flow that no longer exists on this side.
  */
 function formatResult(result: DelegateResult) {
   if (result.state === "input-required") {
-    const pendingSummary = result.pendingToolCalls
-      ?.map(
-        (p, i) =>
-          `${i + 1}. ${p.toolName}(${JSON.stringify(p.toolInput).slice(0, 200)})`,
-      )
-      .join("\n") ?? "(no pending tool calls reported)";
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text:
-            `🔒 ROIbot needs human approval before proceeding:\n\n${pendingSummary}\n\n` +
-            (result.finalText ? `${result.finalText}\n` : ""),
-        },
-      ],
-      _meta: {
-        pendingApproval: {
-          taskId: result.taskId,
-          contextId: result.contextId,
-          pendingToolCalls: result.pendingToolCalls ?? [],
-        },
-      },
-    };
+    return errorResult(
+      "⚠️ ROIbot returned an approval-required state, which is not allowed over A2A. " +
+        "Destructive actions must be performed in ROIbot's own chat."
+    );
   }
   if (result.state === "failed") {
     return errorResult(result.finalText || "ROIbot delegation failed.");
