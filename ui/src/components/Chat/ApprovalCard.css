@@ -1,0 +1,110 @@
+/* ApprovalCard — inline HITL approval UI for pre-call gating of A2A
+ * delegation. Visually distinct from regular chat bubbles (warm tone +
+ * border) so it reads as action-required. Sticky border-left so users
+ * scrolling fast still notice it. */
+
+.approval-card {
+  border: 1px solid #d97706;
+  border-left: 4px solid #d97706;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.approval-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: #92400e;
+}
+
+.approval-card__lock {
+  font-size: 14px;
+}
+
+.approval-card__intro {
+  margin: 0 0 10px 0;
+  color: #4b5563;
+}
+
+.approval-card__task {
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #fde68a;
+  border-left: 3px solid #fbbf24;
+  border-radius: 4px;
+  font-style: normal;
+  color: #1f2937;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approval-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.approval-card__btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms, transform 60ms;
+}
+
+.approval-card__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.approval-card__btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.approval-card__btn--deny {
+  border-color: #dc2626;
+  color: #991b1b;
+  background: #fff;
+}
+
+.approval-card__btn--deny:not(:disabled):hover {
+  background: #fee2e2;
+}
+
+.approval-card__btn--approve {
+  border-color: #16a34a;
+  color: #166534;
+  background: #fff;
+}
+
+.approval-card__btn--approve:not(:disabled):hover {
+  background: #dcfce7;
+}
+
+/* Primary "Approve and send" button — filled treatment matching the
+ * card's amber accent, since this is the affirmative/action button. */
+.approval-card__submit {
+  border-color: #d97706;
+  background: #d97706;
+  color: #fff;
+}
+
+.approval-card__submit:not(:disabled):hover {
+  background: #b45309;
+  border-color: #b45309;
+}
+
+.approval-card__submit:disabled {
+  background: #fbbf24;
+  border-color: #fbbf24;
+  color: #fff;
+  opacity: 1;
+}

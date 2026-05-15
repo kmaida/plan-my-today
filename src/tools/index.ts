@@ -10,7 +10,7 @@ import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
 import { registerRestoreDismissedTaskTool } from "./restore-dismissed-task";
-import { registerROIbotDelegateTools } from "./roibot-delegate";
+import { registerROIbotDelegateTools } from "./delegate-task-to-roibot";
 import { registerSetTaskPriorityTool } from "./set-task-priority";
 import { registerSlackListTool } from "./slack-list";
 
@@ -31,7 +31,7 @@ export const TOOL_REGISTRY = [
   { name: "list-meeting-notes-actions", register: registerMeetingNotesTool },
   { name: "read-dashboard-tasks", register: registerReadDashboardTasksTool },
   { name: "set-task-priority", register: registerSetTaskPriorityTool },
-  { name: "roibot-delegate", register: registerROIbotDelegateTools },
+  { name: "delegate-task-to-roibot", register: registerROIbotDelegateTools },
 ] as const;
 
 /**

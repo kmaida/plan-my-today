@@ -19,7 +19,7 @@ interface ServerConfig {
   meetingNotesFolderId: string;
   anthropicApiKey: string;
   anthropicModel: string;
-  roibotMcpEndpoint: string;
+  roibotAgentEndpoint: string;
   observability: {
     serviceName: string;
     serviceVersion: string;
@@ -81,10 +81,15 @@ function getConfig(): ServerConfig {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
-  // ROIbot MCP endpoint for agent-to-agent delegation (optional)
-  // This is the resource URI registered in the Keycard zone for ROIbot's MCP server.
-  // Used both as the token exchange resource and the HTTP endpoint to connect to.
-  const ROIBOT_MCP_ENDPOINT = process.env.ROIBOT_MCP_ENDPOINT || "";
+  // ROIbot A2A agent endpoint for agent-to-agent task delegation (optional).
+  // The Keycard resource URI for ROIbot's /api/agent endpoint on the dashboard.
+  // Used both as the token-exchange `resource` and as the A2A endpoint URL.
+  // Example: https://event-roi.fly.dev/api/agent
+  //
+  // (Replaces the old ROIBOT_MCP_ENDPOINT, which targeted ROIbot's MCP server
+  // directly. The architecture moved from MCP-proxy to A2A delegation in May 2026 —
+  // see CHANGELOG and ~/.claude/plans/i-need-to-pick-serialized-parrot.md.)
+  const ROIBOT_AGENT_ENDPOINT = process.env.ROIBOT_AGENT_ENDPOINT || "";
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
@@ -127,7 +132,7 @@ function getConfig(): ServerConfig {
     calendarPrepPrefix: CALENDAR_PREP_PREFIX,
     anthropicApiKey: ANTHROPIC_API_KEY,
     anthropicModel: ANTHROPIC_MODEL,
-    roibotMcpEndpoint: ROIBOT_MCP_ENDPOINT,
+    roibotAgentEndpoint: ROIBOT_AGENT_ENDPOINT,
     userDisplayNames: USER_DISPLAY_NAME
       ? USER_DISPLAY_NAME.split(",").map((n) => n.trim().toLowerCase())
       : [],
