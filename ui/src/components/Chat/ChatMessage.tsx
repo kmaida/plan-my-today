@@ -24,6 +24,19 @@ export const ChatMessage = memo(function ChatMessage({ message }: ChatMessagePro
     [message.timestamp],
   )
 
+  // Suppress the message slot entirely while an assistant turn has no visible content yet
+  // (pre-allocated in useChat for streaming-id stability). ThinkingIndicator covers the
+  // "working" affordance below the list, so painting an empty bubble looks broken.
+  // Trim because Claude can stream leading whitespace before tool-use turns — non-zero
+  // length but visually empty under ReactMarkdown.
+  const hasContent =
+    message.text.trim().length > 0 ||
+    (message.toolCalls?.length ?? 0) > 0 ||
+    Boolean(message.pendingApproval)
+  if (!isUser && !hasContent) {
+    return null
+  }
+
   return (
     <div className={`chat-message chat-message--${message.role}`}>
       <div className="chat-message__bubble">
