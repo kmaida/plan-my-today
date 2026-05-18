@@ -143,6 +143,131 @@
   padding: var(--space-sm) var(--space-md);
   background: color-mix(in srgb, var(--color-critical) 8%, transparent);
   border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.chat-panel__error-summary {
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── ErrorDetail (shared by chat-panel error and tool-call cards) ────────── */
+
+.error-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+}
+
+.error-detail__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-hover);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.error-detail__header:hover {
+  background: var(--color-active);
+}
+
+.error-detail__badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  background: color-mix(in srgb, var(--color-critical) 15%, transparent);
+  color: var(--color-critical);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.error-detail__source {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.error-detail__separator {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.error-detail__message {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+.error-detail__body {
+  padding: var(--space-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.error-detail__fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-md);
+  row-gap: var(--space-xs);
+  margin: 0;
+}
+
+.error-detail__fields dt {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.error-detail__fields dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+.error-detail__mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+  white-space: pre-wrap;
+}
+
+.error-detail__copy {
+  align-self: flex-start;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.error-detail__copy:hover {
+  background: var(--color-hover);
 }
 
 /* ── Token Stats ───────────────────────────────────────────────────────────── */

@@ -96,6 +96,40 @@ export interface SessionUsage {
 
 // ── UI-level chat types ──────────────────────────────────────────────────────
 
+/**
+ * Structured error detail attached to a failing tool call or chat-level error.
+ * Server-side counterpart lives in `src/types/tool-error.ts` and is emitted on
+ * `result._meta.error`. Kept as a structural duplicate (no shared module)
+ * because the express and vite trees aren't linked at build time.
+ */
+export type ErrorCategory =
+  | "auth"
+  | "rate_limit"
+  | "upstream_api"
+  | "network"
+  | "config"
+  | "unknown";
+
+export interface StructuredToolError {
+  category: ErrorCategory;
+  source: string;
+  resource?: string;
+  scopes?: string[];
+  status?: number;
+  description?: string;
+  message: string;
+  hint?: string;
+  timestamp: string;
+}
+
+/** Top-level chat error state — shown in the chat-panel error banner. */
+export interface ChatError {
+  /** Always-visible short headline. */
+  summary: string;
+  /** Optional expandable detail. */
+  detail?: StructuredToolError;
+}
+
 /** A tool call that was executed during an assistant turn. */
 export interface ToolCall {
   id: string;
@@ -103,6 +137,13 @@ export interface ToolCall {
   input: Record<string, unknown>;
   result?: string;
   isError?: boolean;
+  /**
+   * Structured error detail when the call failed. Populated from
+   * `result._meta.error` (single-tool failure) or `result._meta.sourceErrors`
+   * (partial-failure aggregates like `list-all-tasks-today`). Length 0 when
+   * the call succeeded; length 1+ otherwise.
+   */
+  errorDetails?: StructuredToolError[];
 }
 
 /**

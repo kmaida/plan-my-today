@@ -7,10 +7,12 @@ import { FETCH_LIMITS, TIME_WINDOWS } from "../../constants";
 import { exchangeToken } from "../../services/keycard-client";
 import { applyOverridesToTasks } from "../../services/priority-override-store";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/index";
+import type { StructuredToolError } from "../../types/tool-error";
 import { formatAuthError } from "../../utils/error-utils";
 import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
 import { computeStableId } from "../../utils/stable-task-keys";
 import { writeTaskStore } from "../../utils/task-store-utils";
+import { buildStructuredError } from "../../utils/tool-error-utils";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
   buildCalendarCrossRefs,
@@ -321,6 +323,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       const today = new Date();
       const errors: string[] = [];
       const failedSources: string[] = [];
+      const sourceErrors: StructuredToolError[] = [];
 
       // Initialize raw data containers (populated by parallel fetch)
       let rawCalendar: CalendarEventDetail[] = [];
@@ -417,6 +420,14 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Google Calendar", fetchResults[0].reason));
         failedSources.push("calendar");
+        sourceErrors.push(
+          buildStructuredError(
+            fetchResults[0].reason,
+            "calendar",
+            CALENDAR_RESOURCE,
+            CALENDAR_SCOPES
+          )
+        );
       }
 
       if (fetchResults[1].status === "fulfilled") {
@@ -424,6 +435,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Linear", fetchResults[1].reason));
         failedSources.push("linear");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[1].reason, "linear", LINEAR_RESOURCE, LINEAR_SCOPES)
+        );
       }
 
       if (fetchResults[2].status === "fulfilled") {
@@ -433,6 +447,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Gmail", fetchResults[2].reason));
         failedSources.push("gmail");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[2].reason, "gmail", GMAIL_RESOURCE, GMAIL_SCOPES)
+        );
       }
 
       if (fetchResults[3].status === "fulfilled") {
@@ -440,6 +457,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Google Drive", fetchResults[3].reason));
         failedSources.push("drive");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[3].reason, "drive", DRIVE_RESOURCE, DRIVE_SCOPES)
+        );
       }
 
       if (fetchResults[4].status === "fulfilled") {
@@ -448,6 +468,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else if (includeGithub) {
         errors.push(formatAuthError("GitHub", fetchResults[4].reason));
         failedSources.push("github");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[4].reason, "github", GITHUB_RESOURCE, [])
+        );
       }
 
       if (fetchResults[5].status === "fulfilled") {
@@ -455,6 +478,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Slack", fetchResults[5].reason));
         failedSources.push("slack");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[5].reason, "slack", SLACK_RESOURCE, SLACK_SCOPES)
+        );
       }
 
       if (fetchResults[6].status === "fulfilled") {
@@ -462,6 +488,9 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
       } else {
         errors.push(formatAuthError("Meeting Notes (via Google Drive)", fetchResults[6].reason));
         failedSources.push("meeting-notes");
+        sourceErrors.push(
+          buildStructuredError(fetchResults[6].reason, "granola", DRIVE_RESOURCE, DRIVE_SCOPES)
+        );
       }
 
       // ============================================
@@ -777,6 +806,8 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // Return confirmation with per-source counts.
       // Full data is in the task store — use read-dashboard-tasks to access it.
+      // `_meta.sourceErrors` carries structured per-source error detail for
+      // the UI; the JSON text content is what the LLM sees (unchanged).
       return {
         content: [
           {
@@ -788,6 +819,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
             }),
           },
         ],
+        ...(sourceErrors.length > 0 ? { _meta: { sourceErrors } } : {}),
       };
     }) as AuthenticatedToolHandlerWithArgs<typeof listAllTasksTodayInputSchema>
   );

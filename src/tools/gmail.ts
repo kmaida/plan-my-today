@@ -190,7 +190,7 @@ export function registerGmailTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, GMAIL_RESOURCE, GMAIL_SCOPES, [
+        return handleToolError(error, "gmail", GMAIL_RESOURCE, GMAIL_SCOPES, [
           "Ensure your Gmail credential provider is configured in Keycard.",
         ]);
       }

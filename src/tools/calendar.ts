@@ -36,11 +36,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Google Calendar access token
-        const tokenResponse = await exchangeToken(
-          authInfo,
-          CALENDAR_RESOURCE,
-          CALENDAR_SCOPES
-        );
+        const tokenResponse = await exchangeToken(authInfo, CALENDAR_RESOURCE, CALENDAR_SCOPES);
 
         // Set default time range
         const now = new Date();
@@ -144,7 +140,7 @@ export function registerCalendarTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, CALENDAR_RESOURCE, CALENDAR_SCOPES);
+        return handleToolError(error, "calendar", CALENDAR_RESOURCE, CALENDAR_SCOPES);
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof calendarInputSchema>
   );

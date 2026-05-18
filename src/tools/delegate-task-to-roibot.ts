@@ -52,7 +52,8 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
       } catch (error) {
         return handleToolError(
           error,
-          "ROIbot",
+          "roibot",
+          [],
           [],
           ["Check ROIBOT_AGENT_ENDPOINT and the Keycard zone delegation chain."]
         );

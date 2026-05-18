@@ -3,6 +3,7 @@ import { useChat } from '../../chat/useChat'
 import { useAuth } from '../../auth'
 import { useMCP } from '../../mcp'
 import { ChatMessage } from './ChatMessage'
+import { ErrorDetail } from './ErrorDetail'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { TodaygentMascot } from './TodaygentMascot'
 import { buildSystemPrompt } from '../../chat/system-prompt'
@@ -153,7 +154,10 @@ export function ChatPanel({ isOpen, onToggle, onToolCallsComplete, onFetchStarte
         ))}
 
         {error && (
-          <div className="chat-panel__error">{error}</div>
+          <div className="chat-panel__error">
+            <div className="chat-panel__error-summary">{error.summary}</div>
+            {error.detail && <ErrorDetail error={error.detail} />}
+          </div>
         )}
 
       </div>

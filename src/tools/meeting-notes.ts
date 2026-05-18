@@ -165,7 +165,7 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, DRIVE_RESOURCE, DRIVE_SCOPES, [
+        return handleToolError(error, "granola", DRIVE_RESOURCE, DRIVE_SCOPES, [
           "Ensure your Google Drive credential provider is configured in Keycard.",
         ]);
       }

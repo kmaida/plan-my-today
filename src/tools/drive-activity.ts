@@ -271,8 +271,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         // Exchange user's JWT for Drive and Drive Activity access tokens
         const [tokenResponse, activityTokenResponse] = await Promise.all([
           exchangeToken(authInfo, DRIVE_RESOURCE, DRIVE_SCOPES),
-          exchangeToken(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES)
-            .catch(() => null),
+          exchangeToken(authInfo, DRIVE_ACTIVITY_RESOURCE, DRIVE_ACTIVITY_SCOPES).catch(() => null),
         ]);
 
         // Build query parameters
@@ -501,6 +500,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
       } catch (error) {
         return handleToolError(
           error,
+          "drive",
           [DRIVE_RESOURCE, DRIVE_ACTIVITY_RESOURCE],
           [DRIVE_SCOPES, DRIVE_ACTIVITY_SCOPES]
         );

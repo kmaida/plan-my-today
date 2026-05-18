@@ -14,14 +14,39 @@ import type { SystemPromptParts } from "./system-prompt";
 import { evaluateToolRound, type ToolRoundResult } from "./tool-round-utils";
 import type {
   AnthropicResponse,
+  ChatError,
   ChatMessage,
   ContentBlock,
   Message,
   PendingApprovalMeta,
   SessionUsage,
+  StructuredToolError,
   ToolCall,
   ToolDefinition,
 } from "./types";
+
+/**
+ * Error thrown by {@link streamChatAPI} when the chat proxy returns a
+ * structured error body or emits a `chat_error` SSE frame mid-stream.
+ * Carries the {@link StructuredToolError} so the UI can render expandable
+ * detail instead of a generic "Chat request failed" string.
+ */
+export class ChatAPIError extends Error {
+  readonly detail: StructuredToolError;
+  constructor(detail: StructuredToolError) {
+    super(detail.message);
+    this.name = "ChatAPIError";
+    this.detail = detail;
+  }
+}
+
+/** Synthesize a structured error from any caught value, for fallback paths. */
+function toStructuredError(err: unknown, source: string): StructuredToolError {
+  if (err instanceof ChatAPIError) return err.detail;
+  const message = err instanceof Error ? err.message : String(err);
+  const category = err instanceof TypeError ? "network" : "unknown";
+  return { category, source, message, timestamp: new Date().toISOString() };
+}
 
 /** A tool_use content block (extracted from the ContentBlock union). */
 type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>;
@@ -93,7 +118,7 @@ export type { SessionUsage } from "./types";
 export interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
-  error: string | null;
+  error: ChatError | null;
   /** Accumulated token usage for the entire chat session. */
   sessionUsage: SessionUsage;
   sendMessage: (text: string) => Promise<void>;
@@ -110,7 +135,7 @@ export function useChat(
   const { callTool, tools: mcpTools, isConnected } = useMCP();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
   const [sessionUsage, setSessionUsage] = useState<SessionUsage>({
     totalInputTokens: 0,
     totalOutputTokens: 0,
@@ -173,7 +198,16 @@ export function useChat(
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: chat send handler — manages message state, streaming, and tool calls
     async (userText: string) => {
       if (!isConnected) {
-        setError("MCP client not connected — sign in first");
+        setError({
+          summary: "MCP client not connected — sign in first",
+          detail: {
+            category: "config",
+            source: "mcp",
+            message: "The MCP transport has not finished connecting.",
+            hint: "Sign in via the dashboard and wait for the connected status.",
+            timestamp: new Date().toISOString(),
+          },
+        });
         return;
       }
 
@@ -322,6 +356,7 @@ export function useChat(
               }
             }
 
+            let errorDetails: StructuredToolError[] | undefined;
             if (shouldDispatch) {
               try {
                 const result = await callTool(block.name, block.input);
@@ -332,9 +367,22 @@ export function useChat(
                 resultText = textItem?.text ?? JSON.stringify(result);
                 // Respect the MCP protocol's isError flag from the server
                 isError = result.isError === true;
+                // Server-side `handleToolError` puts the structured detail on
+                // `_meta.error` (single failure). Partial-failure aggregates
+                // like `list-all-tasks-today` put one entry per failing source
+                // on `_meta.sourceErrors`. Surface all of them.
+                const meta = (result as { _meta?: Record<string, unknown> })._meta;
+                if (meta) {
+                  if (meta.error) {
+                    errorDetails = [meta.error as StructuredToolError];
+                  } else if (Array.isArray(meta.sourceErrors) && meta.sourceErrors.length > 0) {
+                    errorDetails = meta.sourceErrors as StructuredToolError[];
+                  }
+                }
               } catch (err) {
                 resultText = err instanceof Error ? err.message : String(err);
                 isError = true;
+                errorDetails = [toStructuredError(err, block.name)];
               }
             }
             // Denial path falls through with resultText already set above.
@@ -345,6 +393,7 @@ export function useChat(
               input: block.input,
               result: resultText,
               isError,
+              errorDetails,
             });
 
             toolResults.push({
@@ -382,7 +431,16 @@ export function useChat(
         }
 
         if (rounds >= MAX_TOOL_ROUNDS) {
-          setError("Reached maximum tool call rounds — stopping to avoid infinite loop");
+          setError({
+            summary: "Reached maximum tool call rounds — stopping to avoid infinite loop",
+            detail: {
+              category: "config",
+              source: "agentic-loop",
+              message: `Hit the ${MAX_TOOL_ROUNDS}-round safety limit.`,
+              hint: "If the agent legitimately needs more rounds, raise MAX_TOOL_ROUNDS in useChat.ts.",
+              timestamp: new Date().toISOString(),
+            },
+          });
         }
       } catch (err) {
         // Don't surface abort errors — they're intentional (unmount / new request)
@@ -396,9 +454,9 @@ export function useChat(
           }
           return;
         }
-        const msg = err instanceof Error ? err.message : "Chat request failed";
         finalizeStreamingMessage(activeAssistantMsgId);
-        setError(msg);
+        const detail = toStructuredError(err, "chat");
+        setError({ summary: detail.message, detail });
       } finally {
         // If we signalled the header animation but onToolRoundComplete never
         // fired (e.g., non-abort error before tool round finished), ensure
@@ -495,6 +553,61 @@ function awaitPreCallApproval(
 // ── Streaming API call ───────────────────────────────────────────────────────
 
 /**
+ * Build a {@link ChatAPIError} from a non-2xx response. Tries to parse the
+ * server's `{ error: StructuredToolError }` shape; falls back to a synthetic
+ * structured error if the body isn't JSON or doesn't carry our shape.
+ */
+async function buildChatAPIErrorFromResponse(res: Response): Promise<ChatAPIError> {
+  const errText = await res.text();
+  const fallback: StructuredToolError = {
+    category: "upstream_api",
+    source: "chat",
+    status: res.status,
+    message: errText || `HTTP ${res.status}`,
+    timestamp: new Date().toISOString(),
+  };
+  try {
+    const parsed = JSON.parse(errText) as { error?: StructuredToolError };
+    if (parsed.error) return new ChatAPIError(parsed.error);
+  } catch {
+    // Body wasn't JSON — fall through to fallback.
+  }
+  return new ChatAPIError(fallback);
+}
+
+/**
+ * Build a per-line SSE dispatcher that watches for our server's
+ * `event: chat_error\ndata: {...}\n\n` frames (emitted when Anthropic returns
+ * a mid-stream error) and throws a typed {@link ChatAPIError}. All other lines
+ * pass through to the standard Anthropic SSE parser. State (whether the next
+ * `data:` line should be treated as a chat_error payload) lives in this
+ * closure so it persists across chunks.
+ */
+function makeSseLineDispatcher(
+  parseState: ReturnType<typeof createStreamParseState>,
+  onText: (text: string) => void
+): (line: string) => void {
+  let nextDataIsChatError = false;
+  return (line) => {
+    if (line.startsWith("event: ")) {
+      nextDataIsChatError = line.slice(7).trim() === "chat_error";
+      return;
+    }
+    if (nextDataIsChatError && line.startsWith("data: ")) {
+      nextDataIsChatError = false;
+      try {
+        const detail = JSON.parse(line.slice(6).trim()) as StructuredToolError;
+        throw new ChatAPIError(detail);
+      } catch (e) {
+        if (e instanceof ChatAPIError) throw e;
+        // Malformed payload — fall through and treat as a regular data line.
+      }
+    }
+    processSseLine(parseState, line, onText);
+  };
+}
+
+/**
  * Stream a chat request from the Anthropic API via our server proxy.
  * Calls `onText` with the accumulated text as each delta arrives (for real-time UI).
  * Returns the reconstructed AnthropicResponse so the agentic loop logic stays unchanged.
@@ -526,15 +639,20 @@ export async function streamChatAPI(
   });
 
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Chat API error (${res.status}): ${errText}`);
+    throw await buildChatAPIErrorFromResponse(res);
   }
 
   if (!res.body) {
-    throw new Error("Chat API returned an empty response body");
+    throw new ChatAPIError({
+      category: "upstream_api",
+      source: "chat",
+      message: "Chat API returned an empty response body",
+      timestamp: new Date().toISOString(),
+    });
   }
 
   const parseState = createStreamParseState();
+  const handleLine = makeSseLineDispatcher(parseState, onText);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -552,7 +670,7 @@ export async function streamChatAPI(
       buffer = lines.pop()!; // keep incomplete last line in buffer
 
       for (const line of lines) {
-        processSseLine(parseState, line, onText);
+        handleLine(line);
       }
     }
 
@@ -562,7 +680,7 @@ export async function streamChatAPI(
     if (buffer.trim().length > 0) {
       const trailingLines = buffer.split(/\r?\n/);
       for (const line of trailingLines) {
-        processSseLine(parseState, line, onText);
+        handleLine(line);
       }
     }
   } finally {

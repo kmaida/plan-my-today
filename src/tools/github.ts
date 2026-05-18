@@ -168,7 +168,7 @@ export function registerGithubTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, GITHUB_RESOURCE, []);
+        return handleToolError(error, "github", GITHUB_RESOURCE, []);
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof githubTodosInputSchema>
   );

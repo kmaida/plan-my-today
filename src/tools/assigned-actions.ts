@@ -148,6 +148,7 @@ export function registerAssignedActionsTool(mcpServer: McpServer): void {
       } catch (error) {
         return handleToolError(
           error,
+          "assigned-actions",
           [DRIVE_ACTIVITY_RESOURCE, GMAIL_RESOURCE, DRIVE_RESOURCE],
           [DRIVE_ACTIVITY_SCOPES, GMAIL_SCOPES, DRIVE_SCOPES]
         );

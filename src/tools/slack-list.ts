@@ -150,7 +150,7 @@ export function registerSlackListTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, SLACK_RESOURCE, SLACK_SCOPES);
+        return handleToolError(error, "slack", SLACK_RESOURCE, SLACK_SCOPES);
       }
     }
   );

@@ -498,13 +498,28 @@ export function createApp(): express.Application {
   app.post("/api/chat", async (req: express.Request, res: express.Response) => {
     try {
       if (!config.anthropicApiKey) {
-        res.status(500).json({ error: "ANTHROPIC_API_KEY not configured on server" });
+        res.status(500).json({
+          error: {
+            category: "config",
+            source: "chat",
+            message: "ANTHROPIC_API_KEY not configured on server",
+            hint: "Set ANTHROPIC_API_KEY in the server's .env and restart.",
+            timestamp: new Date().toISOString(),
+          },
+        });
         return;
       }
 
       const { messages, system, tools, model, effort } = req.body;
       if (!messages || !Array.isArray(messages)) {
-        res.status(400).json({ error: "Missing required field: messages (array)" });
+        res.status(400).json({
+          error: {
+            category: "config",
+            source: "chat",
+            message: "Missing required field: messages (array)",
+            timestamp: new Date().toISOString(),
+          },
+        });
         return;
       }
 
@@ -612,8 +627,35 @@ export function createApp(): express.Application {
       });
 
       if (!anthropicRes.ok || !anthropicRes.body) {
-        const data = await anthropicRes.text();
-        res.status(anthropicRes.status).setHeader("Content-Type", "application/json").send(data);
+        const rawBody = await anthropicRes.text();
+        // Anthropic returns `{ type: "error", error: { type, message } }` on
+        // non-2xx. Normalize into our structured shape so the UI can render it
+        // expandably without parsing Anthropic-specific wire formats.
+        let upstreamType: string | undefined;
+        let upstreamMessage = rawBody;
+        try {
+          const parsed = JSON.parse(rawBody);
+          upstreamType = parsed?.error?.type;
+          upstreamMessage = parsed?.error?.message ?? rawBody;
+        } catch {
+          // Body wasn't JSON — fall through with raw text in message.
+        }
+        const category: "rate_limit" | "upstream_api" | "auth" =
+          anthropicRes.status === 429 || upstreamType === "rate_limit_error"
+            ? "rate_limit"
+            : anthropicRes.status === 401 || anthropicRes.status === 403
+              ? "auth"
+              : "upstream_api";
+        res.status(anthropicRes.status).json({
+          error: {
+            category,
+            source: "anthropic",
+            status: anthropicRes.status,
+            description: upstreamType,
+            message: upstreamMessage,
+            timestamp: new Date().toISOString(),
+          },
+        });
         return;
       }
 
@@ -631,20 +673,25 @@ export function createApp(): express.Application {
       const logger = getLogger();
       let sseBuffer = "";
       let logged = false;
+      // Map Anthropic streaming error.type → our ErrorCategory.
+      const anthropicErrorCategory = (t?: string): "rate_limit" | "upstream_api" | "auth" => {
+        if (t === "rate_limit_error" || t === "overloaded_error") return "rate_limit";
+        if (t === "authentication_error" || t === "permission_error") return "auth";
+        return "upstream_api";
+      };
       const inspector = new Transform({
-        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Stream transform — inspects chunks for logging
+        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Stream transform — inspects chunks for logging and error normalization
         transform(chunk: Buffer, _encoding, callback) {
-          // Pass data through unchanged; inspect for logging only.
-          // We only need the message_start event (always first), so once
-          // logged we skip all further inspection.
-          if (!logged) {
-            sseBuffer += chunk.toString();
-            const lines = sseBuffer.split("\n");
-            // Keep the last (potentially incomplete) line in the buffer
-            sseBuffer = lines.pop()!;
+          // Pass data through unchanged; inspect for logging + error rewriting.
+          sseBuffer += chunk.toString();
+          const lines = sseBuffer.split("\n");
+          // Keep the last (potentially incomplete) line in the buffer
+          sseBuffer = lines.pop()!;
 
-            for (const line of lines) {
-              if (!line.startsWith("data: ") || !line.includes('"message_start"')) continue;
+          let extra = "";
+          for (const line of lines) {
+            // ── message_start: one-shot usage log (existing behavior) ─────
+            if (!logged && line.startsWith("data: ") && line.includes('"message_start"')) {
               try {
                 const event = JSON.parse(line.slice(6).trim());
                 if (event?.type === "message_start" && event?.message?.usage) {
@@ -660,17 +707,57 @@ export function createApp(): express.Application {
               } catch {
                 // Ignore parse errors on partial lines
               }
+              continue;
+            }
+
+            // ── mid-stream error: normalize and forward as `chat_error` ───
+            // Anthropic emits `event: error\ndata: {"type":"error","error":{...}}`
+            // on overloaded / rate-limit / auth mid-stream. The UI sees
+            // `event: chat_error` with our structured payload and surfaces it.
+            if (line.startsWith("data: ") && line.includes('"type":"error"')) {
+              try {
+                const event = JSON.parse(line.slice(6).trim());
+                if (event?.type === "error" && event?.error) {
+                  const errType = event.error.type as string | undefined;
+                  const errMsg = (event.error.message as string | undefined) ?? "Stream error";
+                  logger.warn("Chat API stream error", { errType, message: errMsg });
+                  const payload = {
+                    category: anthropicErrorCategory(errType),
+                    source: "anthropic",
+                    description: errType,
+                    message: errMsg,
+                    timestamp: new Date().toISOString(),
+                  };
+                  extra += `event: chat_error\ndata: ${JSON.stringify(payload)}\n\n`;
+                }
+              } catch {
+                // Ignore parse errors on partial lines
+              }
             }
           }
 
-          callback(null, chunk);
+          callback(null, extra ? Buffer.concat([chunk, Buffer.from(extra)]) : chunk);
         },
       });
 
       nodeStream.pipe(inspector).pipe(res);
     } catch (err) {
-      console.error("Chat proxy failed:", err);
-      res.status(500).json({ error: "Chat proxy failed" });
+      const message = err instanceof Error ? err.message : "Chat proxy failed";
+      getLogger().withOperation("chat_proxy").error("Chat proxy failed", { message });
+      // Headers may already be flushed if the failure happened mid-stream;
+      // only emit a JSON error if we haven't started writing yet.
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: {
+            category: "unknown",
+            source: "chat",
+            message,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } else {
+        res.end();
+      }
     }
   });
 

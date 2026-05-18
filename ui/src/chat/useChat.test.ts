@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message, ToolDefinition } from "./types";
-import { streamChatAPI, useChat } from "./useChat";
+import { ChatAPIError, streamChatAPI, useChat } from "./useChat";
 
 const useMCPMock = vi.fn();
 
@@ -136,6 +136,96 @@ describe("streamChatAPI", () => {
     expect(response.content).toEqual([{ type: "text", text: "Split-chunk markdown" }]);
     expect(response.stop_reason).toBe("end_turn");
     expect(onText).toHaveBeenCalledWith("Split-chunk markdown");
+  });
+
+  it("throws ChatAPIError carrying structured detail when server returns 4xx/5xx JSON", async () => {
+    const onText = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              category: "rate_limit",
+              source: "anthropic",
+              status: 429,
+              message: "Rate limit exceeded",
+              timestamp: "2026-05-18T00:00:00.000Z",
+            },
+          }),
+          { status: 429, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    );
+
+    await expect(streamChatAPI(messages, tools, null, "medium", onText)).rejects.toMatchObject({
+      name: "ChatAPIError",
+      detail: {
+        category: "rate_limit",
+        source: "anthropic",
+        status: 429,
+        message: "Rate limit exceeded",
+      },
+    });
+  });
+
+  it("throws ChatAPIError with synthetic detail when 5xx body is not JSON", async () => {
+    const onText = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("internal server error", {
+          status: 500,
+          headers: { "Content-Type": "text/plain" },
+        })
+      )
+    );
+
+    let caught: unknown;
+    try {
+      await streamChatAPI(messages, tools, null, "medium", onText);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ChatAPIError);
+    const detail = (caught as ChatAPIError).detail;
+    expect(detail.source).toBe("chat");
+    expect(detail.status).toBe(500);
+    expect(detail.message).toContain("internal server error");
+  });
+
+  it("throws ChatAPIError when a mid-stream `event: chat_error` frame arrives", async () => {
+    const onText = vi.fn();
+    // Mix of normal message_start + chat_error frame. The chat_error must abort
+    // the read loop with a typed throw, even though earlier deltas streamed fine.
+    const chunks = [
+      sseLine({
+        type: "message_start",
+        message: { id: "msg_e", model: "claude-test", usage: { input_tokens: 1 } },
+      }),
+      `event: chat_error\ndata: ${JSON.stringify({
+        category: "rate_limit",
+        source: "anthropic",
+        description: "overloaded_error",
+        message: "Overloaded",
+        timestamp: "2026-05-18T00:00:00.000Z",
+      })}\n\n`,
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(makeStream(chunks), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        })
+      )
+    );
+
+    await expect(streamChatAPI(messages, tools, null, "medium", onText)).rejects.toMatchObject({
+      name: "ChatAPIError",
+      detail: { category: "rate_limit", source: "anthropic", description: "overloaded_error" },
+    });
   });
 });
 

@@ -82,11 +82,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
 
       try {
         // Exchange user's JWT for a Linear access token
-        const tokenResponse = await exchangeToken(
-          authInfo,
-          LINEAR_RESOURCE,
-          LINEAR_SCOPES
-        );
+        const tokenResponse = await exchangeToken(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
 
         const includeCompleted = args.includeCompleted ?? false;
         const limit = args.limit ?? 20;
@@ -180,7 +176,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
           ],
         };
       } catch (error) {
-        return handleToolError(error, LINEAR_RESOURCE, LINEAR_SCOPES);
+        return handleToolError(error, "linear", LINEAR_RESOURCE, LINEAR_SCOPES);
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof linearIssuesInputSchema>
   );

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ToolCall } from '../../chat/types'
+import { ErrorDetail } from './ErrorDetail'
 
 interface ToolCallCardProps {
   toolCall: ToolCall
@@ -24,6 +25,18 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       {expanded && (
         <div className="tool-call-card__details">
+          {toolCall.errorDetails && toolCall.errorDetails.length > 0 && (
+            <div className="tool-call-card__section">
+              <span className="tool-call-card__label">
+                {toolCall.errorDetails.length > 1
+                  ? `Errors (${toolCall.errorDetails.length})`
+                  : 'Error'}
+              </span>
+              {toolCall.errorDetails.map((err, i) => (
+                <ErrorDetail key={`${err.source}-${err.timestamp}-${i}`} error={err} />
+              ))}
+            </div>
+          )}
           {Object.keys(toolCall.input).length > 0 && (
             <div className="tool-call-card__section">
               <span className="tool-call-card__label">Input</span>

@@ -24,12 +24,13 @@ import { handleToolError } from "../tool-error-utils";
 // ── handleToolError always returns isError: true ─────────────────────────────
 
 describe("handleToolError → isError contract", () => {
+  const SOURCE = "gmail";
   const RESOURCE = "https://www.googleapis.com/auth/gmail.readonly";
   const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 
   it("should return isError: true for TokenExchangeError", () => {
     const error = new TokenExchangeError("Token exchange failed: 500", 500);
-    const result = handleToolError(error, RESOURCE, SCOPES);
+    const result = handleToolError(error, SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
   });
 
@@ -39,24 +40,24 @@ describe("handleToolError → isError contract", () => {
       400,
       "Token has been revoked"
     );
-    const result = handleToolError(error, RESOURCE, SCOPES);
+    const result = handleToolError(error, SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
   });
 
   it("should return isError: true for AuthenticationError", () => {
     const error = new AuthenticationError("Gmail", 401);
-    const result = handleToolError(error, RESOURCE, SCOPES);
+    const result = handleToolError(error, SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
   });
 
   it("should return isError: true for generic errors", () => {
     const error = new Error("ECONNREFUSED 127.0.0.1:8080");
-    const result = handleToolError(error, RESOURCE, SCOPES);
+    const result = handleToolError(error, SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
   });
 
   it("should return isError: true for non-Error values", () => {
-    const result = handleToolError("something went wrong", RESOURCE, SCOPES);
+    const result = handleToolError("something went wrong", SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
   });
 });
@@ -66,7 +67,7 @@ describe("handleToolError → isError contract", () => {
 describe("handleToolError response structure", () => {
   it("should return content array with a single text entry", () => {
     const error = new Error("something broke");
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
+    const result = handleToolError(error, "linear", "https://api.example.com", ["read"]);
 
     expect(result.content).toHaveLength(1);
     expect(result.content[0].type).toBe("text");
@@ -76,14 +77,18 @@ describe("handleToolError response structure", () => {
 
   it("should return clean LLM-facing message for TokenExchangeError (no developer details)", () => {
     const error = new TokenExchangeError("Token exchange failed: 400", 400);
-    const result = handleToolError(error, "https://www.googleapis.com/auth/gmail.readonly", [
+    const result = handleToolError(
+      error,
+      "gmail",
       "https://www.googleapis.com/auth/gmail.readonly",
-    ]);
+      ["https://www.googleapis.com/auth/gmail.readonly"]
+    );
 
     // LLM-facing message guides reauthorization
     expect(result.content[0].text).toContain("Authorization failed");
     expect(result.content[0].text).toContain("Reauthorize");
-    // Developer details are logged server-side, NOT in the response
+    // Developer details are logged server-side, NOT in the LLM-facing text.
+    // (They DO live on `_meta.error` for the UI — covered in a separate test.)
     expect(result.content[0].text).not.toContain("resource:");
     expect(result.content[0].text).not.toContain("scope:");
     expect(result.content[0].text).not.toContain("googleapis.com");
@@ -95,21 +100,154 @@ describe("handleToolError response structure", () => {
       400,
       "Token has been revoked"
     );
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
+    const result = handleToolError(error, "linear", "https://api.example.com", ["read"]);
 
-    // Raw error_description goes to server logs, not LLM response
+    // Raw error_description must not appear in the LLM-facing text.
     expect(result.content[0].text).not.toContain("Token has been revoked");
     expect(result.content[0].text).toContain("Authorization failed");
   });
 
   it("should return clean message for generic errors (no raw error.message)", () => {
     const error = new Error("ECONNREFUSED 127.0.0.1:8080");
-    const result = handleToolError(error, "https://api.example.com", ["read"]);
+    const result = handleToolError(error, "linear", "https://api.example.com", ["read"]);
 
     expect(result.content[0].text).toContain("unexpected error");
-    // Raw error message goes to server logs, NOT the LLM response
+    // Raw error message must not appear in the LLM-facing text.
     expect(result.content[0].text).not.toContain("ECONNREFUSED");
     expect(result.content[0].text).not.toContain("127.0.0.1");
+  });
+});
+
+// ── _meta.error structured detail contract ───────────────────────────────────
+//
+// The UI consumes `_meta.error` directly — it must carry the full detail the
+// LLM-facing `text` deliberately omits. This is the load-bearing test for the
+// dual-channel split.
+
+describe("handleToolError → _meta.error structured detail", () => {
+  it("classifies TokenExchangeError as 'auth' and carries status + description", () => {
+    const error = new TokenExchangeError(
+      "Token exchange failed: 400",
+      400,
+      "Token has been revoked"
+    );
+    const result = handleToolError(error, "linear", "https://api.linear.app", ["read"]);
+
+    expect(result._meta?.error.category).toBe("auth");
+    expect(result._meta?.error.source).toBe("linear");
+    expect(result._meta?.error.status).toBe(400);
+    expect(result._meta?.error.description).toBe("Token has been revoked");
+    expect(result._meta?.error.resource).toBe("https://api.linear.app");
+    expect(result._meta?.error.scopes).toEqual(["read"]);
+  });
+
+  it("classifies AuthenticationError as 'auth' with status", () => {
+    const error = new AuthenticationError("Gmail", 401);
+    const result = handleToolError(error, "gmail", "https://gmail.googleapis.com", [
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
+
+    expect(result._meta?.error.category).toBe("auth");
+    expect(result._meta?.error.status).toBe(401);
+  });
+
+  it("classifies TypeError as 'network'", () => {
+    const result = handleToolError(
+      new TypeError("fetch failed"),
+      "github",
+      "https://api.github.com",
+      []
+    );
+
+    expect(result._meta?.error.category).toBe("network");
+    expect(result._meta?.error.message).toBe("fetch failed");
+  });
+
+  it("classifies status-bearing errors: 429 → rate_limit, 502 → upstream_api", () => {
+    const rateLimited = handleToolError(
+      Object.assign(new Error("quota"), { status: 429 }),
+      "github",
+      "https://api.github.com",
+      []
+    );
+    const upstream = handleToolError(
+      Object.assign(new Error("bad gateway"), { status: 502 }),
+      "github",
+      "https://api.github.com",
+      []
+    );
+
+    expect(rateLimited._meta?.error.category).toBe("rate_limit");
+    expect(rateLimited._meta?.error.status).toBe(429);
+    expect(upstream._meta?.error.category).toBe("upstream_api");
+    expect(upstream._meta?.error.status).toBe(502);
+  });
+
+  it("falls back to 'unknown' category for plain errors with no status", () => {
+    const result = handleToolError(new Error("???"), "slack", "https://slack.com/api", []);
+
+    expect(result._meta?.error.category).toBe("unknown");
+    expect(result._meta?.error.status).toBeUndefined();
+  });
+
+  it("preserves the raw error.message verbatim on _meta.error (UI-only channel)", () => {
+    const error = new Error("ECONNREFUSED 127.0.0.1:8080");
+    const result = handleToolError(error, "linear", "https://api.linear.app", ["read"]);
+
+    expect(result._meta?.error.message).toBe("ECONNREFUSED 127.0.0.1:8080");
+    // …while the LLM-facing text stays sanitized.
+    expect(result.content[0].text).not.toContain("ECONNREFUSED");
+  });
+
+  it("includes extraHints joined into the hint field", () => {
+    const result = handleToolError(
+      new TokenExchangeError("fail", 500),
+      "gmail",
+      "https://gmail.googleapis.com",
+      [],
+      ["Ensure Gmail credential provider is configured in Keycard."]
+    );
+
+    expect(result._meta?.error.hint).toBe(
+      "Ensure Gmail credential provider is configured in Keycard."
+    );
+  });
+
+  it("emits a parseable ISO-8601 timestamp", () => {
+    const result = handleToolError(new Error("boom"), "linear", "https://api.linear.app", ["read"]);
+
+    expect(result._meta?.error.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(Number.isNaN(Date.parse(result._meta!.error.timestamp))).toBe(false);
+  });
+
+  it("surfaces ALL candidate resources for aggregate tools (joined with newlines)", () => {
+    // Aggregate tools like `assigned-actions` and `drive-activity` exchange
+    // tokens for multiple resources in one operation; when the call fails, we
+    // don't know which resource was at fault. Joining is the most honest
+    // representation — better than arbitrarily picking the first.
+    const result = handleToolError(
+      new TokenExchangeError("fail", 400),
+      "drive",
+      ["https://drive.googleapis.com", "https://gmail.googleapis.com", "https://docs.googleapis.com"],
+      [["scope.a"], ["scope.b"]]
+    );
+
+    expect(result._meta?.error.resource).toContain("drive.googleapis.com");
+    expect(result._meta?.error.resource).toContain("gmail.googleapis.com");
+    expect(result._meta?.error.resource).toContain("docs.googleapis.com");
+  });
+
+  it("dedupes scopes from string[][] inputs", () => {
+    // assigned-actions passes overlapping scope sets; the structured error
+    // should carry one deduped list, not the raw flattened array with dupes.
+    const result = handleToolError(
+      new TokenExchangeError("fail", 400),
+      "drive",
+      ["https://drive.googleapis.com"],
+      [["read"], ["read", "write"], ["write"]]
+    );
+
+    expect(result._meta?.error.scopes).toEqual(["read", "write"]);
   });
 });
 
