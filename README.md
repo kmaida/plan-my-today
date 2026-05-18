@@ -65,7 +65,7 @@ At minimum you need:
 
 ```bash
 # ── Required: Keycard OAuth ───────────────────
-KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud
+KEYCARD_URL=https://your-zone-id.keycard.cloud
 KEYCARD_CLIENT_ID=your-client-id
 KEYCARD_CLIENT_SECRET=your-client-secret
 
@@ -254,7 +254,7 @@ Set `MEETING_NOTES_FOLDER_ID` to your Google Drive folder ID and `USER_DISPLAY_N
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `KEYCARD_STS_ISSUER_URL` | Keycard issuer URL | — (required) |
+| `KEYCARD_URL` | Keycard zone URL | — (required) |
 | `KEYCARD_CLIENT_ID` | Keycard client ID | — (required) |
 | `KEYCARD_CLIENT_SECRET` | Keycard client secret | — (required) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Todaygent | — (required for chat) |

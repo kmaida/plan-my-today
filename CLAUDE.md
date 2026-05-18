@@ -87,7 +87,7 @@ ui/                  # Vite + React dashboard and Todaygent chat agent
 ## Environment
 
 - Node.js + TypeScript (ES2020 target)
-- Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_STS_ISSUER_URL`
+- Required env vars: `KEYCARD_CLIENT_ID`, `KEYCARD_CLIENT_SECRET`, `KEYCARD_URL`
 - Optional: `SLACK_EMOJI_NAME`, `USER_DISPLAY_NAME`, `ANTHROPIC_API_KEY`, `ROIBOT_MCP_ENDPOINT`
 - See `.env.example` for full list
 

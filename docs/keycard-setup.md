@@ -106,12 +106,12 @@ Resources define the API surfaces the app can exchange tokens for. Create one re
 Add the Keycard credentials to your `.env` file (see `.env.example`):
 
 ```bash
-KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud
+KEYCARD_URL=https://your-zone-id.keycard.cloud
 KEYCARD_CLIENT_ID=your-client-id
 KEYCARD_CLIENT_SECRET=your-client-secret
 ```
 
-- `KEYCARD_STS_ISSUER_URL` — Your zone URL from the Keycard Console (Zone Settings)
+- `KEYCARD_URL` — Your zone URL from the Keycard Console (Zone Settings)
 - `KEYCARD_CLIENT_ID` — The Application Client ID
 - `KEYCARD_CLIENT_SECRET` — The Application Client Secret
 

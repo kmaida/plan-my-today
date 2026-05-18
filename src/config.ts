@@ -53,7 +53,7 @@ function getConfig(): ServerConfig {
   const HOST = process.env.HOST || "localhost";
   // Base URL for the server (used in startup logs and metadata)
   const BASE_URL = `http://${HOST}:${PORT}`;
-  const KEYCARD_STS_ISSUER_URL = process.env.KEYCARD_STS_ISSUER_URL;
+  const KEYCARD_URL = process.env.KEYCARD_URL;
 
   // Keycard client ID and secret are required for the MCP server to authenticate with Keycard
   const KEYCARD_CLIENT_ID = process.env.KEYCARD_CLIENT_ID;
@@ -105,10 +105,10 @@ function getConfig(): ServerConfig {
     console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
   }
 
-  if (!KEYCARD_STS_ISSUER_URL) {
+  if (!KEYCARD_URL) {
     throw new Error(
-      "❌ FATAL: KEYCARD_STS_ISSUER_URL must be defined.\n" +
-        "💡 Example: KEYCARD_STS_ISSUER_URL=https://your-zone-id.keycard.cloud"
+      "❌ FATAL: KEYCARD_URL must be defined.\n" +
+        "💡 Example: KEYCARD_URL=https://your-zone-id.keycard.cloud"
     );
   }
 
@@ -125,7 +125,7 @@ function getConfig(): ServerConfig {
     port: PORT,
     host: HOST,
     baseUrl: BASE_URL,
-    keycardIssuerUrl: KEYCARD_STS_ISSUER_URL,
+    keycardIssuerUrl: KEYCARD_URL,
     keycardClientId: KEYCARD_CLIENT_ID || "",
     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",
