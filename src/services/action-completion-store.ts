@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import AsyncLock from "async-lock";
 import type { ActionSource } from "../utils/action-identifiers";
 
 export interface CompletedAction {
@@ -20,6 +21,15 @@ const COMPLETIONS_FILE_PATH =
 const PRUNE_DAYS = 30; // Delete completions older than 30 days
 const PRUNE_INTERVAL_HOURS = 24; // Only prune once per 24 hours
 
+// Module-scoped lock — serializes all read/write to COMPLETIONS_FILE_PATH.
+// `readCompletionsFileUnlocked` can auto-prune (i.e. write), so reads must
+// also acquire the lock or two concurrent reads could double-prune.
+// AsyncLock does not re-enter on the same key, so every callable that may
+// invoke a `*Unlocked` helper MUST already hold the lock — never call a
+// public method from inside another public method's lock block.
+const lock = new AsyncLock();
+const LOCK_KEY = "completions";
+
 /**
  * Ensure data directory exists
  */
@@ -29,17 +39,19 @@ async function ensureDataDir(): Promise<void> {
 }
 
 /**
- * Read completions file from disk
- * Automatically prunes old completions if needed
+ * Read completions file from disk. Auto-prunes if needed.
+ *
+ * Caller MUST hold `lock` for LOCK_KEY — the auto-prune path writes to disk.
  */
-async function readCompletionsFile(): Promise<CompletedActionsData> {
+async function readCompletionsFileUnlocked(): Promise<CompletedActionsData> {
   try {
     const content = await fs.readFile(COMPLETIONS_FILE_PATH, "utf-8");
     const data: CompletedActionsData = JSON.parse(content);
 
-    // Auto-prune if needed
     if (shouldPrune(data)) {
-      return await pruneAndSave(data);
+      const pruned = pruneOldCompletions(data, PRUNE_DAYS);
+      await writeCompletionsFileUnlocked(pruned);
+      return pruned;
     }
 
     return data;
@@ -50,9 +62,11 @@ async function readCompletionsFile(): Promise<CompletedActionsData> {
 }
 
 /**
- * Write completions file to disk
+ * Write completions file to disk.
+ *
+ * Caller MUST hold `lock` for LOCK_KEY.
  */
-async function writeCompletionsFile(data: CompletedActionsData): Promise<void> {
+async function writeCompletionsFileUnlocked(data: CompletedActionsData): Promise<void> {
   await ensureDataDir();
   await fs.writeFile(COMPLETIONS_FILE_PATH, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
@@ -70,15 +84,6 @@ function shouldPrune(data: CompletedActionsData): boolean {
   const hoursSinceLastPrune = (now.getTime() - lastPruned.getTime()) / (1000 * 60 * 60);
 
   return hoursSinceLastPrune >= PRUNE_INTERVAL_HOURS;
-}
-
-/**
- * Prune old completions and save to disk
- */
-async function pruneAndSave(data: CompletedActionsData): Promise<CompletedActionsData> {
-  const pruned = pruneOldCompletions(data, PRUNE_DAYS);
-  await writeCompletionsFile(pruned);
-  return pruned;
 }
 
 /**
@@ -118,17 +123,19 @@ export async function markActionComplete(
   identifier: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  const data = await readCompletionsFile();
-  const key = buildKey(source, identifier);
+  await lock.acquire(LOCK_KEY, async () => {
+    const data = await readCompletionsFileUnlocked();
+    const key = buildKey(source, identifier);
 
-  data.completions[key] = {
-    source,
-    identifier,
-    completedAt: new Date().toISOString(),
-    metadata,
-  };
+    data.completions[key] = {
+      source,
+      identifier,
+      completedAt: new Date().toISOString(),
+      metadata,
+    };
 
-  await writeCompletionsFile(data);
+    await writeCompletionsFileUnlocked(data);
+  });
 }
 
 /**
@@ -138,12 +145,14 @@ export async function markActionIncomplete(
   source: ActionSource,
   identifier: string
 ): Promise<void> {
-  const data = await readCompletionsFile();
-  const key = buildKey(source, identifier);
+  await lock.acquire(LOCK_KEY, async () => {
+    const data = await readCompletionsFileUnlocked();
+    const key = buildKey(source, identifier);
 
-  delete data.completions[key];
+    delete data.completions[key];
 
-  await writeCompletionsFile(data);
+    await writeCompletionsFileUnlocked(data);
+  });
 }
 
 /**
@@ -153,9 +162,11 @@ export async function isActionCompleted(
   source: ActionSource,
   identifier: string
 ): Promise<boolean> {
-  const data = await readCompletionsFile();
-  const key = buildKey(source, identifier);
-  return key in data.completions;
+  return lock.acquire(LOCK_KEY, async () => {
+    const data = await readCompletionsFileUnlocked();
+    const key = buildKey(source, identifier);
+    return key in data.completions;
+  });
 }
 
 /**
@@ -175,30 +186,34 @@ export async function getCompletedBySource(source: ActionSource): Promise<Set<st
 export async function getCompletedBySources(
   sources: readonly ActionSource[]
 ): Promise<Map<ActionSource, Set<string>>> {
-  const data = await readCompletionsFile();
-  const result = new Map<ActionSource, Set<string>>(sources.map((s) => [s, new Set<string>()]));
+  return lock.acquire(LOCK_KEY, async () => {
+    const data = await readCompletionsFileUnlocked();
+    const result = new Map<ActionSource, Set<string>>(sources.map((s) => [s, new Set<string>()]));
 
-  for (const key of Object.keys(data.completions)) {
-    for (const source of sources) {
-      const prefix = `${source}:`;
-      if (key.startsWith(prefix)) {
-        result.get(source)!.add(key.slice(prefix.length));
-        break; // A key can only match one source prefix
+    for (const key of Object.keys(data.completions)) {
+      for (const source of sources) {
+        const prefix = `${source}:`;
+        if (key.startsWith(prefix)) {
+          result.get(source)!.add(key.slice(prefix.length));
+          break; // A key can only match one source prefix
+        }
       }
     }
-  }
 
-  return result;
+    return result;
+  });
 }
 
 /**
  * Manually trigger pruning (for testing)
  */
 export async function forcePrune(daysBack: number = PRUNE_DAYS): Promise<number> {
-  const data = await readCompletionsFile();
-  const beforeCount = Object.keys(data.completions).length;
-  const pruned = pruneOldCompletions(data, daysBack);
-  await writeCompletionsFile(pruned);
-  const afterCount = Object.keys(pruned.completions).length;
-  return beforeCount - afterCount; // Return number of items pruned
+  return lock.acquire(LOCK_KEY, async () => {
+    const data = await readCompletionsFileUnlocked();
+    const beforeCount = Object.keys(data.completions).length;
+    const pruned = pruneOldCompletions(data, daysBack);
+    await writeCompletionsFileUnlocked(pruned);
+    const afterCount = Object.keys(pruned.completions).length;
+    return beforeCount - afterCount; // Return number of items pruned
+  });
 }

@@ -10,6 +10,7 @@ import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../../types/in
 import { formatAuthError } from "../../utils/error-utils";
 import { filterCompletedTasks } from "../../utils/filter-completed-tasks";
 import { computeStableId } from "../../utils/stable-task-keys";
+import { writeTaskStore } from "../../utils/task-store-utils";
 import { calculateCalendarPriority, fetchTodayCalendarEvents } from "../today-todos/calendar-utils";
 import {
   buildCalendarCrossRefs,
@@ -224,6 +225,16 @@ const listAllTasksTodayInputSchema = {
       "Force a fresh fetch even if data was recently fetched. Use when the user explicitly asks to refresh."
     )
     .optional(),
+  includeRecentlyCompleted: z
+    .boolean()
+    .describe(
+      "Include Linear issues completed within the last `completedDaysBack` days alongside actionable items. Use when the user asks what they recently finished or shipped. Default: false."
+    )
+    .optional(),
+  completedDaysBack: z
+    .number()
+    .describe("How many days back to include recently-completed Linear issues. Default: 3.")
+    .optional(),
 };
 
 /**
@@ -340,7 +351,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
         // 1: Linear
         (async () => {
           const token = await exchangeToken(authInfo, LINEAR_RESOURCE, LINEAR_SCOPES);
-          return fetchLinearIssues(token.accessToken, sevenDaysFromNow);
+          return fetchLinearIssues(token.accessToken, sevenDaysFromNow, {
+            includeRecentlyCompleted: args.includeRecentlyCompleted ?? false,
+            completedDaysBack: args.completedDaysBack ?? 3,
+          });
         })(),
 
         // 2: Gmail (todos + meeting summaries + doc comment emails share one STS exchange)
@@ -748,13 +762,10 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
 
       // Write full data to local file so the UI can read it without auth.
       // Awaited so the task store is fresh when the UI re-fetches after a chat tool call.
+      // `writeTaskStore` serializes with `removeTaskFromStore` / `mutateTaskStore`
+      // so a concurrent dashboard dismiss can't overwrite this refresh.
       try {
-        const dataDir = path.join(process.cwd(), "data");
-        await fs.mkdir(dataDir, { recursive: true });
-        await fs.writeFile(
-          path.join(dataDir, "latest-tasks.json"),
-          JSON.stringify(responseData, null, 2)
-        );
+        await writeTaskStore(responseData);
         // Only guard future calls when every source succeeded — partial failures
         // should allow immediate retry without hitting the freshness guard.
         if (failedSources.length === 0) {

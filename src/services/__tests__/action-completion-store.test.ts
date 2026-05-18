@@ -212,27 +212,30 @@ describe("File error handling", () => {
   });
 });
 
-// ── Concurrent write race condition (KNOWN ISSUE) ────────────────────────────
+// ── Concurrent writes (serialized by the module's async-lock) ────────────────
 
 describe("Concurrent writes", () => {
-  // KNOWN ISSUE: The store does read → modify → write without file locking.
-  // If two writes happen concurrently, the second writer reads the file
-  // before the first writer has finished writing, then overwrites the
-  // first writer's changes.
-  //
-  // Possible fixes:
-  // - proper-lockfile or fs-ext advisory locks
-  // - Atomic write via write-to-temp + rename
-  // - In-memory cache with single-writer queue + periodic flush
-  it.skip("concurrent markActionComplete calls should both persist (TOCTOU race)", async () => {
-    // Fire two marks simultaneously without awaiting between them
+  it("concurrent markActionComplete calls both persist", async () => {
+    // Without the lock these would race (read-modify-write on the same file).
+    // With the module-scoped async-lock they serialize, so both completions survive.
     await Promise.all([
       markActionComplete("slack", "id-concurrent-1"),
       markActionComplete("slack", "id-concurrent-2"),
     ]);
 
-    // Both should survive — but one may be lost due to the race
     expect(await isActionCompleted("slack", "id-concurrent-1")).toBe(true);
     expect(await isActionCompleted("slack", "id-concurrent-2")).toBe(true);
+  });
+
+  it("concurrent markActionComplete + markActionIncomplete on different ids both persist", async () => {
+    await markActionComplete("slack", "id-to-undo");
+
+    await Promise.all([
+      markActionComplete("slack", "id-new"),
+      markActionIncomplete("slack", "id-to-undo"),
+    ]);
+
+    expect(await isActionCompleted("slack", "id-new")).toBe(true);
+    expect(await isActionCompleted("slack", "id-to-undo")).toBe(false);
   });
 });

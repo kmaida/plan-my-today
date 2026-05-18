@@ -86,15 +86,15 @@ export function registerGmailTool(mcpServer: McpServer): void {
         const includeImportant = args.includeImportant ?? true;
         const includeNeedsReply = args.includeNeedsReply ?? true;
 
-        // TODO: Support custom searchQuery parameter
-        // The utility function uses a fixed query, so custom queries aren't supported yet
-
-        // Fetch emails using utility function (ignore doc comment emails in standalone tool)
+        // Fetch emails using utility function (ignore doc comment emails in standalone tool).
+        // `searchQuery` (when set) replaces the default predicate; the utility
+        // still appends `-label:Complete` and the `after:<daysBack>` window.
         const { emails } = await fetchGmailTodos(tokenResponse.accessToken, {
           daysBack,
           maxResults,
           includeRead: false, // Tool focuses on unread/starred
           strictFiltering: true, // Apply newsletter/low-priority filtering
+          searchQuery: args.searchQuery,
         });
 
         if (emails.length === 0) {

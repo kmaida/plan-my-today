@@ -10,7 +10,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { removeTaskFromStore } from "../task-store-utils";
+import { mutateTaskStore, removeTaskFromStore, writeTaskStore } from "../task-store-utils";
 
 const TEST_STORE_PATH = path.join(process.cwd(), "data", "test-store.json");
 
@@ -148,29 +148,11 @@ describe("Error handling", () => {
   });
 });
 
-// ── Concurrent write race condition (KNOWN ISSUE) ────────────────────────────
+// ── Concurrent writes (serialized by the module's async-lock) ────────────────
 
 describe("Concurrent writes", () => {
-  // KNOWN ISSUE: The agent writes the full task store via
-  // list-all-tasks-today while the dashboard calls removeTaskFromStore.
-  // Both do read → modify → write without locking:
-  //
-  // 1. Dashboard reads file (has tasks A, B, C)
-  // 2. Agent reads file (has tasks A, B, C)
-  // 3. Agent writes file (new data: tasks D, E, F)
-  // 4. Dashboard writes file (removes B from old data: tasks A, C)
-  //    → Agent's refresh is lost!
-  //
-  // Alternatively:
-  // 1. Agent writes fresh data
-  // 2. Dashboard removes one task from the now-stale read
-  //    → The removal overwrites the agent's fresh data
-  //
-  // Possible fixes:
-  // - Write to temp file + atomic rename
-  // - Advisory file lock (e.g., proper-lockfile)
-  // - In-memory cache with write queue
-  it.skip("dashboard eviction should not overwrite agent refresh (TOCTOU race)", async () => {
+  it("agent full-refresh and dashboard eviction don't lose each other's writes", async () => {
+    // Seed initial state — two old tasks.
     await writeStore({
       linear: [
         { taskId: "old-1", title: "Old" },
@@ -178,19 +160,61 @@ describe("Concurrent writes", () => {
       ],
     });
 
-    // Simulate: agent writes new data, dashboard removes from stale read
-    const dashboardRead = fs.readFile(TEST_STORE_PATH, "utf-8");
-    const agentData = { linear: [{ taskId: "new-1", title: "Fresh" }] };
-    await fs.writeFile(TEST_STORE_PATH, JSON.stringify(agentData));
+    // Fire concurrently:
+    //   - Agent does a full refresh (writeTaskStore replaces the file).
+    //   - Dashboard removes an old task (removeTaskFromStore RMW).
+    // With the lock, either ordering is valid; the agent's fresh write must
+    // never be silently overwritten by a stale-read removal.
+    await Promise.all([
+      writeTaskStore({ linear: [{ taskId: "new-1", title: "Fresh" }] }, TEST_STORE_PATH),
+      removeTaskFromStore("old-1", TEST_STORE_PATH),
+    ]);
 
-    // Dashboard now writes its filtered version of the OLD data
-    const oldData = JSON.parse(await dashboardRead);
-    oldData.linear = oldData.linear.filter((t: { taskId: string }) => t.taskId !== "old-1");
-    await fs.writeFile(TEST_STORE_PATH, JSON.stringify(oldData));
-
-    // The agent's fresh data should be preserved — but it's overwritten
     const data = await readStore();
-    expect((data.linear as unknown[]).length).toBe(1);
-    expect((data.linear as Array<{ taskId: string }>)[0].taskId).toBe("new-1");
+    const linear = data.linear as Array<{ taskId: string }>;
+    // Whichever order the lock granted, the final state must be the agent's data
+    // (if dashboard went first, agent overwrote; if agent went first, dashboard
+    // tried to remove a now-absent "old-1" and no-op'd).
+    expect(linear).toEqual([{ taskId: "new-1", title: "Fresh" }]);
+  });
+
+  it("concurrent removeTaskFromStore on different ids both persist", async () => {
+    await writeStore({
+      linear: [
+        { taskId: "task-1", title: "One" },
+        { taskId: "task-2", title: "Two" },
+        { taskId: "task-3", title: "Three" },
+      ],
+    });
+
+    await Promise.all([
+      removeTaskFromStore("task-1", TEST_STORE_PATH),
+      removeTaskFromStore("task-2", TEST_STORE_PATH),
+    ]);
+
+    const data = await readStore();
+    expect(data.linear).toEqual([{ taskId: "task-3", title: "Three" }]);
+  });
+
+  it("concurrent mutateTaskStore mutations both persist", async () => {
+    await writeStore({ linear: [{ taskId: "task-1", flag: false }] });
+
+    await Promise.all([
+      mutateTaskStore((d) => {
+        const arr = d.linear as Array<{ taskId: string; flag?: boolean; mutA?: boolean }>;
+        arr[0].mutA = true;
+        return true;
+      }, TEST_STORE_PATH),
+      mutateTaskStore((d) => {
+        const arr = d.linear as Array<{ taskId: string; flag?: boolean; mutB?: boolean }>;
+        arr[0].mutB = true;
+        return true;
+      }, TEST_STORE_PATH),
+    ]);
+
+    const data = await readStore();
+    const task = (data.linear as Array<{ mutA?: boolean; mutB?: boolean }>)[0];
+    expect(task.mutA).toBe(true);
+    expect(task.mutB).toBe(true);
   });
 });

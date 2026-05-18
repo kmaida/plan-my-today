@@ -6,6 +6,7 @@ import { removeOverride, setOverride } from "../services/priority-override-store
 import type { PriorityMetadata } from "../tools/today-todos/priority-utils";
 import { categorizeScore } from "../tools/today-todos/priority-utils";
 import type { AuthenticatedToolHandlerWithArgs, McpServer } from "../types/index";
+import { mutateTaskStore } from "../utils/task-store-utils";
 
 /**
  * Minimal shape of a task item in the JSON task store.
@@ -189,7 +190,8 @@ async function findTaskInStore(stableId: string): Promise<{ score: number; title
 
 /**
  * Update the task store in-place: apply or clear override on matching task, re-sort, write back.
- * Non-fatal on errors — the override store is the source of truth.
+ * Serialized via `mutateTaskStore` so concurrent full-refresh writes / dismissals
+ * can't race this RMW. Non-fatal on errors — the override store is the source of truth.
  */
 async function updateStoreWithOverride(
   stableId: string,
@@ -198,9 +200,7 @@ async function updateStoreWithOverride(
   appliedAt: string,
   clear: boolean
 ): Promise<void> {
-  try {
-    const raw = await fs.readFile(TASK_STORE_PATH, "utf-8");
-    const data = JSON.parse(raw);
+  await mutateTaskStore((data) => {
     let modified = false;
 
     const containingArray = traverseStoreArrays(data, stableId, (item) => {
@@ -214,11 +214,10 @@ async function updateStoreWithOverride(
           b: { priorityMetadata?: { score?: number } }
         ) => (b.priorityMetadata?.score ?? 0) - (a.priorityMetadata?.score ?? 0)
       );
-      await fs.writeFile(TASK_STORE_PATH, JSON.stringify(data, null, 2));
+      return true;
     }
-  } catch {
-    // Non-fatal — override store is the source of truth
-  }
+    return false;
+  });
 }
 
 // ── Tool registration ────────────────────────────────────────────────

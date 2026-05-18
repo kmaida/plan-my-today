@@ -904,6 +904,10 @@ function mapToGmailMessageDetail(message: GmailFullMessage): GmailMessageDetail 
  * @param options.maxResults - Maximum emails to return (default: 20, agent: 30-40)
  * @param options.includeRead - Include recent read emails (default: false, agent: true)
  * @param options.strictFiltering - Apply strict filtering for newsletters/low-priority (default: true, agent: false)
+ * @param options.searchQuery - Custom Gmail predicate (e.g. "from:alice@example.com").
+ *   Replaces the default candidate predicate but the `-label:Complete` dismissal
+ *   exclusion and `after:<daysBack>` temporal window are always preserved.
+ *   When set, `includeRead` is inert (the custom predicate decides what's in scope).
  * @returns emails for the email pipeline, and docCommentEmails for the docs pipeline
  */
 export async function fetchGmailTodos(
@@ -913,10 +917,17 @@ export async function fetchGmailTodos(
     maxResults?: number;
     includeRead?: boolean;
     strictFiltering?: boolean;
+    searchQuery?: string;
   } = {}
 ): Promise<FetchGmailTodosResult> {
   // Defaults: backward compatible with existing behavior
-  const { daysBack = 7, maxResults = 20, includeRead = false, strictFiltering = true } = options;
+  const {
+    daysBack = 7,
+    maxResults = 20,
+    includeRead = false,
+    strictFiltering = true,
+    searchQuery,
+  } = options;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -926,18 +937,24 @@ export async function fetchGmailTodos(
   lookbackDate.setDate(today.getDate() - daysBack);
   const afterDate = Math.floor(lookbackDate.getTime() / 1000);
 
-  // Build query based on includeRead option
-  let query: string;
-  if (includeRead) {
+  // Build the candidate predicate. `searchQuery` overrides the built-in
+  // `is:unread`/`is:starred`/`includeRead` logic; the `-label:Complete`
+  // dismissal exclusion and `after:` window are appended unconditionally so
+  // a user query can't accidentally re-surface dismissed items or escape
+  // the tool's time horizon. Gmail intersects duplicate operators safely.
+  let candidatePredicate: string;
+  if (searchQuery) {
+    candidatePredicate = searchQuery;
+  } else if (includeRead) {
     // Include starred + unread + recent read (last 3 days)
     const threeDaysAgo = new Date(today);
     threeDaysAgo.setDate(today.getDate() - 3);
     const recentDate = Math.floor(threeDaysAgo.getTime() / 1000);
-    query = `(is:starred OR is:unread OR after:${recentDate}) -label:Complete after:${afterDate}`;
+    candidatePredicate = `(is:starred OR is:unread OR after:${recentDate})`;
   } else {
-    // Original behavior: only unread or starred
-    query = `(is:unread OR is:starred) -label:Complete after:${afterDate}`;
+    candidatePredicate = "(is:unread OR is:starred)";
   }
+  const query = `${candidatePredicate} -label:Complete after:${afterDate}`;
 
   const messagesResponse = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages?` +

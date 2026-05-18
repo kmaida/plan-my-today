@@ -225,12 +225,7 @@ export async function fetchLinearIssues(
     completedDaysBack?: number;
   } = {}
 ): Promise<LinearIssueDetail[]> {
-  // Defaults: backward compatible with existing behavior
-  // TODO: implement recently-completed filtering when agent requests it
-  const {
-    includeRecentlyCompleted: _includeRecentlyCompleted = false,
-    completedDaysBack: _completedDaysBack = 0,
-  } = options;
+  const { includeRecentlyCompleted = false, completedDaysBack = 3 } = options;
 
   // Push actionable-today logic to the Linear GraphQL API using the `or` combinator.
   // Result: (NOT completed/canceled) AND (started OR high-priority OR due-within-window).
@@ -248,11 +243,46 @@ export async function fetchLinearIssues(
     ],
   };
 
-  return fetchAllAssignedIssues(accessToken, {
+  const actionable = await fetchAllAssignedIssues(accessToken, {
     includeCompleted: false,
     limit: FETCH_LIMITS.LINEAR,
     additionalFilter: actionableFilter,
   });
+
+  if (!includeRecentlyCompleted) {
+    return actionable;
+  }
+
+  // Second query: items completed within the lookback window.
+  // Kept separate from the actionable query because flipping `includeCompleted: true`
+  // on the actionable call would drop the `state.type {nin: [completed, canceled]}`
+  // exclusion entirely — combined with the high-priority OR branch, that would
+  // surface ancient completed high-pri tickets. Also keeps the eventual-consistency
+  // post-filter inside fetchAllAssignedIssues intact for the actionable branch.
+  const completedSince = new Date();
+  completedSince.setDate(completedSince.getDate() - completedDaysBack);
+  const completedSinceISO = completedSince.toISOString();
+
+  const recentlyCompleted = await fetchAllAssignedIssues(accessToken, {
+    includeCompleted: true,
+    limit: FETCH_LIMITS.LINEAR,
+    additionalFilter: {
+      state: { type: { in: ["completed", "canceled"] } },
+      completedAt: { gte: completedSinceISO },
+    },
+  });
+
+  // Dedupe by identifier (issue key like "ENG-123" — unique per workspace).
+  // An issue could in principle satisfy both filters if state and completedAt
+  // are out of sync during Linear's eventual consistency.
+  const seen = new Set<string>();
+  const merged: LinearIssueDetail[] = [];
+  for (const issue of actionable.concat(recentlyCompleted)) {
+    if (seen.has(issue.identifier)) continue;
+    seen.add(issue.identifier);
+    merged.push(issue);
+  }
+  return merged;
 }
 
 /**

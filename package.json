@@ -37,6 +37,7 @@
     "@keycardai/mcp": "^0.4.0",
     "@keycardai/oauth": "^0.6.0",
     "@modelcontextprotocol/sdk": "^1.16.0",
+    "async-lock": "^1.4.1",
     "compression": "^1.8.1",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.1.3",
     "@release-it/conventional-changelog": "^10.0.5",
+    "@types/async-lock": "^1.4.2",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.3",
     "@types/jest": "^29.5.12",
