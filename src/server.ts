@@ -5,7 +5,6 @@ import { requireBearerAuth } from "@keycardai/mcp/server/auth/middleware/bearerA
 import { mcpAuthMetadataRouter } from "@keycardai/mcp/server/auth/router";
 import { McpServer as McpServerImpl } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport as StreamableHTTPServerTransportImpl } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import type { OAuthMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import compression from "compression";
 import express from "express";
@@ -23,7 +22,14 @@ import type { McpServer } from "./types/index";
 import { filterCompletedTasks, type TaskStoreData } from "./utils/filter-completed-tasks";
 import { removeTaskFromStore } from "./utils/task-store-utils";
 
-const authMiddleware = requireBearerAuth({ requiredScopes: [] });
+// `issuers` is required by @keycardai/mcp@0.4+ when no custom verifier is
+// passed — the SDK default JWKS keyring needs to know which issuer to trust.
+// `requiredScopes` stays empty because the UI authorize call requests
+// `openid profile` only; enforcing `mcp:tools` here would 403 every login.
+const authMiddleware = requireBearerAuth({
+  issuers: config.keycardIssuerUrl,
+  requiredScopes: [],
+});
 
 // Global storage for per-session servers
 const sessionServers: {
@@ -79,12 +85,9 @@ export function createApp(): express.Application {
   );
 
   // OAuth metadata routes (Keycard issuer discovery).
-  // The OAuthMetadata type requires authorization_endpoint/token_endpoint/etc.
-  // but Keycard manages those in the console — the router only reads `issuer`
-  // at runtime to build the .well-known responses.
   app.use(
     mcpAuthMetadataRouter({
-      oauthMetadata: { issuer: config.keycardIssuerUrl } as OAuthMetadata,
+      oauthMetadata: { issuer: config.keycardIssuerUrl },
       scopesSupported: ["mcp:tools"],
       resourceName: "Plan My Today MCP",
     })

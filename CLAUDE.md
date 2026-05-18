@@ -6,12 +6,24 @@ TypeScript MCP server that aggregates to-dos from multiple sources (Google Calen
 
 - **Auth flow**: User authenticates via Keycard → Keycard issues delegated tokens → server exchanges tokens per-service
 - **Token exchange**: `src/services/keycard-client.ts` (singleton) handles RFC 8693 token exchange with Keycard
-- **Agent delegation**: `src/services/roibot-client.ts` — MCP client that calls ROIbot via Keycard token exchange (exchange user token for ROIbot-audience token, connect as MCP client, call tools)
+- **Agent delegation (A2A)**: `src/services/roibot-a2a-client.ts` — A2A client that hands off a task to ROIbot's `/api/agent` endpoint. Exchanges the user's token for a ROIbot-audience token per call, then drives `@a2a-js/sdk`'s `ClientFactory` with a Bearer-injecting fetch
 - **Transport**: Streamable HTTP MCP transport via Express (`src/server.ts`)
 - **Tools**: Each tool in `src/tools/` follows the register-function pattern, registered centrally in `src/tools/index.ts`
 - **Config**: All env vars loaded via `src/config.ts`, never hardcode secrets
 - **Observability**: OpenTelemetry instrumentation in `src/observability/`
 - **UI**: Vite + React dashboard in `ui/`
+
+## Keycard wiring (gotchas)
+
+These are non-obvious things that have already burned us; preserve them.
+
+- **`requireBearerAuth` MUST pass `issuers`** ([src/server.ts](src/server.ts)). `@keycardai/mcp@0.4+` throws at module load when neither `verifier` nor `issuers` is supplied. We pass `issuers: config.keycardIssuerUrl`.
+- **`requiredScopes` stays `[]`, NOT `["mcp:tools"]`.** The UI authorize call ([ui/src/auth/config.ts](ui/src/auth/config.ts)) requests `scope: "openid profile"` only — switching the middleware to enforce `mcp:tools` would 403 every login. To adopt `["mcp:tools"]`: first widen the UI authorize scope and confirm the zone issues `mcp:tools` to PMT's Application.
+- **`scopesSupported` in `mcpAuthMetadataRouter` ≠ enforcement.** It's advertised at `.well-known/oauth-protected-resource` so clients know what to request. Separate from `requiredScopes`.
+- **Bearer middleware does a resource-binding check.** If a JWT's `resource` claim is set, it must exact-match `${req.protocol}://${req.host}${req.originalUrl}` (e.g. `http://localhost:9005/mcp`). The UI sends `resource: AUTH_CONFIG.resource` (from `VITE_MCP_RESOURCE` or default). If that drifts from the served `/mcp` URL, every authed request 401s.
+- **Stay on `TokenExchangeClient`, NOT `AuthProvider`.** `AuthProvider.exchangeTokens(subjectToken, resources)` from `@keycardai/mcp/server/auth/provider` has no `scope` parameter — designed for the brokered-credentials template's "one upstream, fixed zone-configured scope" pattern. PMT is a fan-out aggregator: each tool requests least-privilege scopes (e.g. `["...calendar.readonly"]`) via `exchangeToken(authInfo, resource, scopes)`. Switching to `AuthProvider` would silently widen every token to whatever the zone defaults to per resource. Revisit only if the SDK adds per-call scope, or PMT moves to zone-configured scope-per-resource.
+- **`ROIBOT_AGENT_ENDPOINT` is used as BOTH the token exchange `resource` AND the A2A client URL** ([src/services/roibot-a2a-client.ts](src/services/roibot-a2a-client.ts)). The value must exact-match what's registered as the resource `identifier` in the Keycard zone (including the `/api/agent` path) — STS uses exact string matching. Mismatch → `invalid_target`.
+- **For an MCP/A2A Resource, the zone's `credential_provider_id` MUST be a `keycard-sts` provider, not `keycard-vault`.** Vault providers broker static secrets and cannot mint OAuth tokens — using one produces `invalid_target` on token exchange.
 
 ## Key directories
 
