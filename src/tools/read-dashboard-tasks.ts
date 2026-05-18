@@ -119,6 +119,7 @@ export function registerReadDashboardTasksTool(mcpServer: McpServer): void {
               text: `Error reading task store: ${message}`,
             },
           ],
+          isError: true,
         };
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof readDashboardTasksInputSchema>

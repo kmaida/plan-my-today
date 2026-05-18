@@ -77,6 +77,7 @@ export function registerLinearTool(mcpServer: McpServer): void {
               text: "❌ No authentication information available. Please ensure you're properly authenticated.",
             },
           ],
+          isError: true,
         };
       }
 

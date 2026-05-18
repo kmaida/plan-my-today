@@ -333,6 +333,13 @@ export function useChat(
             // bypass this because the gate runs in client code, not on the
             // server — see ApprovalCard for the UI.
             if (TOOLS_REQUIRING_APPROVAL.has(block.name)) {
+              if (import.meta.env.DEV) {
+                console.debug("[HITL gate] entering", {
+                  toolName: block.name,
+                  abortAlreadyAborted: abort.signal.aborted,
+                  msgId,
+                });
+              }
               const decision = await awaitPreCallApproval(
                 msgId,
                 { toolInput: block.input },
@@ -536,14 +543,28 @@ function awaitPreCallApproval(
       resolve(decision);
     };
 
+    if (import.meta.env.DEV) {
+      console.debug("[HITL gate] awaitPreCallApproval", {
+        msgId,
+        aborted: abortSignal.aborted,
+      });
+    }
+
     // Abort path: stop button clicked while the card is showing.
     if (abortSignal.aborted) {
       clearAndResolve({ approved: false });
       return;
     }
-    abortSignal.addEventListener("abort", () => clearAndResolve({ approved: false }), {
-      once: true,
-    });
+    abortSignal.addEventListener(
+      "abort",
+      () => {
+        if (import.meta.env.DEV) {
+          console.debug("[HITL gate] abort listener fired", { msgId });
+        }
+        clearAndResolve({ approved: false });
+      },
+      { once: true }
+    );
 
     const full: PendingApprovalMeta = { ...meta, resolve: clearAndResolve };
     setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, pendingApproval: full } : m)));

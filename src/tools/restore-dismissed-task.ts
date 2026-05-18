@@ -56,6 +56,7 @@ export function registerRestoreDismissedTaskTool(mcpServer: McpServer): void {
               text: `Error: ${message}`,
             },
           ],
+          isError: true,
         };
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof restoreDismissedTaskInputSchema>

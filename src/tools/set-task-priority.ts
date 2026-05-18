@@ -274,6 +274,7 @@ export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
                 text: "Error: Provide either 'priority' (critical/high/medium/low) or 'score' (0-300).",
               },
             ],
+            isError: true,
           };
         }
 
@@ -320,6 +321,7 @@ export function registerSetTaskPriorityTool(mcpServer: McpServer): void {
               text: `Error setting priority override: ${message}`,
             },
           ],
+          isError: true,
         };
       }
     }) satisfies AuthenticatedToolHandlerWithArgs<typeof setTaskPriorityInputSchema>

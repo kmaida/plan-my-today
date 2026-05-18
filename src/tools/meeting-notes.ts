@@ -84,9 +84,10 @@ export function registerMeetingNotesTool(mcpServer: McpServer): void {
           content: [
             {
               type: "text",
-              text: "No authentication information available. Please ensure you're properly authenticated.",
+              text: "❌ No authentication information available. Please ensure you're properly authenticated.",
             },
           ],
+          isError: true,
         };
       }
 

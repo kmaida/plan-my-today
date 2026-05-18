@@ -264,6 +264,7 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
               text: "❌ No authentication information available. Please ensure you're properly authenticated.",
             },
           ],
+          isError: true,
         };
       }
 
@@ -306,15 +307,15 @@ export function registerDriveActivityTool(mcpServer: McpServer): void {
         );
 
         if (!filesResponse.ok) {
-          const error = await filesResponse.text();
-          return {
-            content: [
-              {
-                type: "text",
-                text: `❌ Google Drive API error: ${filesResponse.status} - ${error}`,
-              },
-            ],
-          };
+          // Throw so the existing catch routes through `handleToolError`:
+          // sanitizes the LLM-facing text, sets `isError: true`, and tucks the
+          // raw status/body into `_meta.error` (which the LLM never reads).
+          // Inlining the raw API body into `content[].text` leaked upstream
+          // details to the model and broke the success-vs-failure pill render.
+          const body = (await filesResponse.text()).slice(0, 500);
+          throw Object.assign(new Error(`Drive API ${filesResponse.status}: ${body}`), {
+            status: filesResponse.status,
+          });
         }
 
         const data = (await filesResponse.json()) as DriveFilesResponse;

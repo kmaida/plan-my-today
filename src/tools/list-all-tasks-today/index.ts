@@ -274,6 +274,7 @@ export function registerListAllTasksTodayTool(mcpServer: McpServer): void {
               ),
             },
           ],
+          isError: true,
         };
       }
 

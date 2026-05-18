@@ -41,9 +41,9 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
       },
     },
     async ({ task }, { authInfo }) => {
-      if (!authInfo) return errorResult("❌ Not authenticated.");
+      if (!authInfo) return failureResult("❌ Not authenticated.");
       if (!isROIbotConfigured())
-        return errorResult(
+        return failureResult(
           "⚠️ ROIBOT_AGENT_ENDPOINT not configured. Set it to ROIbot's /api/agent URL."
         );
       try {
@@ -72,13 +72,13 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
  */
 function formatResult(result: DelegateResult) {
   if (result.state === "input-required") {
-    return errorResult(
+    return failureResult(
       "⚠️ ROIbot returned an approval-required state, which is not allowed over A2A. " +
         "Destructive actions must be performed in ROIbot's own chat."
     );
   }
   if (result.state === "failed") {
-    return errorResult(result.finalText || "ROIbot delegation failed.");
+    return failureResult(result.finalText || "ROIbot delegation failed.");
   }
   // completed
   return {
@@ -86,6 +86,18 @@ function formatResult(result: DelegateResult) {
   };
 }
 
-function errorResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
+/**
+ * Build a structured failure response for known terminal failures
+ * (missing auth, missing config, defensive A2A `input-required`, A2A
+ * `failed` state). Distinct from {@link handleToolError}, which is for
+ * caught exceptions and emits the full `_meta.error` payload. The
+ * `isError: true` flag is what tells the UI to render ❌ and tells the
+ * LLM the call genuinely failed — without it, callers would render ✓
+ * pills on failure and the LLM would treat the failure text as soft data.
+ */
+function failureResult(text: string) {
+  return {
+    content: [{ type: "text" as const, text }],
+    isError: true,
+  };
 }
