@@ -1,9 +1,11 @@
 /* ApprovalCard — inline HITL approval UI for pre-call gating of A2A
- * delegation. Visually distinct from regular chat bubbles (warm amber
- * tint + accent stripe) so it reads as action-required. The 4px
- * left-border stripe stays warm in both themes; the surrounding border
- * is neutral so the card sits calmly on dark surfaces. All colors are
- * design tokens — dark mode is handled centrally in design-tokens.css. */
+ * delegation. Visually distinct from regular chat bubbles so it reads
+ * as action-required. In light mode the card has a warm amber tint
+ * (`--color-high-bg`) that pops against the white assistant bubble;
+ * in dark mode the same tint composites into a tan-brown that fights
+ * the theme, so we override to `--color-bg` for a recessed-inset look
+ * (see rule below). The 4px amber left-stripe and amber header text /
+ * button outlines carry the warning character in both themes. */
 
 .approval-card {
   border: 1px solid var(--color-divider);
@@ -14,6 +16,16 @@
   margin-top: 8px;
   font-size: 13px;
   color: var(--color-text-primary);
+}
+
+/* Dark-mode override: `--color-high-bg` is 15% amber, which composites
+ * over the surrounding assistant bubble (`--color-surface` = #252525)
+ * into a warm tan — not the dark "action required" surface we want.
+ * Drop the amber tint and recess the card to `--color-bg` (#1A1A1A),
+ * darker than the bubble. The warning character carries via the amber
+ * left stripe, header text, submit-button outline, and lock icon. */
+[data-theme="dark"] .approval-card {
+  background: var(--color-bg);
 }
 
 .approval-card__header {
