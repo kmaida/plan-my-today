@@ -101,7 +101,27 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
 
   let bearer: string;
   try {
-    const response = await exchangeToken(authInfo, config.roibotAgentEndpoint);
+    // Request the full A2A capability set on every exchange. Todaygent's
+    // delegation tool is free-form (it doesn't know which ROIbot tool the
+    // task will trigger), so we request the max set ROIbot's `/api/agent`
+    // declares as `scopes_supported`. Least-privilege narrowing is enforced
+    // downstream:
+    //   • Cedar policy at the STS caps what *can* be granted regardless of
+    //     what's requested (`a2a-todaygent-to-roibot` policy; future @itl
+    //     annotations tighten this without code change).
+    //   • ROIbot's dashboard tool filter trims the LLM's tool list to what
+    //     the bearer's scopes authorize.
+    //   • ROIbot's MCP server refuses per-tool calls outside the bearer's
+    //     scopes (defense-in-depth).
+    // Omitting the third arg sends an RFC 8693 exchange with no `scope`,
+    // which the STS interprets as "grant nothing" — issued bearer comes
+    // back with scopes: [], dashboard's gate filters to zero tools, and
+    // ROIbot fabricates a reply the post-loop guardrail then refuses.
+    const response = await exchangeToken(
+      authInfo,
+      config.roibotAgentEndpoint,
+      ["event:read", "event:write", "report:read"],
+    );
     bearer = response.accessToken;
   } catch (err) {
     if (err instanceof TokenExchangeError) {
