@@ -68,8 +68,12 @@ export function createApp(): express.Application {
   // Trust proxy for correct protocol detection behind reverse proxies
   app.set("trust proxy", true);
 
-  // Parse JSON requests (increased limit for chat payloads with tool results)
-  app.use(express.json({ limit: "2mb" }));
+  // Parse JSON requests. Chat payloads carry full message history including
+  // prior tool results; A2A delegations to ROIbot can return multi-MB
+  // assessment text that lands inline in subsequent /api/chat POSTs. 25mb
+  // gives ~5× headroom over Anthropic's ~1MB context-window worth of text,
+  // enough to absorb large tool results without ever bouncing on the limit.
+  app.use(express.json({ limit: "25mb" }));
 
   // Compress static assets and JSON API responses. Exclude SSE streams
   // (chat proxy, MCP transport) so compression doesn't buffer real-time chunks.
