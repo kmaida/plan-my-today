@@ -54,6 +54,10 @@ export function ApprovalCard({ pending }: ApprovalCardProps) {
         Approve to send this task over A2A. Nothing leaves your browser until
         you click.
       </p>
+      <p className="approval-card__intro">
+        Heads up: ROIbot assessments and Linear-heavy tasks can take a few
+        minutes. The pill below will spin until ROIbot replies.
+      </p>
       <blockquote className="approval-card__task">{taskText}</blockquote>
       <div className="approval-card__footer">
         <button

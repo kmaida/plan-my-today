@@ -34,6 +34,7 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
         "issues for events. " +
         "Pass a natural-language task description; ROIbot's own agent picks the right tools internally and " +
         "returns a coherent answer. " +
+        "These tasks are long-running: assessments and Linear-heavy delegations typically take 1-5 minutes. " +
         "Destructive actions (delete event, merge events, change config) are out of scope for A2A; if the " +
         "user wants one, tell them to use ROIbot directly in its own chat.",
       inputSchema: {

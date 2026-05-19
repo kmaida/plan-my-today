@@ -24,6 +24,20 @@ export function setMCPCallTool(fn: MCPCallToolFn | null): void {
  *  LLM-augmented meeting note extraction on cold cache (can take 30-40s). */
 const REQUEST_TIMEOUT_MS = 60_000;
 
+/**
+ * Per-tool timeout overrides for {@link callTool} (ms). Tools not listed use
+ * {@link REQUEST_TIMEOUT_MS}. Opt-in rather than raising the default keeps
+ * fast tools failing fast (a 60s ceiling reveals runaway loops); long-running
+ * tools must declare their cost explicitly.
+ *
+ * - `delegate-task-to-roibot`: matches ROIbot's `/api/agent` `maxDuration` of
+ *   300s. Assessments that pull Linear/Slack/web context plus an LLM scoring
+ *   pass legitimately run 1–5 min.
+ */
+const TOOL_TIMEOUTS_MS: Record<string, number> = {
+  "delegate-task-to-roibot": 300_000,
+};
+
 // ── Bearer token injection (kept for REST endpoints that don't use MCP) ───────
 
 let _authToken: string | null = null;
@@ -81,12 +95,15 @@ async function callTool<T>(toolName: string, params: Record<string, unknown> = {
   }
 
   // The MCP SDK transport doesn't accept AbortSignal, so we use Promise.race
-  // with a timeout to prevent hanging indefinitely.
+  // with a timeout to prevent hanging indefinitely. Resolve the budget once;
+  // long-running tools opt in via TOOL_TIMEOUTS_MS, everything else uses the
+  // 60s default.
+  const timeoutMs = TOOL_TIMEOUTS_MS[toolName] ?? REQUEST_TIMEOUT_MS;
   let timeoutId: ReturnType<typeof setTimeout>;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(() => {
-      reject(new Error(`MCP tool ${toolName} timed out after ${REQUEST_TIMEOUT_MS / 1000}s`));
-    }, REQUEST_TIMEOUT_MS);
+      reject(new Error(`MCP tool ${toolName} timed out after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
   });
   const callPromise = _mcpCallTool(toolName, params);
   const result = await Promise.race([callPromise, timeoutPromise]).finally(() =>
