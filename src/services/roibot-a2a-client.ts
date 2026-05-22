@@ -63,22 +63,34 @@ export function isROIbotConfigured(): boolean {
   return !!config.roibotAgentEndpoint;
 }
 
+/** Hard ceiling on a single A2A round-trip. Tool description promises 1-5 min; this gives generous headroom. */
+const A2A_STREAM_TIMEOUT_MS = 5 * 60_000;
+
 /**
  * Start a NEW A2A task. The first message is a free-form text description;
  * ROIbot picks the right tool internally.
+ *
+ * @remarks
+ * Wraps `sendMessageStream` with an `AbortSignal.timeout()` to cap blocking
+ * time. Without this, a TCP half-open / proxy timeout / Fly.io sleep would
+ * hold the MCP request open indefinitely. The SDK's native `RequestOptions.signal`
+ * is the canonical way to cancel — we don't need a manual `Promise.race`.
  */
 export async function startTask(authInfo: AuthInfo, task: string): Promise<DelegateResult> {
   const client = await buildClient(authInfo);
   const contextId = randomUUID();
-  const stream = client.sendMessageStream({
-    message: {
-      kind: "message",
-      messageId: randomUUID(),
-      role: "user",
-      contextId,
-      parts: [{ kind: "text", text: task }],
+  const stream = client.sendMessageStream(
+    {
+      message: {
+        kind: "message",
+        messageId: randomUUID(),
+        role: "user",
+        contextId,
+        parts: [{ kind: "text", text: task }],
+      },
     },
-  });
+    { signal: AbortSignal.timeout(A2A_STREAM_TIMEOUT_MS) }
+  );
   return consumeStream(stream);
 }
 
@@ -154,38 +166,87 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
 
 /**
  * Drain the SSE stream and reduce its events to a single {@link DelegateResult}.
- * Later events win — terminal Task with state='completed' is the canonical
- * "done" signal.
+ *
+ * Handles four A2A event kinds (per `@a2a-js/sdk`'s `A2AStreamEventData` union):
+ *   - `task` / `status-update`: terminal state + optional status message text.
+ *     Later events win (the SDK doesn't reliably mark a "final" event for us in
+ *     0.3.x stream reductions; trust the last-seen terminal state).
+ *   - `message`: standalone agent text (e.g. when ROIbot streams a chunked reply
+ *     without wrapping it in a task envelope). We accumulate the latest text.
+ *   - `artifact-update`: agent output via the artifact channel (long reports,
+ *     ROI assessments, etc.). We extract text parts the same way; non-text parts
+ *     (`file`/`data`) are logged and dropped — PMT has no way to render them.
+ *
+ * If the stream ends without ever seeing a terminal `task`/`status-update` event
+ * but we did collect text from `message`/`artifact-update`, treat it as
+ * `completed` — empty `failed` would discard a coherent reply.
+ *
+ * Stream errors (network, JSON-RPC, abort) are caught and wrapped as
+ * `ROIbotA2AClientError`. `AbortSignal.timeout` produces a `TimeoutError`
+ * `DOMException` — surfaced to the caller as a friendly timeout result rather
+ * than a raw SDK error.
  */
 async function consumeStream(
   stream: AsyncGenerator<unknown, void, undefined>
 ): Promise<DelegateResult> {
   let state: DelegateResult["state"] = "failed";
   let finalText = "";
+  let sawTerminalTaskEvent = false;
 
-  for await (const event of stream) {
-    if (!event || typeof event !== "object") continue;
+  try {
+    for await (const event of stream) {
+      if (!event || typeof event !== "object") continue;
 
-    const e = event as {
-      kind?: string;
-      status?: { state?: string; message?: { parts?: unknown[] } };
-    };
+      const e = event as {
+        kind?: string;
+        status?: { state?: string; message?: { parts?: unknown[] } };
+        parts?: unknown[];
+        artifact?: { parts?: unknown[] };
+      };
 
-    // Both `task` and `status-update` carry the same state+text shape; we
-    // don't distinguish them here. `artifact-update` events (used by the
-    // protocol for pending-approval publication) are ignored — approval is
-    // gated UI-side before the call ever leaves the browser.
-    if (e.kind === "task" || e.kind === "status-update") {
-      const taskState = e.status?.state;
-      if (taskState) state = mapTaskState(taskState);
-      const text = extractText(e.status?.message?.parts ?? []);
-      if (text) finalText = text;
+      if (e.kind === "task" || e.kind === "status-update") {
+        sawTerminalTaskEvent = true;
+        const taskState = e.status?.state;
+        if (taskState) state = mapTaskState(taskState);
+        const text = extractText(e.status?.message?.parts ?? []);
+        if (text) finalText = text;
+      } else if (e.kind === "message") {
+        const text = extractText(e.parts ?? []);
+        if (text) finalText = text;
+      } else if (e.kind === "artifact-update") {
+        const parts = e.artifact?.parts ?? [];
+        const text = extractText(parts);
+        if (text) {
+          finalText = text;
+        } else if (parts.length > 0) {
+          logger.warn("[roibot-a2a-client] artifact-update with non-text parts dropped");
+        }
+      }
     }
+  } catch (err) {
+    if (isTimeoutError(err)) {
+      logger.warn("[roibot-a2a-client] stream aborted by timeout");
+      return { state: "failed", finalText: `ROIbot timed out after ${A2A_STREAM_TIMEOUT_MS / 1000}s.` };
+    }
+    throw new ROIbotA2AClientError(
+      "A2A stream consumption failed",
+      err instanceof Error ? err : undefined
+    );
   }
 
-  logger.info(`[roibot-a2a-client] consumed stream — state=${state}`);
+  // Stream ended cleanly with text but no terminal task event — agent replied
+  // via `message`/`artifact-update` alone. Don't discard it as `failed`.
+  if (!sawTerminalTaskEvent && finalText) state = "completed";
 
+  logger.info(`[roibot-a2a-client] consumed stream — state=${state}`);
   return { state, finalText };
+}
+
+/** True iff err is a DOMException raised by `AbortSignal.timeout()` or `abort()`. */
+function isTimeoutError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: unknown }).name;
+  return name === "TimeoutError" || name === "AbortError";
 }
 
 function mapTaskState(s: string): DelegateResult["state"] {
