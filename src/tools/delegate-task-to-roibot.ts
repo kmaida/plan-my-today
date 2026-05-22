@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { type DelegateResult, startTask } from "../services/roibot-a2a-client";
+import { type DelegateResult, delegateTask } from "../services/roibot-a2a-client";
 import type { McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 
@@ -9,11 +9,16 @@ import { handleToolError } from "../utils/tool-error-utils";
  * picks tools internally and returns a coherent reply.
  *
  * @remarks
- * **HITL gate is enforced UI-side, not here.** Todaygent's chat UI
- * intercepts every `delegate-task-to-roibot` invocation and waits for
- * the user to click Approve before the call ever reaches this handler.
- * The LLM cannot bypass the gate because dispatch happens in client
- * code; see `ui/src/chat/useChat.ts` (`TOOLS_REQUIRING_APPROVAL`).
+ * **HITL gate gates LLM-driven invocations only.** Todaygent's chat UI
+ * intercepts every LLM-initiated `delegate-task-to-roibot` call and
+ * waits for the user to click Approve before dispatching. The threat
+ * model is "stop the LLM from auto-delegating in an agentic loop
+ * without user consent" — NOT "stop the user." Direct API access
+ * (`POST /api/tools/delegate-task-to-roibot`, `POST /mcp` with
+ * `tools/call`) is intentionally permitted for scripted use, dashboards,
+ * and power users. See `ui/src/chat/useChat.ts`
+ * (`TOOLS_REQUIRING_APPROVAL`) for the gate; there is no server-side
+ * counterpart, by design.
  *
  * **Destructive actions are out of scope for A2A.** ROIbot can take
  * destructive actions in its own chat (with its own HITL), but those
@@ -44,7 +49,7 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
     async ({ task }, { authInfo }) => {
       if (!authInfo) return failureResult("❌ Not authenticated.");
       try {
-        const result = await startTask(authInfo, task);
+        const result = await delegateTask(authInfo, task);
         return formatResult(result);
       } catch (error) {
         return handleToolError(

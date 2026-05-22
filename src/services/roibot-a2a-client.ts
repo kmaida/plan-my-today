@@ -13,12 +13,14 @@
  * Re-exchanging is cheap (Keycard STS keeps its own JWKS cache);
  * always-fresh is correct.
  *
- * **HITL boundary**: every `delegate-task-to-roibot` invocation is
- * gated by a user-approval click in the Todaygent chat UI before this
- * client is even called. Destructive actions inside ROIbot are out of
- * scope for A2A — they must happen in ROIbot's own chat. If ROIbot
- * ever returns `state: 'input-required'` over A2A, the calling tool
- * refuses with a loud error rather than surfacing a mid-task approval.
+ * **HITL boundary**: LLM-driven invocations of `delegate-task-to-roibot`
+ * are gated by a user-approval click in the Todaygent chat UI before
+ * this client is called. Direct API callers (`/api/tools/*`, `/mcp`)
+ * bypass the gate by design — the gate prevents agentic-loop autonomy,
+ * not user agency. Destructive actions inside ROIbot are out of scope
+ * for A2A — they must happen in ROIbot's own chat. If ROIbot ever
+ * returns `state: 'input-required'` over A2A, the calling tool refuses
+ * with a loud error rather than surfacing a mid-task approval.
  */
 
 import { randomUUID } from "node:crypto";
@@ -85,7 +87,7 @@ const A2A_STREAM_TIMEOUT_MS = 5 * 60_000;
  * hold the MCP request open indefinitely. The SDK's native `RequestOptions.signal`
  * is the canonical way to cancel — we don't need a manual `Promise.race`.
  */
-export async function startTask(authInfo: AuthInfo, task: string): Promise<DelegateResult> {
+export async function delegateTask(authInfo: AuthInfo, task: string): Promise<DelegateResult> {
   const client = await buildClient(authInfo);
   const contextId = randomUUID();
   const stream = client.sendMessageStream(
@@ -138,11 +140,11 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
     // which the STS interprets as "grant nothing" — issued bearer comes
     // back with scopes: [], dashboard's gate filters to zero tools, and
     // ROIbot fabricates a reply the post-loop guardrail then refuses.
-    const response = await exchangeToken(
-      authInfo,
-      config.roibotAgentEndpoint,
-      ["event:read", "event:write", "report:read"],
-    );
+    const response = await exchangeToken(authInfo, config.roibotAgentEndpoint, [
+      "event:read",
+      "event:write",
+      "report:read",
+    ]);
     bearer = response.accessToken;
   } catch (err) {
     if (err instanceof TokenExchangeError) {
@@ -166,7 +168,6 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
     return fetch(input, { ...init, headers });
   };
 
-  // ClientFactory is the SDK's recommended path; A2AClient is @deprecated.
   // The custom JsonRpcTransportFactory exists solely to inject `authFetch`.
   const factory = new ClientFactory({
     transports: [new JsonRpcTransportFactory({ fetchImpl: authFetch })],
@@ -196,7 +197,8 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
  * `DOMException` — surfaced to the caller as a friendly timeout result rather
  * than a raw SDK error.
  */
-async function consumeStream(
+/** @internal exported for unit testing */
+export async function consumeStream(
   stream: AsyncGenerator<A2AStreamEvent, void, undefined>,
   contextId: string
 ): Promise<DelegateResult> {
@@ -239,7 +241,10 @@ async function consumeStream(
   } catch (err) {
     if (isTimeoutError(err)) {
       logger.warn(`[roibot-a2a-client] stream aborted by timeout — contextId=${contextId}`);
-      return { state: "failed", finalText: `ROIbot timed out after ${A2A_STREAM_TIMEOUT_MS / 1000}s.` };
+      return {
+        state: "failed",
+        finalText: `ROIbot timed out after ${A2A_STREAM_TIMEOUT_MS / 1000}s.`,
+      };
     }
     throw new ROIbotA2AClientError(
       "A2A stream consumption failed",
@@ -271,14 +276,18 @@ function isTimeoutError(err: unknown): boolean {
   return name === "TimeoutError" || name === "AbortError";
 }
 
-function mapTaskState(s: string): DelegateResult["state"] {
+/** @internal exported for unit testing */
+export function mapTaskState(s: string): DelegateResult["state"] {
   if (s === "completed") return "completed";
   if (s === "input-required") return "input-required";
   return "failed";
 }
 
-/** Human-readable prefix for terminal task states that collapse to `failed`. */
-function terminalStateHint(s: string): string | undefined {
+/**
+ * Human-readable prefix for terminal task states that collapse to `failed`.
+ * @internal exported for unit testing
+ */
+export function terminalStateHint(s: string): string | undefined {
   switch (s) {
     case "canceled":
       return "ROIbot canceled the task";
@@ -291,7 +300,8 @@ function terminalStateHint(s: string): string | undefined {
   }
 }
 
-function extractText(parts: Part[]): string {
+/** @internal exported for unit testing */
+export function extractText(parts: Part[]): string {
   return parts
     .filter((p): p is TextPart => p.kind === "text")
     .map((p) => p.text)
