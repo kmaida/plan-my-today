@@ -665,7 +665,8 @@ const DOC_COMMENT_URL_PATTERN =
  *   "Ian Ornstein (via Google Sheets) - Q1 Budget"
  *   "Re: Ian Ornstein (via Google Slides) - Pitch Deck"
  */
-const DOC_COMMENT_SUBJECT_PATTERN = /(?:Re:\s*)?.*?\(via Google (?:Docs|Sheets|Slides)\)\s*[-–]\s*(.+)/i;
+const DOC_COMMENT_SUBJECT_PATTERN =
+  /(?:Re:\s*)?.*?\(via Google (?:Docs|Sheets|Slides)\)\s*[-–]\s*(.+)/i;
 
 /**
  * Decode base64url-encoded email body data from the Gmail API.
@@ -753,9 +754,8 @@ export function extractDocCommentEmails(messages: GmailFullMessage[]): {
     const subject = headers.find((h) => h.name?.toLowerCase() === "subject")?.value || "";
     const titleMatch = subject.match(DOC_COMMENT_SUBJECT_PATTERN);
     // Fallback: strip Re: prefix and use full subject (sender already confirmed as Google Docs)
-    const fileTitle = titleMatch?.[1]?.trim()
-      || subject.replace(/^Re:\s*/i, "").trim()
-      || "Untitled";
+    const fileTitle =
+      titleMatch?.[1]?.trim() || subject.replace(/^Re:\s*/i, "").trim() || "Untitled";
 
     const emailTimestamp = message.internalDate ? parseInt(message.internalDate, 10) : undefined;
 

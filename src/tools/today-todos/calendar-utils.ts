@@ -1,7 +1,7 @@
 import { config } from "../../config";
 import { CALENDAR } from "../../constants";
-import { AuthenticationError } from "../../utils/error-utils";
 import { parseLocalDate } from "../../utils/date-utils";
+import { AuthenticationError } from "../../utils/error-utils";
 import { calculateProximity, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { CalendarEventDetail } from "./types";
 
@@ -120,14 +120,12 @@ export function calculateCalendarPriority(event: CalendarEventDetail, now: Date)
 
   if (startTime) {
     minutesUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60);
-    minutesUntilEnd = endTime
-      ? (endTime.getTime() - now.getTime()) / (1000 * 60)
-      : undefined;
+    minutesUntilEnd = endTime ? (endTime.getTime() - now.getTime()) / (1000 * 60) : undefined;
   } else if (event.start?.date) {
     const eventDate = parseLocalDate(event.start.date);
     const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const daysDiff = Math.round(
-      (eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24),
+      (eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
     );
     if (daysDiff <= 0) {
       minutesUntilStart = 0; // today or past → "happening_now"

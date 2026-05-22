@@ -7,10 +7,7 @@
  * deduplication, and error handling without real API calls.
  */
 
-import {
-  extractActionItemsWithLlm,
-  shouldUseLlmExtraction,
-} from "../llm-extraction";
+import { extractActionItemsWithLlm, shouldUseLlmExtraction } from "../llm-extraction";
 
 // ── Mock config ──
 
@@ -152,11 +149,7 @@ describe("extractActionItemsWithLlm", () => {
   it("includes regex items in the prompt for relevance review", async () => {
     mockAnthropicResponse([]);
 
-    await extractActionItemsWithLlm(
-      "content",
-      ["Fix login bug", "Update docs"],
-      []
-    );
+    await extractActionItemsWithLlm("content", ["Fix login bug", "Update docs"], []);
 
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     const prompt = body.messages[0].content;
@@ -203,11 +196,7 @@ describe("extractActionItemsWithLlm", () => {
       { text: "New item from LLM", isUrgent: false }, // new discovery
     ]);
 
-    const items = await extractActionItemsWithLlm(
-      "notes",
-      ["Fix the login bug"],
-      []
-    );
+    const items = await extractActionItemsWithLlm("notes", ["Fix the login bug"], []);
 
     // LLM now reviews regex items for relevance — confirmed items are returned
     expect(items).toHaveLength(2);
@@ -228,9 +217,7 @@ describe("extractActionItemsWithLlm", () => {
   });
 
   it("includes empty regexItemTexts in prompt without errors", async () => {
-    mockAnthropicResponse([
-      { text: "A real action item", isUrgent: false },
-    ]);
+    mockAnthropicResponse([{ text: "A real action item", isUrgent: false }]);
 
     // Empty strings in regexItemTexts should not cause prompt issues
     const items = await extractActionItemsWithLlm("notes", [""], []);
@@ -351,10 +338,7 @@ describe("extractActionItemsWithLlm", () => {
     const items = await extractActionItemsWithLlm("notes", [], []);
 
     expect(items).toEqual([]);
-    expect(mockWarn).toHaveBeenCalledWith(
-      "LLM response is not an array",
-      expect.anything()
-    );
+    expect(mockWarn).toHaveBeenCalledWith("LLM response is not an array", expect.anything());
   });
 
   it("returns empty array when response has no text content", async () => {
@@ -394,5 +378,4 @@ describe("extractActionItemsWithLlm", () => {
     expect(items[0].text).toContain("PROJ-123");
     expect(items[1].text).toContain("PR #456");
   });
-
 });

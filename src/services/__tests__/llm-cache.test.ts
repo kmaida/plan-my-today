@@ -14,6 +14,7 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { ExtractionCacheData } from "../llm-cache";
 import {
   getCachedItems,
   loadCache,
@@ -21,7 +22,6 @@ import {
   saveCache,
   setCachedItems,
 } from "../llm-cache";
-import type { ExtractionCacheData } from "../llm-cache";
 
 const CACHE_FILE = path.join(process.cwd(), "data", "test-llm-extraction-cache.json");
 
@@ -158,7 +158,6 @@ describe("saveCache", () => {
     expect(reloaded.entries["doc-roundtrip"].items[0].assignee).toBe("Kim");
     expect(reloaded.entries["doc-roundtrip"].items[0].isUrgent).toBe(true);
   });
-
 });
 
 // ── pruneCacheEntries ─────────────────────────────────────────────────────────
@@ -283,15 +282,10 @@ describe("Session pattern (concurrent safety)", () => {
 
     // 3. Cache miss for new doc → process and store
     expect(getCachedItems(cache, "doc-new")).toBeNull();
-    setCachedItems(cache, "doc-new", [
-      { text: "New item from extraction", isUrgent: true },
-    ]);
+    setCachedItems(cache, "doc-new", [{ text: "New item from extraction", isUrgent: true }]);
 
     // 4. Prune stale entries (doc-stale not in eligible set)
-    const pruned = pruneCacheEntries(
-      cache,
-      new Set(["doc-existing", "doc-new"])
-    );
+    const pruned = pruneCacheEntries(cache, new Set(["doc-existing", "doc-new"]));
     expect(pruned).toBe(1);
 
     // 5. Save once at the end

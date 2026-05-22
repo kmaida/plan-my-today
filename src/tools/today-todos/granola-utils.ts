@@ -13,10 +13,7 @@ import {
 import { hashActionText } from "../../utils/action-identifiers";
 import { isWithinBusinessDays, parseDateFromFilename } from "../../utils/date-utils";
 import { containsExactToken } from "./cross-reference-utils";
-import {
-  extractActionItemsWithLlmChunked,
-  shouldUseLlmExtraction,
-} from "./llm-extraction";
+import { extractActionItemsWithLlmChunked, shouldUseLlmExtraction } from "./llm-extraction";
 import { calculateRecencyBoost, categorizeScore, type PriorityMetadata } from "./priority-utils";
 import type { MeetingNoteActionDetail } from "./types";
 
@@ -370,8 +367,7 @@ export function buildActionDetails(
           const assigneeLower = item.assignee.toLowerCase();
           const textLower = item.text.toLowerCase();
           return userNames.some(
-            (name) =>
-              containsExactToken(assigneeLower, name) || containsExactToken(textLower, name)
+            (name) => containsExactToken(assigneeLower, name) || containsExactToken(textLower, name)
           );
         })
       : extractedItems;
@@ -399,10 +395,7 @@ export async function fetchMeetingNoteActions(
   accessToken: string,
   options: FetchMeetingNotesOptions = {}
 ): Promise<MeetingNoteActionDetail[]> {
-  const {
-    daysBack = 7,
-    maxResults = DEFAULT_MAX_RESULTS,
-  } = options;
+  const { daysBack = 7, maxResults = DEFAULT_MAX_RESULTS } = options;
 
   // Folder ID is configured via MEETING_NOTES_FOLDER_ID env var
   const folderId = config.meetingNotesFolderId;
@@ -467,8 +460,8 @@ export async function fetchMeetingNoteActions(
         // likely have action items in Linear already.
         // Cache hits bypass this gate — they return whatever was cached
         // when the doc was first processed (including LLM results).
-        const dateForRecency = meetingDate
-          ?? (doc.modifiedTime ? new Date(doc.modifiedTime) : null);
+        const dateForRecency =
+          meetingDate ?? (doc.modifiedTime ? new Date(doc.modifiedTime) : null);
         const isRecentEnough = dateForRecency
           ? isWithinBusinessDays(dateForRecency, LLM_RECENCY_BUSINESS_DAYS, now)
           : true;

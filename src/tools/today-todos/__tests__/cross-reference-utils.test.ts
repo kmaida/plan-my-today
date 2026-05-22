@@ -503,7 +503,12 @@ describe("detectGitHubMentions", () => {
       const result = detectGitHubMentions(
         "org/repo",
         42,
-        [makeEmail({ subject: "Commit pushed", snippet: "https://github.com/org/repo/commit/abc123" })],
+        [
+          makeEmail({
+            subject: "Commit pushed",
+            snippet: "https://github.com/org/repo/commit/abc123",
+          }),
+        ],
         []
       );
       expect(result.totalMentions).toBe(0);
@@ -1024,7 +1029,12 @@ describe("buildCalendarGitHubCrossRefs", () => {
 describe("buildSourceGitHubCrossRefs", () => {
   describe("Gmail", () => {
     it("should populate crossReferenceMetadata when email subject contains repo#number", () => {
-      const pr = makeGitHubPR({ number: 42, repo: "org/repo", title: "Auth refactor", url: "https://github.com/org/repo/pull/42" });
+      const pr = makeGitHubPR({
+        number: 42,
+        repo: "org/repo",
+        title: "Auth refactor",
+        url: "https://github.com/org/repo/pull/42",
+      });
       const email = makeEmail({ subject: "Please review org/repo#42" });
 
       buildSourceGitHubCrossRefs([pr], [], [email], [], []);
@@ -1121,7 +1131,14 @@ describe("buildSourceGitHubCrossRefs", () => {
       // Pre-populate with the same id
       email.crossReferenceMetadata = {
         mentionedIn: ["github"],
-        relatedItems: [{ source: "github", id: "org/repo#42", snippet: "Existing", url: "https://github.com/org/repo/pull/42" }],
+        relatedItems: [
+          {
+            source: "github",
+            id: "org/repo#42",
+            snippet: "Existing",
+            url: "https://github.com/org/repo/pull/42",
+          },
+        ],
         totalMentions: 1,
       };
 

@@ -3,11 +3,7 @@ import { getLogger } from "../../observability/logger";
 import { parseLocalDate } from "../../utils/date-utils";
 import { AuthenticationError } from "../../utils/error-utils";
 import { categorizeScore, type PriorityMetadata } from "./priority-utils";
-import type {
-  LinearIssueDetail,
-  LinearRelatedIssueRef,
-  LinearRelationType,
-} from "./types";
+import type { LinearIssueDetail, LinearRelatedIssueRef, LinearRelationType } from "./types";
 
 /** Known Linear relation types we handle. Others are silently dropped. */
 const KNOWN_RELATION_TYPES = new Set<string>(["blocks", "duplicate", "related"]);

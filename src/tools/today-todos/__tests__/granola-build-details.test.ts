@@ -45,18 +45,14 @@ const NOW = new Date("2026-02-17T12:00:00");
 
 describe("field mapping", () => {
   it("maps extracted items to MeetingNoteActionDetail correctly", () => {
-    const items = [
-      { text: "Follow up with vendor", assignee: "Kim", isUrgent: false },
-    ];
+    const items = [{ text: "Follow up with vendor", assignee: "Kim", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, MEETING_DATE, NOW);
 
     expect(result).toHaveLength(1);
     expect(result[0].documentId).toBe("doc-123");
     expect(result[0].documentTitle).toBe("Team Sync - 2026-02-17");
-    expect(result[0].documentLink).toBe(
-      "https://docs.google.com/document/d/doc-123/edit"
-    );
+    expect(result[0].documentLink).toBe("https://docs.google.com/document/d/doc-123/edit");
     expect(result[0].actionItem).toBe("Follow up with vendor");
     expect(result[0].assignee).toBe("Kim");
     expect(result[0].isUrgent).toBe(false);
@@ -69,9 +65,7 @@ describe("field mapping", () => {
 
     const result = buildActionDetails(items, DOC_NO_LINK, TIMESTAMP, null, NOW);
 
-    expect(result[0].documentLink).toBe(
-      "https://docs.google.com/document/d/doc-456"
-    );
+    expect(result[0].documentLink).toBe("https://docs.google.com/document/d/doc-456");
   });
 
   it("sets meetingDate to undefined when passed null", () => {
@@ -108,9 +102,7 @@ describe("user-name filtering", () => {
   });
 
   it("keeps items assigned to the configured user", () => {
-    const items = [
-      { text: "Kim: review the PR", assignee: "Kim", isUrgent: false },
-    ];
+    const items = [{ text: "Kim: review the PR", assignee: "Kim", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, null, NOW);
 
@@ -118,9 +110,7 @@ describe("user-name filtering", () => {
   });
 
   it("drops items assigned to someone else", () => {
-    const items = [
-      { text: "Alex: update the docs", assignee: "Alex", isUrgent: false },
-    ];
+    const items = [{ text: "Alex: update the docs", assignee: "Alex", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, null, NOW);
 
@@ -157,9 +147,7 @@ describe("user-name filtering", () => {
 
   it("is case-insensitive for user name matching", () => {
     // containsExactToken lowercases both sides
-    const items = [
-      { text: "KIM: do the thing", assignee: "KIM", isUrgent: false },
-    ];
+    const items = [{ text: "KIM: do the thing", assignee: "KIM", isUrgent: false }];
 
     const result = buildActionDetails(items, DOC, TIMESTAMP, null, NOW);
 

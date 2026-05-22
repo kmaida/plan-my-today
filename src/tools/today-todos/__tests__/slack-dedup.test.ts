@@ -243,13 +243,7 @@ describe("deduplicateAndGroup", () => {
       const otherMention = makeRaw({ ts: "2000.000000", user: "U_OTHER" });
       const selfDm = makeRaw({ ts: "3000.000000", user: USER_ID });
 
-      const result = deduplicateAndGroup(
-        [otherMention],
-        [],
-        [selfDm],
-        [selfSaved],
-        USER_ID
-      );
+      const result = deduplicateAndGroup([otherMention], [], [selfDm], [selfSaved], USER_ID);
 
       const saved = result.find((r) => r.type === "saved");
       const mention = result.find((r) => r.type === "mention");

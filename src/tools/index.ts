@@ -1,6 +1,7 @@
 import type { McpServer } from "../types/index";
 import { registerAssignedActionsTool } from "./assigned-actions";
 import { registerCalendarTool } from "./calendar";
+import { registerROIbotDelegateTools } from "./delegate-task-to-roibot";
 import { registerDismissTaskTool } from "./dismiss-task";
 import { registerDriveActivityTool } from "./drive-activity";
 import { registerGithubTool } from "./github";
@@ -10,7 +11,6 @@ import { registerListAllTasksTodayTool } from "./list-all-tasks-today/index";
 import { registerMeetingNotesTool } from "./meeting-notes";
 import { registerReadDashboardTasksTool } from "./read-dashboard-tasks";
 import { registerRestoreDismissedTaskTool } from "./restore-dismissed-task";
-import { registerROIbotDelegateTools } from "./delegate-task-to-roibot";
 import { registerSetTaskPriorityTool } from "./set-task-priority";
 import { registerSlackListTool } from "./slack-list";
 

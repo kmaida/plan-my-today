@@ -76,7 +76,6 @@ describe("calculateRecencyBoost", () => {
   it("should classify exactly 24 hours as old (boundary)", () => {
     expect(calculateRecencyBoost(24)).toBe("old");
   });
-
 });
 
 // ── calculateProximity ──

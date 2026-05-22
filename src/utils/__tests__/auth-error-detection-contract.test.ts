@@ -228,7 +228,11 @@ describe("handleToolError → _meta.error structured detail", () => {
     const result = handleToolError(
       new TokenExchangeError("fail", 400),
       "drive",
-      ["https://drive.googleapis.com", "https://gmail.googleapis.com", "https://docs.googleapis.com"],
+      [
+        "https://drive.googleapis.com",
+        "https://gmail.googleapis.com",
+        "https://docs.googleapis.com",
+      ],
       [["scope.a"], ["scope.b"]]
     );
 

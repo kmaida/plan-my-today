@@ -34,8 +34,7 @@ export interface ExtractionCacheData {
 }
 
 const CACHE_FILE_PATH =
-  process.env.LLM_CACHE_FILE_PATH ||
-  path.join(process.cwd(), "data", "llm-extraction-cache.json");
+  process.env.LLM_CACHE_FILE_PATH || path.join(process.cwd(), "data", "llm-extraction-cache.json");
 
 /**
  * Ensure the data directory exists
@@ -105,10 +104,7 @@ export function setCachedItems(
  * Operates in-memory — call saveCache() to persist.
  * Returns the number of entries removed.
  */
-export function pruneCacheEntries(
-  cache: ExtractionCacheData,
-  eligibleDocIds: Set<string>
-): number {
+export function pruneCacheEntries(cache: ExtractionCacheData, eligibleDocIds: Set<string>): number {
   const logger = getLogger().withOperation("llm_cache_prune");
   const beforeCount = Object.keys(cache.entries).length;
 

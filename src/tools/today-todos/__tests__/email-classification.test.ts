@@ -581,8 +581,7 @@ describe("extractDocCommentEmails", () => {
     it("extracts fileId from Google Slides comment URLs", () => {
       const msg = makeCommentMessage({
         subject: "Ben Ornstein (via Google Slides) - Pitch Deck",
-        snippet:
-          "See slide 3 https://docs.google.com/presentation/d/SLIDES_ID_456/edit?disco=AAAC",
+        snippet: "See slide 3 https://docs.google.com/presentation/d/SLIDES_ID_456/edit?disco=AAAC",
       });
       const { commentEmails, remainingMessages } = extractDocCommentEmails([msg]);
 

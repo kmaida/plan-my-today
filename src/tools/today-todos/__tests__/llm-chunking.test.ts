@@ -7,10 +7,7 @@
  * API responses, then exercise the real chunking + dedup pipeline end-to-end.
  */
 
-import {
-  extractActionItemsWithLlmChunked,
-  LLM_CONTENT_LIMIT,
-} from "../llm-extraction";
+import { extractActionItemsWithLlmChunked, LLM_CONTENT_LIMIT } from "../llm-extraction";
 
 // ── Mock config ──
 
