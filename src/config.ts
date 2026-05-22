@@ -104,6 +104,16 @@ function getConfig(): ServerConfig {
         `❌ FATAL: ROIBOT_AGENT_ENDPOINT must use https outside development — got ${parsed.protocol}`
       );
     }
+    // Path must end with /api/agent — the value is used both as the STS
+    // exact-match resource identifier and as the A2A client URL. A bare
+    // origin (e.g. https://event-roi.fly.dev) passes URL parsing but fails
+    // at first call with `invalid_target` from the STS.
+    if (!parsed.pathname.endsWith("/api/agent")) {
+      throw new Error(
+        `❌ FATAL: ROIBOT_AGENT_ENDPOINT path must end with /api/agent — got "${parsed.pathname}".\n` +
+          "💡 Example: ROIBOT_AGENT_ENDPOINT=https://event-roi.fly.dev/api/agent"
+      );
+    }
   }
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
@@ -112,11 +122,16 @@ function getConfig(): ServerConfig {
   const ENABLE_OTEL = process.env.ENABLE_OTEL !== "false";
   const OTLP_ENDPOINT = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || "http://localhost:4318";
 
-  // For URL-based credentials (web apps), only CLIENT_ID is required
-  // For confidential clients, both CLIENT_ID and CLIENT_SECRET are required
+  // CLIENT_ID is always required (every authed code path needs it). SECRET is
+  // only required for confidential clients — URL-based credentials (e.g. JWKS
+  // URL as CLIENT_ID) don't need one.
   if (!KEYCARD_CLIENT_ID) {
-    console.warn("⚠️  KEYCARD_CLIENT_ID not set - token exchange will not work");
-  } else if (!KEYCARD_CLIENT_SECRET && !KEYCARD_CLIENT_ID.startsWith("http")) {
+    throw new Error(
+      "❌ FATAL: KEYCARD_CLIENT_ID must be defined — token exchange and the auth proxy cannot work without it.\n" +
+        "💡 Find it in the Keycard dashboard under your zone's Applications."
+    );
+  }
+  if (!KEYCARD_CLIENT_SECRET && !KEYCARD_CLIENT_ID.startsWith("http")) {
     console.warn("⚠️  KEYCARD_CLIENT_SECRET not set - required for non-URL based credentials");
   }
 
@@ -141,7 +156,7 @@ function getConfig(): ServerConfig {
     host: HOST,
     baseUrl: BASE_URL,
     keycardIssuerUrl: KEYCARD_URL,
-    keycardClientId: KEYCARD_CLIENT_ID || "",
+    keycardClientId: KEYCARD_CLIENT_ID,
     keycardClientSecret: KEYCARD_CLIENT_SECRET || "",
     slackEmojiName: SLACK_EMOJI_NAME || "mcp-todo-reminder",
     calendarPrepPrefix: CALENDAR_PREP_PREFIX,

@@ -197,45 +197,84 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
  * `DOMException` — surfaced to the caller as a friendly timeout result rather
  * than a raw SDK error.
  */
+interface StreamState {
+  state: DelegateResult["state"];
+  rawTerminalState: string | undefined;
+  finalText: string;
+  sawTerminalTaskEvent: boolean;
+}
+
+function applyTaskEvent(s: StreamState, event: Task | TaskStatusUpdateEvent): void {
+  s.sawTerminalTaskEvent = true;
+  s.rawTerminalState = event.status.state;
+  s.state = mapTaskState(event.status.state);
+  const text = extractText(event.status.message?.parts ?? []);
+  if (text) s.finalText = text;
+}
+
+function applyMessageEvent(s: StreamState, event: Message): void {
+  const text = extractText(event.parts);
+  if (text) s.finalText = text;
+}
+
+function applyArtifactEvent(
+  s: StreamState,
+  event: TaskArtifactUpdateEvent,
+  contextId: string
+): void {
+  const parts = event.artifact.parts;
+  const text = extractText(parts);
+  if (text) {
+    s.finalText = text;
+  } else if (parts.length > 0) {
+    logger.warn(
+      `[roibot-a2a-client] artifact-update with non-text parts dropped — contextId=${contextId}`
+    );
+  }
+}
+
+function finalizeStreamState(s: StreamState): DelegateResult {
+  // Stream ended cleanly with text but no terminal task event — agent replied
+  // via `message`/`artifact-update` alone. Don't discard it as `failed`.
+  if (!s.sawTerminalTaskEvent && s.finalText) s.state = "completed";
+
+  // Enrich finalText with a state hint for non-`failed`/`completed`/`input-required`
+  // terminal states. `mapTaskState` collapses these to `failed`, but the user
+  // benefits from knowing whether it was a cancellation, rejection, or auth issue
+  // vs. a generic failure.
+  if (s.state === "failed" && s.rawTerminalState) {
+    const hint = terminalStateHint(s.rawTerminalState);
+    if (hint) s.finalText = s.finalText ? `${hint}: ${s.finalText}` : hint;
+  }
+
+  return { state: s.state, finalText: s.finalText };
+}
+
 /** @internal exported for unit testing */
 export async function consumeStream(
   stream: AsyncGenerator<A2AStreamEvent, void, undefined>,
   contextId: string
 ): Promise<DelegateResult> {
-  let state: DelegateResult["state"] = "failed";
-  let rawTerminalState: string | undefined;
-  let finalText = "";
-  let sawTerminalTaskEvent = false;
+  const s: StreamState = {
+    state: "failed",
+    rawTerminalState: undefined,
+    finalText: "",
+    sawTerminalTaskEvent: false,
+  };
 
   try {
     for await (const event of stream) {
       switch (event.kind) {
         case "task":
-        case "status-update": {
-          sawTerminalTaskEvent = true;
-          rawTerminalState = event.status.state;
-          state = mapTaskState(event.status.state);
-          const text = extractText(event.status.message?.parts ?? []);
-          if (text) finalText = text;
+        case "status-update":
+          applyTaskEvent(s, event);
           break;
-        }
-        case "message": {
-          const text = extractText(event.parts);
-          if (text) finalText = text;
+        case "message":
+          applyMessageEvent(s, event);
           break;
-        }
-        case "artifact-update": {
-          const parts = event.artifact.parts;
-          const text = extractText(parts);
-          if (text) {
-            finalText = text;
-          } else if (parts.length > 0) {
-            logger.warn(
-              `[roibot-a2a-client] artifact-update with non-text parts dropped — contextId=${contextId}`
-            );
-          }
+        case "artifact-update":
+          applyArtifactEvent(s, event, contextId);
           break;
-        }
       }
     }
   } catch (err) {
@@ -252,21 +291,9 @@ export async function consumeStream(
     );
   }
 
-  // Stream ended cleanly with text but no terminal task event — agent replied
-  // via `message`/`artifact-update` alone. Don't discard it as `failed`.
-  if (!sawTerminalTaskEvent && finalText) state = "completed";
-
-  // Enrich finalText with a state hint for non-`failed`/`completed`/`input-required`
-  // terminal states. `mapTaskState` collapses these to `failed`, but the user
-  // benefits from knowing whether it was a cancellation, rejection, or auth issue
-  // vs. a generic failure.
-  if (state === "failed" && rawTerminalState) {
-    const hint = terminalStateHint(rawTerminalState);
-    if (hint) finalText = finalText ? `${hint}: ${finalText}` : hint;
-  }
-
-  logger.info(`[roibot-a2a-client] consumed stream — state=${state} contextId=${contextId}`);
-  return { state, finalText };
+  const result = finalizeStreamState(s);
+  logger.info(`[roibot-a2a-client] consumed stream — state=${result.state} contextId=${contextId}`);
+  return result;
 }
 
 /** True iff err is a DOMException raised by `AbortSignal.timeout()` or `abort()`. */
