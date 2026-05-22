@@ -89,10 +89,15 @@ export function createApp(): express.Application {
   );
 
   // OAuth metadata routes (Keycard issuer discovery).
+  // `scopesSupported: []` — PMT does not gate tools by bearer scope. Access
+  // control happens at the Keycard resource level (Cedar policy per resource).
+  // The UI authorize call only requests "openid profile", and the bearer
+  // middleware passes `requiredScopes: []`. Advertising `mcp:tools` here would
+  // mislead spec-compliant peers into requesting a scope PMT never validates.
   app.use(
     mcpAuthMetadataRouter({
       oauthMetadata: { issuer: config.keycardIssuerUrl },
-      scopesSupported: ["mcp:tools"],
+      scopesSupported: [],
       resourceName: "Plan My Today MCP",
     })
   );

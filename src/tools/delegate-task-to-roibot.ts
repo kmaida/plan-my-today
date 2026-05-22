@@ -1,5 +1,5 @@
 import { z } from "zod/v3";
-import { type DelegateResult, isROIbotConfigured, startTask } from "../services/roibot-a2a-client";
+import { type DelegateResult, startTask } from "../services/roibot-a2a-client";
 import type { McpServer } from "../types/index";
 import { handleToolError } from "../utils/tool-error-utils";
 
@@ -43,10 +43,6 @@ export function registerROIbotDelegateTools(mcpServer: McpServer): void {
     },
     async ({ task }, { authInfo }) => {
       if (!authInfo) return failureResult("❌ Not authenticated.");
-      if (!isROIbotConfigured())
-        return failureResult(
-          "⚠️ ROIBOT_AGENT_ENDPOINT not configured. Set it to ROIbot's /api/agent URL."
-        );
       try {
         const result = await startTask(authInfo, task);
         return formatResult(result);

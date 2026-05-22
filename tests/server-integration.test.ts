@@ -26,7 +26,9 @@ describe("Plan My Today MCP Integration Tests", () => {
 
       expect(response.body).toMatchObject({
         authorization_servers: expect.arrayContaining([expect.any(String)]),
-        scopes_supported: ["mcp:tools"],
+        // PMT advertises no scopes — access control is at the Keycard resource
+        // level (Cedar policy), not via bearer scopes.
+        scopes_supported: [],
         resource_name: "Plan My Today MCP",
       });
     });

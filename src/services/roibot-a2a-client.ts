@@ -72,11 +72,6 @@ export interface DelegateResult {
   finalText: string;
 }
 
-/** True iff the env var is set; used by tools to short-circuit politely. */
-export function isROIbotConfigured(): boolean {
-  return !!config.roibotAgentEndpoint;
-}
-
 /** Hard ceiling on a single A2A round-trip. Tool description promises 1-5 min; this gives generous headroom. */
 const A2A_STREAM_TIMEOUT_MS = 5 * 60_000;
 
@@ -105,7 +100,7 @@ export async function startTask(authInfo: AuthInfo, task: string): Promise<Deleg
     },
     { signal: AbortSignal.timeout(A2A_STREAM_TIMEOUT_MS) }
   );
-  return consumeStream(stream);
+  return consumeStream(stream, contextId);
 }
 
 /**
@@ -202,9 +197,11 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
  * than a raw SDK error.
  */
 async function consumeStream(
-  stream: AsyncGenerator<A2AStreamEvent, void, undefined>
+  stream: AsyncGenerator<A2AStreamEvent, void, undefined>,
+  contextId: string
 ): Promise<DelegateResult> {
   let state: DelegateResult["state"] = "failed";
+  let rawTerminalState: string | undefined;
   let finalText = "";
   let sawTerminalTaskEvent = false;
 
@@ -214,6 +211,7 @@ async function consumeStream(
         case "task":
         case "status-update": {
           sawTerminalTaskEvent = true;
+          rawTerminalState = event.status.state;
           state = mapTaskState(event.status.state);
           const text = extractText(event.status.message?.parts ?? []);
           if (text) finalText = text;
@@ -230,7 +228,9 @@ async function consumeStream(
           if (text) {
             finalText = text;
           } else if (parts.length > 0) {
-            logger.warn("[roibot-a2a-client] artifact-update with non-text parts dropped");
+            logger.warn(
+              `[roibot-a2a-client] artifact-update with non-text parts dropped — contextId=${contextId}`
+            );
           }
           break;
         }
@@ -238,7 +238,7 @@ async function consumeStream(
     }
   } catch (err) {
     if (isTimeoutError(err)) {
-      logger.warn("[roibot-a2a-client] stream aborted by timeout");
+      logger.warn(`[roibot-a2a-client] stream aborted by timeout — contextId=${contextId}`);
       return { state: "failed", finalText: `ROIbot timed out after ${A2A_STREAM_TIMEOUT_MS / 1000}s.` };
     }
     throw new ROIbotA2AClientError(
@@ -251,7 +251,16 @@ async function consumeStream(
   // via `message`/`artifact-update` alone. Don't discard it as `failed`.
   if (!sawTerminalTaskEvent && finalText) state = "completed";
 
-  logger.info(`[roibot-a2a-client] consumed stream — state=${state}`);
+  // Enrich finalText with a state hint for non-`failed`/`completed`/`input-required`
+  // terminal states. `mapTaskState` collapses these to `failed`, but the user
+  // benefits from knowing whether it was a cancellation, rejection, or auth issue
+  // vs. a generic failure.
+  if (state === "failed" && rawTerminalState) {
+    const hint = terminalStateHint(rawTerminalState);
+    if (hint) finalText = finalText ? `${hint}: ${finalText}` : hint;
+  }
+
+  logger.info(`[roibot-a2a-client] consumed stream — state=${state} contextId=${contextId}`);
   return { state, finalText };
 }
 
@@ -266,6 +275,20 @@ function mapTaskState(s: string): DelegateResult["state"] {
   if (s === "completed") return "completed";
   if (s === "input-required") return "input-required";
   return "failed";
+}
+
+/** Human-readable prefix for terminal task states that collapse to `failed`. */
+function terminalStateHint(s: string): string | undefined {
+  switch (s) {
+    case "canceled":
+      return "ROIbot canceled the task";
+    case "rejected":
+      return "ROIbot rejected the task";
+    case "auth-required":
+      return "ROIbot needs authentication for this task";
+    default:
+      return undefined;
+  }
 }
 
 function extractText(parts: Part[]): string {

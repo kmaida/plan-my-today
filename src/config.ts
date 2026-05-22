@@ -82,14 +82,29 @@ function getConfig(): ServerConfig {
   const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 
   // ROIbot A2A agent endpoint for agent-to-agent task delegation (optional).
-  // The Keycard resource URI for ROIbot's /api/agent endpoint on the dashboard.
-  // Used both as the token-exchange `resource` and as the A2A endpoint URL.
+  // Keycard resource URI for ROIbot's /api/agent endpoint. Used both as the
+  // token-exchange `resource` (exact-match per STS) and as the A2A client URL.
   // Example: https://event-roi.fly.dev/api/agent
-  //
-  // (Replaces the old ROIBOT_MCP_ENDPOINT, which targeted ROIbot's MCP server
-  // directly. The architecture moved from MCP-proxy to A2A delegation in May 2026 —
-  // see CHANGELOG and ~/.claude/plans/i-need-to-pick-serialized-parrot.md.)
   const ROIBOT_AGENT_ENDPOINT = process.env.ROIBOT_AGENT_ENDPOINT || "";
+  if (ROIBOT_AGENT_ENDPOINT) {
+    let parsed: URL;
+    try {
+      parsed = new URL(ROIBOT_AGENT_ENDPOINT);
+    } catch {
+      throw new Error(
+        `❌ FATAL: ROIBOT_AGENT_ENDPOINT must be a valid URL — got "${ROIBOT_AGENT_ENDPOINT}".\n` +
+          "💡 Example: ROIBOT_AGENT_ENDPOINT=https://event-roi.fly.dev/api/agent"
+      );
+    }
+    // STS uses exact string matching on the resource identifier — http→https
+    // drift produces invalid_target at first call. Require https outside dev.
+    const isDev = (process.env.NODE_ENV || "development") === "development";
+    if (!isDev && parsed.protocol !== "https:") {
+      throw new Error(
+        `❌ FATAL: ROIBOT_AGENT_ENDPOINT must use https outside development — got ${parsed.protocol}`
+      );
+    }
+  }
 
   const SERVICE_NAME = process.env.OTEL_SERVICE_NAME || "plan-my-today";
   const SERVICE_VERSION = process.env.OTEL_SERVICE_VERSION || "0.1.1";
