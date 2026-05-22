@@ -22,11 +22,25 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type {
+  Message,
+  Part,
+  Task,
+  TaskArtifactUpdateEvent,
+  TaskStatusUpdateEvent,
+  TextPart,
+} from "@a2a-js/sdk";
 import { type Client, ClientFactory, JsonRpcTransportFactory } from "@a2a-js/sdk/client";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
 import { getLogger } from "../observability/logger";
 import { exchangeToken, TokenExchangeError } from "./keycard-client";
+
+/**
+ * Discriminated union of events `sendMessageStream` yields. Mirrors the SDK's
+ * internal `A2AStreamEventData` (which isn't exported via the public entry).
+ */
+type A2AStreamEvent = Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent;
 
 const logger = getLogger();
 
@@ -98,10 +112,10 @@ export async function startTask(authInfo: AuthInfo, task: string): Promise<Deleg
  * Build a per-call A2A `Client` with a Bearer-injecting fetch.
  *
  * Re-exchanges the user's session token for a ROIbot-audience token on
- * every call (see file-level @remarks). The `ClientFactory.createFromUrl`
- * call does an agent-card discovery fetch as a side effect — currently
- * unauthenticated on our agent endpoint (per A2A spec § 8) — so the
- * Bearer header is only used for the actual `message/send` call.
+ * every call (see file-level @remarks). The Bearer header is sent ONLY
+ * on the JSON-RPC `message/send` call, NOT on agent-card discovery —
+ * A2A spec § 8 says agent-card discovery is unauthenticated, so we
+ * scope `authFetch` to the JSON-RPC endpoint URL only.
  */
 async function buildClient(authInfo: AuthInfo): Promise<Client> {
   if (!config.roibotAgentEndpoint) {
@@ -148,20 +162,21 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
     );
   }
 
+  const endpoint = config.roibotAgentEndpoint;
   const authFetch: typeof fetch = (input, init = {}) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url !== endpoint) return fetch(input, init);
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${bearer}`);
     return fetch(input, { ...init, headers });
   };
 
-  // Wire the auth-fetch through a JsonRpcTransportFactory so it's used
-  // for both agent-card discovery and the message/send call. The
-  // factory pattern is the SDK's recommended path; the deprecated
-  // `A2AClient` would also work but the SDK pushes `ClientFactory`.
+  // ClientFactory is the SDK's recommended path; A2AClient is @deprecated.
+  // The custom JsonRpcTransportFactory exists solely to inject `authFetch`.
   const factory = new ClientFactory({
     transports: [new JsonRpcTransportFactory({ fetchImpl: authFetch })],
   });
-  return factory.createFromUrl(config.roibotAgentEndpoint);
+  return factory.createFromUrl(endpoint);
 }
 
 /**
@@ -187,7 +202,7 @@ async function buildClient(authInfo: AuthInfo): Promise<Client> {
  * than a raw SDK error.
  */
 async function consumeStream(
-  stream: AsyncGenerator<unknown, void, undefined>
+  stream: AsyncGenerator<A2AStreamEvent, void, undefined>
 ): Promise<DelegateResult> {
   let state: DelegateResult["state"] = "failed";
   let finalText = "";
@@ -195,31 +210,29 @@ async function consumeStream(
 
   try {
     for await (const event of stream) {
-      if (!event || typeof event !== "object") continue;
-
-      const e = event as {
-        kind?: string;
-        status?: { state?: string; message?: { parts?: unknown[] } };
-        parts?: unknown[];
-        artifact?: { parts?: unknown[] };
-      };
-
-      if (e.kind === "task" || e.kind === "status-update") {
-        sawTerminalTaskEvent = true;
-        const taskState = e.status?.state;
-        if (taskState) state = mapTaskState(taskState);
-        const text = extractText(e.status?.message?.parts ?? []);
-        if (text) finalText = text;
-      } else if (e.kind === "message") {
-        const text = extractText(e.parts ?? []);
-        if (text) finalText = text;
-      } else if (e.kind === "artifact-update") {
-        const parts = e.artifact?.parts ?? [];
-        const text = extractText(parts);
-        if (text) {
-          finalText = text;
-        } else if (parts.length > 0) {
-          logger.warn("[roibot-a2a-client] artifact-update with non-text parts dropped");
+      switch (event.kind) {
+        case "task":
+        case "status-update": {
+          sawTerminalTaskEvent = true;
+          state = mapTaskState(event.status.state);
+          const text = extractText(event.status.message?.parts ?? []);
+          if (text) finalText = text;
+          break;
+        }
+        case "message": {
+          const text = extractText(event.parts);
+          if (text) finalText = text;
+          break;
+        }
+        case "artifact-update": {
+          const parts = event.artifact.parts;
+          const text = extractText(parts);
+          if (text) {
+            finalText = text;
+          } else if (parts.length > 0) {
+            logger.warn("[roibot-a2a-client] artifact-update with non-text parts dropped");
+          }
+          break;
         }
       }
     }
@@ -255,15 +268,9 @@ function mapTaskState(s: string): DelegateResult["state"] {
   return "failed";
 }
 
-function extractText(parts: unknown[]): string {
+function extractText(parts: Part[]): string {
   return parts
-    .filter(
-      (p): p is { kind: "text"; text: string } =>
-        !!p &&
-        typeof p === "object" &&
-        (p as { kind?: unknown }).kind === "text" &&
-        typeof (p as { text?: unknown }).text === "string"
-    )
+    .filter((p): p is TextPart => p.kind === "text")
     .map((p) => p.text)
     .join("\n")
     .trim();
