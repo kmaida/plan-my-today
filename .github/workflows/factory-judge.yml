@@ -30,6 +30,9 @@ jobs:
         id: run
         run: |
           git show "$BASE:.factory/policy.json" > "$RUNNER_TEMP/policy.json"
+          # check_env / check_setup come from BASE policy: the same env and prep the repo's CI uses for its checks
+          while IFS= read -r kv; do export "$kv"; done < <(jq -r '.check_env // {} | to_entries[] | "\(.key)=\(.value)"' "$RUNNER_TEMP/policy.json")
+          while IFS= read -r s; do bash -c "$s"; done < <(jq -r '.check_setup[]?' "$RUNNER_TEMP/policy.json")
           npm ci
           out="$RUNNER_TEMP/check-output.txt"; : > "$out"; ok=1
           while IFS= read -r c; do
@@ -77,6 +80,7 @@ jobs:
         env: { OPENAI_API_KEY: "${{ secrets.OPENAI_API_KEY }}" }
         run: |
           git checkout -q -- . && git clean -qfd
+          rm -rf .claude .codex .mcp.json CLAUDE.md AGENTS.md .cursor .github/copilot-instructions.md   # the reset restores them; strip again
           npm i -g @openai/codex >/dev/null 2>&1
           codex exec --sandbox workspace-write --skip-git-repo-check "$(cat "$RUNNER_TEMP/prompt.md")" > "$RUNNER_TEMP/codex.txt" 2>&1 || true
           grep -oE 'VERDICT: *(VERIFIED|CAVEATS|REFUTED)' "$RUNNER_TEMP/codex.txt" | tail -1 | awk '{print $2}' > "$RUNNER_TEMP/codex.verdict" || true
