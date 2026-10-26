@@ -20,7 +20,7 @@ import {
   setOverride,
 } from "../priority-override-store";
 
-const OVERRIDES_FILE = path.join(process.cwd(), "data", "test-priority-overrides.json");
+const OVERRIDES_FILE = process.env.OVERRIDES_FILE_PATH as string; // set per jest worker in tests/setup.ts
 
 beforeEach(async () => {
   await fs.mkdir(path.dirname(OVERRIDES_FILE), { recursive: true });

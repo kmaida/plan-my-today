@@ -21,7 +21,7 @@ import { isActionCompleted, markActionComplete } from "../action-completion-stor
 
 // Tests use a separate file (set via COMPLETIONS_FILE_PATH in tests/setup.ts)
 // so they don't wipe real dismissals from the live app.
-const COMPLETIONS_FILE = path.join(process.cwd(), "data", "test-completed-actions.json");
+const COMPLETIONS_FILE = process.env.COMPLETIONS_FILE_PATH as string; // set per jest worker in tests/setup.ts
 
 beforeEach(async () => {
   // Start each test with an empty completions store
