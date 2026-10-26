@@ -6,10 +6,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # src/config.ts throws at import without these; tests never call Keycard.
+      KEYCARD_URL: https://chzabf1qgzjia0wfd17eietx70.keycard.cloud   # public issuer; discovery test fetches its metadata
+      KEYCARD_CLIENT_ID: ci-dummy
+      KEYCARD_CLIENT_SECRET: ci-dummy
+      ENABLE_OTEL: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm }
       - run: npm ci
+      - run: mkdir -p data   # gitignored; the stores write test fixtures here
       - run: npm test
       - run: npm run build

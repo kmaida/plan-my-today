@@ -23,7 +23,7 @@ import {
   markActionIncomplete,
 } from "../action-completion-store";
 
-const COMPLETIONS_FILE = path.join(process.cwd(), "data", "test-completed-actions.json");
+const COMPLETIONS_FILE = process.env.COMPLETIONS_FILE_PATH as string; // set per jest worker in tests/setup.ts
 
 beforeEach(async () => {
   await fs.mkdir(path.dirname(COMPLETIONS_FILE), { recursive: true });

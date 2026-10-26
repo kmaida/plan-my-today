@@ -23,7 +23,7 @@ import {
   setCachedItems,
 } from "../llm-cache";
 
-const CACHE_FILE = path.join(process.cwd(), "data", "test-llm-extraction-cache.json");
+const CACHE_FILE = process.env.LLM_CACHE_FILE_PATH as string; // set per jest worker in tests/setup.ts
 
 // ── Mock logger ──
 
