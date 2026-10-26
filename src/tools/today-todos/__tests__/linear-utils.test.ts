@@ -5,17 +5,27 @@
  * silently mis-rank every Linear task in the dashboard.
  *
  * Design notes:
- * - `now` (the parameter) only controls ageHours for recency boost. Fix it to NOW.
- * - Due-date comparisons inside the function use `new Date()` directly, not `now`,
- *   so temporal urgency tests compute dates via dateStr() relative to the system clock.
+ * - `now` (the parameter) controls ageHours for recency boost.
+ * - Due-date comparisons inside the function use `new Date()` directly, not `now`.
+ *   jest.useFakeTimers() freezes both so all temporal tests are fully deterministic.
  * - calculateLinearPriority does not read `issue.relationMetadata`; no relation tests needed.
  */
 
 import { calculateLinearPriority } from "../linear-utils";
 import type { LinearIssueDetail } from "../types";
 
-// Fixed reference time for the `now` parameter — controls recency boost only.
+// Fixed reference time — controls the `now` parameter AND, via jest.useFakeTimers,
+// freezes new Date() inside calculateLinearPriority so all date math is deterministic.
 const NOW = new Date("2026-10-26T12:00:00.000Z");
+
+beforeAll(() => {
+  jest.useFakeTimers();
+  jest.setSystemTime(NOW);
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+});
 
 function makeIssue(overrides: Partial<LinearIssueDetail> = {}): LinearIssueDetail {
   return {
@@ -32,9 +42,9 @@ function makeIssue(overrides: Partial<LinearIssueDetail> = {}): LinearIssueDetai
   };
 }
 
-/** Returns a YYYY-MM-DD string offset by `days` from today's system date. */
+/** Returns a YYYY-MM-DD string offset by `days` from the frozen system date (NOW). */
 function dateStr(days: number): string {
-  const d = new Date();
+  const d = new Date(); // frozen to NOW by jest.useFakeTimers
   d.setDate(d.getDate() + days);
   return [
     d.getFullYear(),
@@ -72,6 +82,20 @@ describe("temporal urgency", () => {
     expect(result.signals.temporalUrgency).toBe("due_this_week");
     expect(result.reasons).toContain("Due soon");
     expect(result.score).toBe(110); // base 70 + due_this_week 40
+  });
+
+  it("should set due_this_week at exactly 7 days (boundary) and add +40 to score", () => {
+    const result = calculateLinearPriority(makeIssue({ dueDate: dateStr(7) }), NOW);
+    expect(result.signals.temporalUrgency).toBe("due_this_week");
+    expect(result.signals.daysUntilDue).toBe(7);
+    expect(result.score).toBe(110); // base 70 + due_this_week 40
+  });
+
+  it("should set due_later at exactly 8 days (just outside boundary) and add +10 to score", () => {
+    const result = calculateLinearPriority(makeIssue({ dueDate: dateStr(8) }), NOW);
+    expect(result.signals.temporalUrgency).toBe("due_later");
+    expect(result.signals.daysUntilDue).toBe(8);
+    expect(result.score).toBe(80); // base 70 + due_later 10
   });
 
   it("should set due_later for a date 14 days out and add +10 to score", () => {
@@ -174,8 +198,28 @@ describe("recency boost", () => {
     expect(result.signals.recentlyUpdated).toBe(true);
   });
 
+  it("should add +30 at exactly 24 hours (boundary stays in first tier)", () => {
+    const updatedAt = new Date(NOW.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const result = calculateLinearPriority(
+      makeIssue({ priority: 2, priorityLabel: "High", updatedAt }),
+      NOW
+    );
+    expect(result.score).toBe(130); // base 70 + high 30 + recency 30
+    expect(result.reasons).toContain("Updated in last 24 hours");
+  });
+
   it("should add +20 when updated between 24 and 72 hours ago", () => {
     const updatedAt = new Date(NOW.getTime() - 48 * 60 * 60 * 1000).toISOString();
+    const result = calculateLinearPriority(
+      makeIssue({ priority: 2, priorityLabel: "High", updatedAt }),
+      NOW
+    );
+    expect(result.score).toBe(120); // base 70 + high 30 + recency 20
+    expect(result.reasons).toContain("Updated recently");
+  });
+
+  it("should add +20 at exactly 72 hours (boundary stays in second tier)", () => {
+    const updatedAt = new Date(NOW.getTime() - 72 * 60 * 60 * 1000).toISOString();
     const result = calculateLinearPriority(
       makeIssue({ priority: 2, priorityLabel: "High", updatedAt }),
       NOW
@@ -193,6 +237,16 @@ describe("recency boost", () => {
     expect(result.score).toBe(110); // base 70 + high 30 + recency 10
     expect(result.reasons).toContain("Updated this week");
     expect(result.signals.recentlyUpdated).toBe(true);
+  });
+
+  it("should add +10 at exactly 168 hours (boundary stays in third tier)", () => {
+    const updatedAt = new Date(NOW.getTime() - 168 * 60 * 60 * 1000).toISOString();
+    const result = calculateLinearPriority(
+      makeIssue({ priority: 2, priorityLabel: "High", updatedAt }),
+      NOW
+    );
+    expect(result.score).toBe(110); // base 70 + high 30 + recency 10
+    expect(result.reasons).toContain("Updated this week");
   });
 
   it("should add no recency boost when updated more than 168 hours ago", () => {
@@ -215,6 +269,18 @@ describe("recency boost", () => {
     );
     expect(result.score).toBe(120); // base 70 + priority boost 50, no recency
     expect(result.reasons).not.toContain("Updated in last 24 hours");
+  });
+
+  it("should apply recency boost for priority 0 when issue has a due date", () => {
+    // hasPriorityOrDueDate = (0 >= 1) || !!dueDate = true → recency eligible.
+    const updatedAt = new Date(NOW.getTime() - 1 * 60 * 60 * 1000).toISOString();
+    const result = calculateLinearPriority(
+      makeIssue({ priority: 0, priorityLabel: "No priority", dueDate: dateStr(3), updatedAt }),
+      NOW
+    );
+    // base 70 + priority<=1 50 + due_this_week 40 + recency(<24h) 30 = 190
+    expect(result.score).toBe(190);
+    expect(result.reasons).toContain("Updated in last 24 hours");
   });
 
   it("should set ageHours to null and recentlyUpdated to false when updatedAt is absent", () => {
