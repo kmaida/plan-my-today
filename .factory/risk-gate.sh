@@ -9,7 +9,7 @@ review() { echo "review: $*"; exit 1; }
 
 policy=$(git show "$base:.factory/policy.json" 2>/dev/null) || review "no .factory/policy.json at base"
 jq -e . <<<"$policy" >/dev/null 2>&1 || review "policy.json is not valid JSON"
-[[ $(jq -r '.auto_merge // true' <<<"$policy") == true ]] || review "auto_merge is false"
+[[ $(jq -r '.auto_merge' <<<"$policy") == true ]] || review "auto_merge is not true"
 max=$(jq -r '.max_lines // 300' <<<"$policy")
 mapfile -t allow < <(jq -r '.allow[]?' <<<"$policy")
 mapfile -t deny  < <(jq -r '.deny[]?'  <<<"$policy")
