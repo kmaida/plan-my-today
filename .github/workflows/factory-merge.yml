@@ -54,8 +54,9 @@ jobs:
           git fetch -q origin "$HEAD"
           git show "$BASE:.factory/risk-gate.sh" > "$RUNNER_TEMP/gate.sh"
           if out=$(bash "$RUNNER_TEMP/gate.sh" . "$BASE" "$HEAD" 2>&1); then v=low; else v=review; fi
-          echo "verdict=$v" >> "$GITHUB_OUTPUT"
-          { echo 'out<<__EOF__'; echo "$out"; echo __EOF__; } >> "$GITHUB_OUTPUT"
+          d="EOF_$(openssl rand -hex 16)"
+          { echo "out<<$d"; printf '%s\n' "$out"; echo "$d"; } >> "$GITHUB_OUTPUT"
+          echo "verdict=$v" >> "$GITHUB_OUTPUT"   # written last, after the untrusted block
       - name: Comment if review
         if: steps.gate.outputs.verdict == 'review'
         env: { GH_TOKEN: "${{ github.token }}", N: "${{ steps.pr.outputs.number }}", OUT: "${{ steps.gate.outputs.out }}" }
