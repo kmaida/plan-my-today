@@ -1,0 +1,61 @@
+# factory-merge.yml — the only thing that merges factory PRs. Installed by /factory-onboard.
+# Needs: repo var FACTORY_APP_ID, secret FACTORY_APP_PRIVATE_KEY, branch protection on main
+# (required CI, require up to date, statuses accepted only from the factory App), var FACTORY_PAUSED.
+# ponytail: untested until Phase 2; the gate script is tested, the plumbing here is not.
+name: factory-merge
+on:
+  pull_request:
+    types: [labeled, synchronize]
+  status: {}
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: read
+  checks: read
+jobs:
+  gate:
+    if: vars.FACTORY_PAUSED != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR
+        id: pr
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            n=${{ github.event.pull_request.number }}
+          else
+            case "${{ github.event.context }}" in factory/judge-*) ;; *) echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0;; esac
+            n=$(gh pr list -R "$GITHUB_REPOSITORY" --search "${{ github.event.sha }}" --label factory --json number --jq '.[0].number // empty')
+          fi
+          [ -n "$n" ] || { echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0; }
+          gh pr view "$n" -R "$GITHUB_REPOSITORY" --json labels,headRefOid,baseRefOid,headRefName \
+            --jq '"number='"$n"'\nhead=\(.headRefOid)\nbase=\(.baseRefOid)\nbranch=\(.headRefName)\nfactory=\([.labels[].name]|index("factory")!=null)"' >> "$GITHUB_OUTPUT"
+      - if: steps.pr.outputs.skip != '1' && steps.pr.outputs.factory == 'true'
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Required CI green?
+        if: steps.pr.outputs.skip != '1' && steps.pr.outputs.factory == 'true'
+        id: ci
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh pr checks ${{ steps.pr.outputs.number }} --required && echo ok=1 >> "$GITHUB_OUTPUT" || echo ok=0 >> "$GITHUB_OUTPUT"
+      - name: Risk gate (script and policy from BASE)
+        if: steps.ci.outputs.ok == '1'
+        id: gate
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          git show ${{ steps.pr.outputs.base }}:.factory/risk-gate.sh > /tmp/gate.sh
+          out=$(bash /tmp/gate.sh . ${{ steps.pr.outputs.base }} ${{ steps.pr.outputs.head }} 2>&1 || true)
+          echo "$out"; echo "out<<E" >> "$GITHUB_OUTPUT"; echo "$out" >> "$GITHUB_OUTPUT"; echo E >> "$GITHUB_OUTPUT"
+      - name: Comment if review
+        if: steps.ci.outputs.ok == '1' && !endsWith(steps.gate.outputs.out, 'low')
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh pr comment ${{ steps.pr.outputs.number }} -b "factory: not auto-mergeable — ${{ steps.gate.outputs.out }}"
+      - name: App token
+        if: endsWith(steps.gate.outputs.out, 'low')
+        id: app
+        uses: actions/create-github-app-token@v2
+        with: { app-id: "${{ vars.FACTORY_APP_ID }}", private-key: "${{ secrets.FACTORY_APP_PRIVATE_KEY }}" }
+      - name: Merge
+        if: endsWith(steps.gate.outputs.out, 'low')
+        env: { GH_TOKEN: "${{ steps.app.outputs.token }}" }
+        run: gh pr merge ${{ steps.pr.outputs.number }} --squash --delete-branch --match-head-commit ${{ steps.pr.outputs.head }}
