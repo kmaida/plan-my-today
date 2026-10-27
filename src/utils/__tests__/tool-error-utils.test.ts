@@ -166,9 +166,14 @@ describe("handleToolError — response shape", () => {
     expect(nonAuth.content[0].text).not.toContain("Reauthorize");
   });
 
-  it("never leaks the raw error message or resource into the LLM-facing text", () => {
-    // The sanitized channel must stay bland — internal detail lives in _meta only.
-    const error = new TokenExchangeError(`failed for user abc-123 at ${RESOURCE}`, 400);
+  it.each([
+    ["an auth error", (m: string) => new TokenExchangeError(m, 400)],
+    ["an upstream API error", (m: string) => Object.assign(new Error(m), { status: 503 })],
+    ["a network error", (m: string) => new TypeError(m)],
+    ["an unclassified error", (m: string) => new Error(m)],
+  ])("never leaks the raw message or resource into the LLM-facing text for %s", (_label, make) => {
+    // The sanitized channel must stay bland on every category — internal detail lives in _meta only.
+    const error = make(`failed for user abc-123 at ${RESOURCE}`);
     const { text } = handleToolError(error, SOURCE, RESOURCE, SCOPES).content[0];
     expect(text).not.toContain("abc-123");
     expect(text).not.toContain(RESOURCE);
