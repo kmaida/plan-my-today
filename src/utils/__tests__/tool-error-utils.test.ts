@@ -39,122 +39,95 @@ beforeEach(() => {
 const SOURCE = "gmail";
 const RESOURCE = "https://gmail.googleapis.com";
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
+const ERR = new Error("x");
 
 // ── Classification ───────────────────────────────────────────────────────────
 
 describe("buildStructuredError — classification", () => {
-  it("classifies TokenExchangeError as auth, carrying status and description", () => {
-    const error = new TokenExchangeError("Token exchange failed: 400", 400, "invalid_target");
-    const result = buildStructuredError(error, SOURCE);
-    expect(result.category).toBe("auth");
-    expect(result.status).toBe(400);
-    expect(result.description).toBe("invalid_target");
-    expect(result.message).toBe("Token exchange failed: 400");
-  });
+  const tokenErr = new TokenExchangeError("Token exchange failed: 400", 400, "invalid_target");
 
-  it("classifies TokenExchangeError without status/description as auth with both undefined", () => {
-    const result = buildStructuredError(new TokenExchangeError("network down"), SOURCE);
-    expect(result.category).toBe("auth");
-    expect(result.status).toBeUndefined();
-    expect(result.description).toBeUndefined();
-  });
-
-  it("classifies AuthenticationError as auth with its status", () => {
-    const result = buildStructuredError(new AuthenticationError("Gmail", 401), SOURCE);
-    expect(result.category).toBe("auth");
-    expect(result.status).toBe(401);
-    expect(result.description).toBeUndefined();
-    expect(result.message).toBe("Gmail: unauthorized (401)");
-  });
-
-  it("classifies TypeError as network", () => {
-    const result = buildStructuredError(new TypeError("fetch failed"), SOURCE);
-    expect(result.category).toBe("network");
-    expect(result.status).toBeUndefined();
-    expect(result.message).toBe("fetch failed");
-  });
-
-  it("classifies a plain object with status 429 as rate_limit", () => {
-    const result = buildStructuredError({ status: 429 }, SOURCE);
-    expect(result.category).toBe("rate_limit");
-    expect(result.status).toBe(429);
-  });
-
-  it("classifies a plain object with status 503 as upstream_api", () => {
-    const result = buildStructuredError({ status: 503 }, SOURCE);
-    expect(result.category).toBe("upstream_api");
-    expect(result.status).toBe(503);
-  });
-
-  it("classifies a plain object with a 2xx status as unknown", () => {
+  it.each([
+    [
+      "TokenExchangeError → auth, carrying status and description",
+      tokenErr,
+      { category: "auth", status: 400, description: "invalid_target", message: tokenErr.message },
+    ],
+    [
+      "TokenExchangeError without status/description → auth, both undefined",
+      new TokenExchangeError("network down"),
+      { category: "auth", status: undefined, description: undefined, message: "network down" },
+    ],
+    [
+      "AuthenticationError → auth with its status",
+      new AuthenticationError("Gmail", 401),
+      {
+        category: "auth",
+        status: 401,
+        description: undefined,
+        message: "Gmail: unauthorized (401)",
+      },
+    ],
+    [
+      "TypeError → network",
+      new TypeError("fetch failed"),
+      { category: "network", status: undefined, message: "fetch failed" },
+    ],
+    ["{ status: 429 } → rate_limit", { status: 429 }, { category: "rate_limit", status: 429 }],
+    ["{ status: 503 } → upstream_api", { status: 503 }, { category: "upstream_api", status: 503 }],
     // Only >= 400 counts as an upstream failure; anything else is unclassified.
-    const result = buildStructuredError({ status: 200 }, SOURCE);
-    expect(result.category).toBe("unknown");
-    expect(result.status).toBeUndefined();
-  });
-
-  it("classifies a plain Error without status as unknown, keeping its message", () => {
-    const result = buildStructuredError(new Error("boom"), SOURCE);
-    expect(result.category).toBe("unknown");
-    expect(result.message).toBe("boom");
-  });
-
-  it("classifies a string as unknown with message 'Unknown error'", () => {
-    const result = buildStructuredError("something went wrong", SOURCE);
-    expect(result.category).toBe("unknown");
-    expect(result.message).toBe("Unknown error");
-  });
-
-  it("classifies undefined as unknown with message 'Unknown error'", () => {
-    const result = buildStructuredError(undefined, SOURCE);
-    expect(result.category).toBe("unknown");
-    expect(result.message).toBe("Unknown error");
+    [
+      "{ status: 200 } → unknown, status dropped",
+      { status: 200 },
+      { category: "unknown", status: undefined },
+    ],
+    [
+      "plain Error → unknown, keeping its message",
+      new Error("boom"),
+      { category: "unknown", message: "boom" },
+    ],
+    [
+      "string → unknown with 'Unknown error'",
+      "oops",
+      { category: "unknown", message: "Unknown error" },
+    ],
+    [
+      "undefined → unknown with 'Unknown error'",
+      undefined,
+      { category: "unknown", message: "Unknown error" },
+    ],
+  ])("classifies %s", (_label, error, expected) => {
+    expect(buildStructuredError(error, SOURCE)).toMatchObject(expected);
   });
 });
 
 // ── buildStructuredError — field pass-through ────────────────────────────────
 
 describe("buildStructuredError — fields", () => {
-  it("sets source and resource from arguments", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE, RESOURCE);
-    expect(result.source).toBe(SOURCE);
-    expect(result.resource).toBe(RESOURCE);
+  it("sets source, resource, and a non-empty scopes list from arguments", () => {
+    const result = buildStructuredError(ERR, SOURCE, RESOURCE, SCOPES);
+    expect(result).toMatchObject({ source: SOURCE, resource: RESOURCE, scopes: SCOPES });
   });
 
-  it("passes a non-empty scopes list through", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE, RESOURCE, SCOPES);
-    expect(result.scopes).toEqual(SCOPES);
+  it("sets scopes to undefined when the list is empty or omitted", () => {
+    expect(buildStructuredError(ERR, SOURCE, RESOURCE, []).scopes).toBeUndefined();
+    expect(buildStructuredError(ERR, SOURCE).scopes).toBeUndefined();
   });
 
-  it("sets scopes to undefined when the list is empty", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE, RESOURCE, []);
-    expect(result.scopes).toBeUndefined();
-  });
-
-  it("sets scopes to undefined when omitted", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE);
-    expect(result.scopes).toBeUndefined();
-  });
-
-  it("passes hint through", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE, undefined, undefined, "check zone");
-    expect(result.hint).toBe("check zone");
-  });
-
-  it("leaves hint undefined when omitted", () => {
-    const result = buildStructuredError(new Error("x"), SOURCE);
-    expect(result.hint).toBeUndefined();
+  it("passes hint through, leaving it undefined when omitted", () => {
+    expect(buildStructuredError(ERR, SOURCE, undefined, undefined, "check zone").hint).toBe(
+      "check zone"
+    );
+    expect(buildStructuredError(ERR, SOURCE).hint).toBeUndefined();
   });
 
   it("stamps an ISO-8601 timestamp for the current time", () => {
     jest.useFakeTimers();
     try {
-      const fixed = new Date("2026-10-27T12:34:56.789Z");
-      jest.setSystemTime(fixed);
-      const result = buildStructuredError(new Error("x"), SOURCE);
-      expect(result.timestamp).toBe("2026-10-27T12:34:56.789Z");
+      jest.setSystemTime(new Date("2026-10-27T12:34:56.789Z"));
+      const { timestamp } = buildStructuredError(ERR, SOURCE);
+      expect(timestamp).toBe("2026-10-27T12:34:56.789Z");
       // Round-trips through Date, so it's a parseable ISO-8601 string.
-      expect(new Date(result.timestamp).toISOString()).toBe(result.timestamp);
+      expect(new Date(timestamp).toISOString()).toBe(timestamp);
     } finally {
       jest.useRealTimers();
     }
@@ -165,7 +138,7 @@ describe("buildStructuredError — fields", () => {
 
 describe("handleToolError — response shape", () => {
   it("returns isError: true with a single text content block", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES);
+    const result = handleToolError(ERR, SOURCE, RESOURCE, SCOPES);
     expect(result.isError).toBe(true);
     expect(result.content).toHaveLength(1);
     expect(result.content[0].type).toBe("text");
@@ -186,108 +159,69 @@ describe("handleToolError — response shape", () => {
     expect(typeof result._meta.error.timestamp).toBe("string");
   });
 
-  it("mentions 'Reauthorize' in the LLM-facing text for an auth error", () => {
-    const result = handleToolError(new AuthenticationError("Gmail", 403), SOURCE, RESOURCE, SCOPES);
-    expect(result.content[0].text).toContain("Reauthorize");
-  });
-
-  it("does not mention 'Reauthorize' in the LLM-facing text for a non-auth error", () => {
-    const result = handleToolError({ status: 503 }, SOURCE, RESOURCE, SCOPES);
-    expect(result.content[0].text).not.toContain("Reauthorize");
+  it("mentions 'Reauthorize' in the LLM-facing text for an auth error only", () => {
+    const auth = handleToolError(new AuthenticationError("Gmail", 403), SOURCE, RESOURCE, SCOPES);
+    const nonAuth = handleToolError({ status: 503 }, SOURCE, RESOURCE, SCOPES);
+    expect(auth.content[0].text).toContain("Reauthorize");
+    expect(nonAuth.content[0].text).not.toContain("Reauthorize");
   });
 
   it("never leaks the raw error message or resource into the LLM-facing text", () => {
     // The sanitized channel must stay bland — internal detail lives in _meta only.
     const error = new TokenExchangeError(`failed for user abc-123 at ${RESOURCE}`, 400);
-    const result = handleToolError(error, SOURCE, RESOURCE, SCOPES);
-    expect(result.content[0].text).not.toContain("abc-123");
-    expect(result.content[0].text).not.toContain(RESOURCE);
+    const { text } = handleToolError(error, SOURCE, RESOURCE, SCOPES).content[0];
+    expect(text).not.toContain("abc-123");
+    expect(text).not.toContain(RESOURCE);
   });
 });
 
 // ── handleToolError — resource / scope / hint normalization ──────────────────
 
 describe("handleToolError — resources", () => {
-  it("uses a single resource string as resource", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES);
-    expect(result._meta.error.resource).toBe(RESOURCE);
-  });
-
-  it("uses a one-element resource array as the bare string", () => {
-    const result = handleToolError(new Error("x"), SOURCE, [RESOURCE], SCOPES);
-    expect(result._meta.error.resource).toBe(RESOURCE);
-  });
-
-  it("joins multiple resources with newlines", () => {
-    const result = handleToolError(
-      new Error("x"),
-      SOURCE,
-      ["https://a.example", "https://b.example", "https://c.example"],
-      SCOPES
-    );
-    expect(result._meta.error.resource).toBe(
-      "https://a.example\nhttps://b.example\nhttps://c.example"
-    );
-  });
-
-  it("leaves resource undefined for an empty resource array", () => {
-    const result = handleToolError(new Error("x"), SOURCE, [], SCOPES);
-    expect(result._meta.error.resource).toBeUndefined();
+  it.each([
+    ["a single resource string as-is", RESOURCE, RESOURCE],
+    ["a one-element array as the bare string", [RESOURCE], RESOURCE],
+    [
+      "multiple resources joined with newlines",
+      ["https://a.example", "https://b.example"],
+      "https://a.example\nhttps://b.example",
+    ],
+    ["an empty array as undefined", [], undefined],
+  ])("surfaces %s", (_label, resources, expected) => {
+    expect(handleToolError(ERR, SOURCE, resources, SCOPES)._meta.error.resource).toBe(expected);
   });
 });
 
 describe("handleToolError — scopes", () => {
-  it("passes a flat string[] through unchanged", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, ["a", "b"]);
-    expect(result._meta.error.scopes).toEqual(["a", "b"]);
-  });
-
-  it("flattens string[][] into a single list", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, [["a"], ["b", "c"]]);
-    expect(result._meta.error.scopes).toEqual(["a", "b", "c"]);
-  });
-
-  it("deduplicates scopes that repeat across nested lists", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, [
-      ["a", "b"],
-      ["b", "c"],
-      ["a"],
-    ]);
-    expect(result._meta.error.scopes).toEqual(["a", "b", "c"]);
-  });
-
-  it("deduplicates repeated scopes in a flat list", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, ["a", "a", "b"]);
-    expect(result._meta.error.scopes).toEqual(["a", "b"]);
-  });
-
-  it("sets scopes to undefined for an empty list", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, []);
-    expect(result._meta.error.scopes).toBeUndefined();
+  it.each([
+    ["passes a flat string[] through unchanged", ["a", "b"], ["a", "b"]],
+    ["flattens string[][] into a single list", [["a"], ["b", "c"]], ["a", "b", "c"]],
+    [
+      "deduplicates scopes repeated across nested lists",
+      [["a", "b"], ["b", "c"], ["a"]],
+      ["a", "b", "c"],
+    ],
+    ["deduplicates repeated scopes in a flat list", ["a", "a", "b"], ["a", "b"]],
+    ["sets scopes to undefined for an empty list", [], undefined],
+  ])("%s", (_label, scopes, expected) => {
+    expect(handleToolError(ERR, SOURCE, RESOURCE, scopes)._meta.error.scopes).toEqual(expected);
   });
 });
 
 describe("handleToolError — hints", () => {
-  it("joins extraHints with '; '", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES, [
-      "check zone config",
-      "verify resource identifier",
-    ]);
-    expect(result._meta.error.hint).toBe("check zone config; verify resource identifier");
-  });
-
-  it("uses a single hint as-is", () => {
-    const result = handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES, ["only one"]);
-    expect(result._meta.error.hint).toBe("only one");
-  });
-
-  it("leaves hint undefined when extraHints is empty or omitted", () => {
-    expect(
-      handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES, [])._meta.error.hint
-    ).toBeUndefined();
-    expect(
-      handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES)._meta.error.hint
-    ).toBeUndefined();
+  it.each([
+    [
+      "joins extraHints with '; '",
+      ["check zone config", "verify resource identifier"],
+      "check zone config; verify resource identifier",
+    ],
+    ["uses a single hint as-is", ["only one"], "only one"],
+    ["leaves hint undefined for an empty list", [], undefined],
+    ["leaves hint undefined when omitted", undefined, undefined],
+  ])("%s", (_label, extraHints, expected) => {
+    expect(handleToolError(ERR, SOURCE, RESOURCE, SCOPES, extraHints)._meta.error.hint).toBe(
+      expected
+    );
   });
 });
 
@@ -295,7 +229,7 @@ describe("handleToolError — hints", () => {
 
 describe("handleToolError — logging", () => {
   it("scopes the logger to the tool_error operation", () => {
-    handleToolError(new Error("x"), SOURCE, RESOURCE, SCOPES);
+    handleToolError(ERR, SOURCE, RESOURCE, SCOPES);
     expect(mockWithOperation).toHaveBeenCalledWith("tool_error");
   });
 
