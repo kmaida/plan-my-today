@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: {}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with: { ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false }
       - name: Run every allowed check from BASE policy in throwaway containers (PR code never runs on the runner)
         id: run
@@ -86,7 +86,7 @@ jobs:
     environment: factory     # the API key is readable only when this workflow was taken from the default branch
     outputs: { verdict: "${{ steps.out.outputs.verdict }}", attempt: "${{ steps.out.outputs.attempt }}" }
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with: { ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false }
       - name: Strip PR-controlled agent config (hooks, settings, instructions) before any model runs
         run: rm -rf .claude .codex .mcp.json CLAUDE.md AGENTS.md .cursor .github/copilot-instructions.md
@@ -144,7 +144,7 @@ jobs:
     environment: factory
     outputs: { verdict: "${{ steps.out.outputs.verdict }}", attempt: "${{ steps.out.outputs.attempt }}" }
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
         with: { ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false }
       - name: Strip PR-controlled agent config (hooks, settings, instructions) before any model runs
         run: rm -rf .claude .codex .mcp.json CLAUDE.md AGENTS.md .cursor .github/copilot-instructions.md
