@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # src/config.ts throws at import without these; tests never call Keycard.
-      KEYCARD_URL: https://chzabf1qgzjia0wfd17eietx70.keycard.cloud   # public issuer; discovery test fetches its metadata
+      KEYCARD_URL: https://chzabf1qgzjia0wfd17eietx70.keycard.cloud   # never fetched: the discovery test stubs the metadata fetch
       KEYCARD_CLIENT_ID: ci-dummy
       KEYCARD_CLIENT_SECRET: ci-dummy
       ENABLE_OTEL: "false"
