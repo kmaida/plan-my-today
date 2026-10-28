@@ -73,7 +73,7 @@ jobs:
             if run --network none node:24 bash -c "$c" >> "$out" 2>&1; then echo "exit 0" >> "$out"; else echo "exit $?" >> "$out"; ok=0; fi
           done < <(jq -r '.checks[]' "$p")
           [ "$ok" = 1 ]   # job result is the only signal downstream trusts
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
         if: always()
         with: { name: "judge-checks-${{ github.event.pull_request.head.sha }}", path: "${{ runner.temp }}/check-output.txt", retention-days: 14 }
 
@@ -133,7 +133,7 @@ jobs:
         run: |
           echo "verdict=$(grep -E '^VERDICT: (VERIFIED|CAVEATS|REFUTED)\s*$' "$RUNNER_TEMP/claude.txt" | tail -1 | awk '{print $2}' | tr -cd 'A-Z')" >> "$GITHUB_OUTPUT"
           echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"   # "re-run failed jobs" reuses this job's outputs from an earlier attempt; post refuses to mix attempts
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
         if: always()
         with: { name: "judge-claude-${{ github.event.pull_request.head.sha }}", path: "${{ runner.temp }}/claude.txt\n${{ runner.temp }}/prompt.md", retention-days: 14 }
 
@@ -203,7 +203,7 @@ jobs:
         run: |
           echo "verdict=$(grep -E '^VERDICT: (VERIFIED|CAVEATS|REFUTED)\s*$' "$RUNNER_TEMP/codex.txt" | tail -1 | awk '{print $2}' | tr -cd 'A-Z')" >> "$GITHUB_OUTPUT"
           echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
         if: always()
         with: { name: "judge-codex-${{ github.event.pull_request.head.sha }}", path: "${{ runner.temp }}/codex.txt\n${{ runner.temp }}/prompt.md", retention-days: 14 }
 
