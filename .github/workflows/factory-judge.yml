@@ -90,7 +90,7 @@ jobs:
         with: { ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false }
       - name: Strip PR-controlled agent config (hooks, settings, instructions) before any model runs
         run: rm -rf .claude .codex .mcp.json CLAUDE.md AGENTS.md .cursor .github/copilot-instructions.md
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
         with: { name: "judge-checks-${{ github.event.pull_request.head.sha }}", path: "${{ runner.temp }}/checks" }
       - name: Build the prompt (one-pass literal substitution; PR title/body, diff and check transcript are untrusted data)
         env: { TITLE: "${{ github.event.pull_request.title }}", BODY: "${{ github.event.pull_request.body }}", URL: "${{ github.event.pull_request.html_url }}" }
@@ -148,7 +148,7 @@ jobs:
         with: { ref: "${{ github.event.pull_request.head.sha }}", fetch-depth: 0, persist-credentials: false }
       - name: Strip PR-controlled agent config (hooks, settings, instructions) before any model runs
         run: rm -rf .claude .codex .mcp.json CLAUDE.md AGENTS.md .cursor .github/copilot-instructions.md
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093   # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333   # v8.0.2
         with: { name: "judge-checks-${{ github.event.pull_request.head.sha }}", path: "${{ runner.temp }}/checks" }
       - name: Build the prompt (one-pass literal substitution; PR title/body, diff and check transcript are untrusted data)
         env: { TITLE: "${{ github.event.pull_request.title }}", BODY: "${{ github.event.pull_request.body }}", URL: "${{ github.event.pull_request.html_url }}" }
