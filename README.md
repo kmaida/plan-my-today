@@ -304,4 +304,4 @@ Elastic License 2.0 (ELv2) — see [LICENSE](./LICENSE) for details.
 
 ## Factory
 
-Pull requests from branches named `factory/*` are opened by an autonomous Claude Code agent running in a sandbox. They require human review before merge.
+Pull requests from branches named `factory/*` are opened by an autonomous Claude Code agent running in a sandbox. They require human review before merge. Details are in [FACTORY.md](./FACTORY.md).
