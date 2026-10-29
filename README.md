@@ -305,3 +305,7 @@ Some pull requests on this repo are opened by an automated factory worker driven
 ## License
 
 Elastic License 2.0 (ELv2) — see [LICENSE](./LICENSE) for details.
+
+## Factory
+
+Pull requests from branches named `factory/*` are opened by an autonomous Claude Code agent running in a sandbox. They require human review before merge.
