@@ -12,3 +12,7 @@ updates:
       all-dependencies:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # TypeScript 7 drops the compiler API that ts-jest and ts-node load; revisit after moving to TS 6 and @swc/jest.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
