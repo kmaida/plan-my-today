@@ -298,10 +298,6 @@ Set `MEETING_NOTES_FOLDER_ID` to your Google Drive folder ID and `USER_DISPLAY_N
 
 Clear your Keycard cookies: navigate to `chrome://settings/content/all?searchSubpage=keycard.cloud` and delete the `keycard.cloud` cookie, then retry.
 
-## Autonomous changes
-
-Some pull requests on this repo are opened by an automated factory worker driven by [Linear](https://linear.app) issues. These PRs carry the `factory` label and are opened on `factory/*` branches. The PR body includes the acceptance check command and its full output. What the worker may read and modify is governed by [`.factory/policy.json`](./.factory/policy.json). This workflow was onboarded in [PR #4](https://github.com/kmaida/plan-my-today/pull/4).
-
 ## License
 
 Elastic License 2.0 (ELv2) — see [LICENSE](./LICENSE) for details.
