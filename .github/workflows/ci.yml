@@ -14,7 +14,7 @@ jobs:
       ENABLE_OTEL: "false"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 24, cache: npm }
       - run: npm ci
       - run: mkdir -p data   # gitignored; the stores write test fixtures here
